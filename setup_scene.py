@@ -3,7 +3,7 @@ import os
 
 
 
-def setup_scene():
+def setup_scene(no_cut = False):
     print("Starting Scene Setup...")
     
     # 1. Clear Objects (Keep Lights and Cameras)
@@ -256,6 +256,9 @@ def setup_scene():
         if not hardware_obj:
             print("Warning: Hardware object not found for boolean operation")
 
+    if no_cut:
+        return
+
     # 3. Perform Cuts
     # Ensure the script directory is in sys.path to import textured_cut
     # Helper to clear log
@@ -417,4 +420,4 @@ def setup_scene():
     print("Scene setup and processing complete.")
 
 if __name__ == "__main__":
-    setup_scene()
+    setup_scene(True)
