@@ -66,7 +66,7 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     # For large planes, Subsurf level 6 on a single quad is not enough resolution.
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.subdivide(number_cuts=12) # Increased from 10 to 12 for more detail
+    bpy.ops.mesh.subdivide(number_cuts=15) # Increased to 15 for deeper detail
     bpy.ops.object.mode_set(mode='OBJECT')
 
     # Simple subdivision or Subsurf modifier applied
@@ -81,12 +81,12 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     # Create Texture
     tex = bpy.data.textures.new("CutTexture", 'CLOUDS')
     tex.noise_scale = 5.0 # Scaled 10x (was 0.5)
-    tex.noise_depth = 2
+    tex.noise_depth = 3 # Increased from 2 to 3 for more complexity
     
     # Displace
     mod_disp = tool_obj.modifiers.new(name="Displacement", type='DISPLACE')
     mod_disp.texture = tex
-    mod_disp.strength = 0.5 # Reverted to 0.5 (Proven Stable)
+    mod_disp.strength = 2.0 # Increased to 2.0 for even deeper texture
     # We apply it to bake the geometry
     bpy.ops.object.modifier_apply(modifier=mod_disp.name)
     
