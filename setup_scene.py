@@ -122,6 +122,49 @@ def setup_scene():
     else:
         print(f"Error: Could not find {guitar_path}")
 
+    # Import Hardware STL
+    hardware_stl_filename = "hardware.stl"
+    hardware_path = os.path.join(script_dir, hardware_stl_filename)
+    
+    if os.path.exists(hardware_path):
+        print(f"Found Hardware STL: {hardware_path}")
+        # Deselect everything first
+        bpy.ops.object.select_all(action='DESELECT')
+        
+        try:
+            if hasattr(bpy.ops.wm, 'stl_import'):
+                print("Using bpy.ops.wm.stl_import...")
+                bpy.ops.wm.stl_import(filepath=hardware_path)
+            else:
+                print("Using bpy.ops.import_mesh.stl...")
+                bpy.ops.import_mesh.stl(filepath=hardware_path)
+            
+            # Get the imported hardware object
+            hardware = bpy.context.active_object
+            if hardware:
+                hardware.name = "Hardware"
+                print(f"Renamed imported object to: {hardware.name}")
+                
+                import math
+                # Rotate 180 degrees around Z axis
+                hardware.rotation_euler[2] = math.radians(180)
+                bpy.context.view_layer.update()
+                
+                # Shift by 33 in Y and 2 in Z
+                hardware.location.y += 40
+                hardware.location.z += 2
+                bpy.context.view_layer.update()
+                
+                print(f"Hardware Location: {hardware.location}")
+                print(f"Hardware Rotation: {hardware.rotation_euler}")
+            else:
+                print("Warning: Could not find imported hardware object.")
+                
+        except Exception as e:
+            print(f"Hardware STL Import Failed: {e}")
+    else:
+        print(f"Warning: Could not find {hardware_path}")
+
     # Import Neck OBJ
     if os.path.exists(neck_path):
         print(f"Found Neck OBJ: {neck_path}")
@@ -169,6 +212,49 @@ def setup_scene():
                 pass
     else:
         print(f"Error: Could not find {neck_path}")
+    
+    # Boolean operation: Subtract hardware from Guitar_Body
+    guitar_body = bpy.data.objects.get("Guitar_Body")
+    hardware_obj = bpy.data.objects.get("Hardware")
+    
+    if guitar_body and hardware_obj:
+        print("Subtracting hardware from Guitar_Body...")
+        
+        # Make sure Guitar_Body is the active object
+        bpy.ops.object.select_all(action='DESELECT')
+        guitar_body.select_set(True)
+        bpy.context.view_layer.objects.active = guitar_body
+        
+        # Add boolean modifier
+        bool_mod = guitar_body.modifiers.new(name="Hardware_Boolean", type='BOOLEAN')
+        bool_mod.operation = 'DIFFERENCE'
+        bool_mod.object = hardware_obj
+        bool_mod.solver = 'FLOAT'  # Use FLOAT solver (valid options: FLOAT, EXACT, MANIFOLD)
+        
+        # Apply the modifier
+        try:
+            bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+            print("Hardware subtracted successfully from Guitar_Body")
+        except Exception as e:
+            print(f"Error applying boolean modifier: {e}")
+        
+        # Delete the hardware object after boolean operation
+        # Ensure we're in object mode
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Deselect all and select only the hardware object
+        bpy.ops.object.select_all(action='DESELECT')
+        hardware_obj.select_set(True)
+        
+        # Delete the selected object
+        bpy.ops.object.delete()
+        print("Hardware object removed")
+    else:
+        if not guitar_body:
+            print("Warning: Guitar_Body not found for boolean operation")
+        if not hardware_obj:
+            print("Warning: Hardware object not found for boolean operation")
 
     # 3. Perform Cuts
     # Ensure the script directory is in sys.path to import textured_cut
