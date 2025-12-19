@@ -335,7 +335,7 @@ def setup_scene():
             return
 
         # Cut 7: Swap: Top_Mid/Mid were backwards - swap again to fix
-        if not textured_cut.cut("Guitar_Middle", location=(0, 27.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Mid", part2_name="Guitar_Mid", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Middle", location=(0, 27.5, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Mid", part2_name="Guitar_Mid", solidify_offset=1.0):
             print("ERROR: Cut 7 failed. Stopping.")
             return
         
