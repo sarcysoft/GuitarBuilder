@@ -2,15 +2,18 @@ import bpy
 import bmesh
 import os
 import sys
+from datetime import datetime
 
 # Setup Logging
 LOG_FILE = os.path.join(os.path.dirname(bpy.data.filepath) if bpy.data.filepath else r"E:\3D Printer\GuitarBuilder", "cut_log.txt")
 
 def log(message):
-    print(message)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted_message = f"[{timestamp}] {message}"
+    print(formatted_message)
     try:
         with open(LOG_FILE, "a") as f:
-            f.write(str(message) + "\n")
+            f.write(formatted_message + "\n")
     except:
         pass
 
@@ -63,15 +66,17 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     # For large planes, Subsurf level 6 on a single quad is not enough resolution.
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.subdivide(number_cuts=10) # Reduced to 10 for performance
+    bpy.ops.mesh.subdivide(number_cuts=12) # Increased from 10 to 12 for more detail
     bpy.ops.object.mode_set(mode='OBJECT')
 
     # Simple subdivision or Subsurf modifier applied
     mod_sub = tool_obj.modifiers.new(name="Subdivisions", type='SUBSURF')
     mod_sub.subdivision_type = 'SIMPLE'
-    mod_sub.levels = 2 # Reduced to 2 for stability
+    mod_sub.levels = 2 # Keep at 2 for stability
     mod_sub.render_levels = 2
     bpy.ops.object.modifier_apply(modifier=mod_sub.name)
+    
+    log(f"  Cutter subdivided: {len(tool_obj.data.vertices)} vertices")
     
     # Create Texture
     tex = bpy.data.textures.new("CutTexture", 'CLOUDS')
@@ -100,6 +105,16 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     # Triangulate Cutter to help Boolean
     mod_tri_cutter = tool_obj.modifiers.new(name="TriangulateCutter", type='TRIANGULATE')
     bpy.ops.object.modifier_apply(modifier=mod_tri_cutter.name)
+    
+    # Additional cleanup on cutter mesh
+    bpy.context.view_layer.objects.active = tool_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.remove_doubles(threshold=0.0001)
+    bpy.ops.mesh.delete_loose()
+    bpy.ops.mesh.fill_holes(sides=0)  # Fill any holes
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+    bpy.ops.object.mode_set(mode='OBJECT')
 
     # Data cleanup on Targets (Crucial for Booleans)
     for target in targets:
@@ -117,9 +132,14 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
         # HEAL MESH: Merge by distance to fix micro-gaps from previous cuts
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.remove_doubles(threshold=0.001) # Merge nearby vertices
+        bpy.ops.mesh.remove_doubles(threshold=0.0001) # Tighter threshold for higher detail meshes
+        bpy.ops.mesh.delete_loose() # Remove any loose vertices/edges
+        bpy.ops.mesh.fill_holes(sides=0)  # Fill any holes that might break booleans
         bpy.ops.mesh.normals_make_consistent(inside=False)
         bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Deselect after processing
+        target.select_set(False)
         
         # Triangulate to ensure robust boolean (FLOAT solver likes triangles)
         mod_tri = target.modifiers.new(name="TriangulateParams", type='TRIANGULATE')
@@ -133,6 +153,23 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
 
     # 3. Perform Cuts on Targets
     for target in targets:
+        log(f"  Processing target: {target.name}")
+        log(f"  Target Location: {target.location}")
+        log(f"  Target Dimensions: {target.dimensions}")
+        
+        # Calculate bounding box in world space to see where the mesh actually is
+        bbox = [target.matrix_world @ v.co for v in target.data.vertices]
+        if bbox:
+            min_x = min(v.x for v in bbox)
+            max_x = max(v.x for v in bbox)
+            min_y = min(v.y for v in bbox)
+            max_y = max(v.y for v in bbox)
+            min_z = min(v.z for v in bbox)
+            max_z = max(v.z for v in bbox)
+            log(f"  Target Bounding Box: X=[{min_x:.2f}, {max_x:.2f}], Y=[{min_y:.2f}, {max_y:.2f}], Z=[{min_z:.2f}, {max_z:.2f}]")
+        
+        log(f"  Cutter Location: {tool_obj.location}")
+        
         # Helper to robustly perform boolean
         def perform_robust_boolean(target_original, tool, op_name, part_name):
             # 1. Try EXACT Solver first (High Quality)
@@ -149,6 +186,8 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
             mod.object = tool
             mod.operation = op_name
             mod.solver = 'EXACT'
+            mod.use_self = True  # Enable self-intersection handling
+            mod.use_hole_tolerant = True  # Better handling of non-manifold geometry
             
             # Apply Cleanly
             try:
@@ -178,6 +217,8 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
             mod.operation = op_name
             # Blender version compatibility: User reported 'FAST' is invalid, 'FLOAT' is valid.
             mod.solver = 'FLOAT'
+            mod.use_self = True
+            mod.use_hole_tolerant = False  # FLOAT solver doesn't support hole_tolerant
             
             try:
                 bpy.ops.object.modifier_apply(modifier=mod.name)
@@ -239,7 +280,15 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
                 bpy.ops.mesh.select_all(action='SELECT')
                 bpy.ops.mesh.remove_doubles(threshold=0.001) # Merge vertices to fix non-manifold edges
                 bpy.ops.mesh.normals_make_consistent(inside=False)
-                bpy.ops.object.mode_set(mode='OBJECT')       
+                bpy.ops.object.mode_set(mode='OBJECT')
+                
+                # 3. Set origin to geometry center so object location reflects actual mesh position
+                # This is CRITICAL for subsequent cuts to work with absolute coordinates
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                log(f"  {obj.name} origin set to geometry center, new location: {obj.location}")
         
         # ... (Inside create_textured_cut) ...
         
@@ -254,22 +303,21 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
             max_y = max([v[1] for v in obj.bound_box])
             return (min_y + max_y) / 2 + obj.location.y
 
+        # DISABLED: Swap logic causes issues with vertical cuts (X-axis splits)
+        # The boolean operation order (INTERSECT vs DIFFERENCE) should match the intended names
         # Only swap if both exist
-        if len(part_a_obj.data.vertices) > 0 and len(part_b_obj.data.vertices) > 0:
-            cy_a = get_center_y(part_a_obj)
-            cy_b = get_center_y(part_b_obj)
-            log(f"  Center Y Check: A={cy_a:.2f}, B={cy_b:.2f}")
-            
-            # Logic: 
-            # Part A = Difference (Remaining).
-            # Part B = Intersect (Cut Piece).
-            # Standard Cut 1: Cut at 20. A=Top(>20), B=Bottom(<20).
-            # So we expect A_Y > B_Y.
-            
-            if cy_a < cy_b:
-                log("  DETECTED INVERSION: Part A is below Part B. Swapping to match naming convention (A=Top/High, B=Bottom/Low).")
-                # Swap objects
-                part_a_obj, part_b_obj = part_b_obj, part_a_obj
+        #if len(part_a_obj.data.vertices) > 0 and len(part_b_obj.data.vertices) > 0:
+        #    cy_a = get_center_y(part_a_obj)
+        #    cy_b = get_center_y(part_b_obj)
+        #    log(f"  Center Y Check: A={cy_a:.2f}, B={cy_b:.2f}")
+        #    
+        #    if cy_a < cy_b:
+        #        log("  DETECTED INVERSION: Part A is below Part B. Swapping to match naming convention (A=Top/High, B=Bottom/Low).")
+        #        # Swap objects
+        #        part_a_obj, part_b_obj = part_b_obj, part_a_obj
+        
+        log(f"  Part A ({part_a_name}): location={part_a_obj.location}, dims={part_a_obj.dimensions}")
+        log(f"  Part B ({part_b_name}): location={part_b_obj.location}, dims={part_b_obj.dimensions}")
         
         # Now apply names
         # SAFE RENAMING STRATEGY:
@@ -319,67 +367,132 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     return {'FINISHED'}
 
 def cut(target_name, location, rotation_deg, part1_name=None, part2_name=None, solidify_offset=1.0):
-    # Find the target object by name
+    """
+    Performs a textured cut on a target object.
+    Returns True if successful, False if failed.
+    """
+    log(f"=== CUT OPERATION START ===")
+    log(f"Target: {target_name} -> Part1: {part1_name}, Part2: {part2_name}")
+    
+    # Validate target object
     target = bpy.data.objects.get(target_name)
     if not target:
-        print(f"Error: Object '{target_name}' not found.")
-        return
+        log(f"ERROR: Object '{target_name}' not found.")
+        return False
 
-    # Ensure it's a mesh
     if target.type != 'MESH':
-        log(f"Error: Object '{target_name}' is not a MESH.")
-        return
+        log(f"ERROR: Object '{target_name}' is not a MESH.")
+        return False
+    
+    if len(target.data.vertices) == 0:
+        log(f"ERROR: Target '{target_name}' is empty (0 vertices).")
+        return False
         
-    log(f"Auto-creating cutter for target: {target.name}")
-    log(f"DEBUG: Target Dimensions: {target.dimensions}")
+    log(f"Target dimensions: {target.dimensions}")
     
-    # IMPORTANT: Select the target so it's ready for the operation
-    bpy.ops.object.select_all(action='DESELECT')
-    target.select_set(True)
-    
-    # Create Plane centered at origin
-    bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
-    cutter = bpy.context.active_object
-    cutter.name = "Auto_Cutter"
-    
-    # Scale 50x (Reduced from 10x to maintain texture density? No, Scaled 10x from previous 5, so 50)
-    cutter.scale = (50, 50, 50)
-    
-    # Move to specified location
-    cutter.location = location
-    
-    # Rotate as specified (converting degrees to radians)
-    import math
-    cutter.rotation_euler = (
-        math.radians(rotation_deg[0]),
-        math.radians(rotation_deg[1]),
-        math.radians(rotation_deg[2])
-    )
-    
-    # Update view layer to get accurate dimensions after transform
-    bpy.context.view_layer.update()
-    log(f"DEBUG: Cutter Dimensions: {cutter.dimensions}")
-    log(f"DEBUG: Cutter Location: {cutter.location}")
-    
-    # Ensure correct selection for the boolean operation
-    # Active: Cutter
-    # Selected: Target + Cutter
-    bpy.ops.object.select_all(action='DESELECT')
-    cutter.select_set(True)
-    target.select_set(True)
-    bpy.context.view_layer.objects.active = cutter
+    # Create cutter plane
+    try:
+        bpy.ops.object.select_all(action='DESELECT')
+        target.select_set(True)
         
-    # Run the cut function
-    create_textured_cut(part_a_name=part1_name, part_b_name=part2_name, solidify_offset=solidify_offset)
+        bpy.ops.mesh.primitive_plane_add(size=2, enter_editmode=False, align='WORLD', location=(0, 0, 0))
+        cutter = bpy.context.active_object
+        cutter.name = "Auto_Cutter"
+        
+        # Scale and position
+        cutter.scale = (50, 50, 50)
+        cutter.location = location
+        
+        import math
+        cutter.rotation_euler = (
+            math.radians(rotation_deg[0]),
+            math.radians(rotation_deg[1]),
+            math.radians(rotation_deg[2])
+        )
+        
+        bpy.context.view_layer.update()
+        log(f"Cutter location: {cutter.location}")
+        
+    except Exception as e:
+        log(f"ERROR: Failed to create cutter: {e}")
+        return False
     
-    # Cleanup the auto-generated cutter if it was created
-    if 'cutter' in locals() and cutter:
-        # Note: create_textured_cut already deletes 'tool_obj' (the duplicate)
-        # We need to delete the 'Auto_Cutter' original plane we just made
+    # Perform the cut operation
+    try:
+        bpy.ops.object.select_all(action='DESELECT')
+        cutter.select_set(True)
+        target.select_set(True)
+        bpy.context.view_layer.objects.active = cutter
+        
+        result = create_textured_cut(part_a_name=part1_name, part_b_name=part2_name, solidify_offset=solidify_offset)
+        
+        # Cleanup the auto-cutter
         try:
-             log(f"  Cleaning up auto-cutter: {cutter.name}")
-             bpy.data.objects.remove(cutter, do_unlink=True)
-        except Exception as e:
-            log(f"  Warning: Could not remove auto-cutter: {e}")
+            bpy.data.objects.remove(cutter, do_unlink=True)
+        except:
+            pass
+        
+        # Cleanup any leftover cutter debris
+        cleanup_debris()
+        
+        # Verify the cut produced valid results
+        part1 = bpy.data.objects.get(part1_name)
+        part2 = bpy.data.objects.get(part2_name)
+        
+        if not part1 or len(part1.data.vertices) == 0:
+            log(f"ERROR: Part1 '{part1_name}' is empty or missing!")
+            log("=== CUT OPERATION FAILED ===")
+            return False
+            
+        if not part2 or len(part2.data.vertices) == 0:
+            log(f"ERROR: Part2 '{part2_name}' is empty or missing!")
+            log("=== CUT OPERATION FAILED ===")
+            return False
+        
+        log(f"SUCCESS: Created {part1_name} ({len(part1.data.vertices)} verts) and {part2_name} ({len(part2.data.vertices)} verts)")
+        log("=== CUT OPERATION SUCCESS ===")
+        return True
+        
+    except Exception as e:
+        log(f"ERROR: Cut operation failed with exception: {e}")
+        import traceback
+        log(traceback.format_exc())
+        
+        # Cleanup on failure
+        try:
+            if cutter:
+                bpy.data.objects.remove(cutter, do_unlink=True)
+        except:
+            pass
+        cleanup_debris()
+        
+        log("=== CUT OPERATION FAILED ===")
+        return False
+
+
+def cleanup_debris():
+    """Remove temporary cutter objects and duplicate artifacts"""
+    debris_count = 0
+    for obj in list(bpy.data.objects):
+        # Delete cutters
+        if obj.name.startswith("Cutter_Tool") or obj.name.startswith("Auto_Cutter"):
+            bpy.data.objects.remove(obj, do_unlink=True)
+            debris_count += 1
+            continue
+            
+        # Delete processed parents
+        if obj.name.endswith("_Processed"):
+            bpy.data.objects.remove(obj, do_unlink=True)
+            debris_count += 1
+            continue
+            
+        # Delete duplicates (.001, .002, etc)
+        if ".00" in obj.name:
+            bpy.data.objects.remove(obj, do_unlink=True)
+            debris_count += 1
+    
+    if debris_count > 0:
+        log(f"Cleaned up {debris_count} debris objects")
+
 
 # perform_cuts function removed as per user request to keep cut logic centralized in setup_scene.py

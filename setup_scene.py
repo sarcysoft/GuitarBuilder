@@ -30,8 +30,22 @@ def setup_scene():
         print("No objects to delete.")
     
     # 2. Import Files
-    # Hardcoded path to ensure it matches the user's workspace
-    script_dir = r"E:\3D Printer\GuitarBuilder"
+    # Get the directory where this script is located
+    # When running from Blender's Text Editor, __file__ might be the .blend file
+    if bpy.data.filepath:
+        # If a .blend file is open, use its directory
+        script_dir = os.path.dirname(os.path.abspath(bpy.data.filepath))
+    else:
+        # Fallback to the script's actual location or hardcoded path
+        try:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # If __file__ is a .blend file, get its directory
+            if script_dir.endswith('.blend'):
+                script_dir = os.path.dirname(script_dir)
+        except:
+            script_dir = r"E:\3D Printer\GuitarBuilder"
+    
+    print(f"Script directory: {script_dir}")
             
     guitar_obj_filename = "guitar.obj"
     neck_obj_filename = "NeckAmericanStandard.obj"
@@ -159,61 +173,87 @@ def setup_scene():
     # 3. Perform Cuts
     # Ensure the script directory is in sys.path to import textured_cut
     # Helper to clear log
+    from datetime import datetime
     LOG_FILE = os.path.join(os.path.dirname(bpy.data.filepath) if bpy.data.filepath else r"E:\3D Printer\GuitarBuilder", "cut_log.txt")
     try:
         with open(LOG_FILE, "w") as f:
-            f.write("--- New Run ---\n")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"=== NEW RUN: {timestamp} ===\n")
+            f.write(f"Script: setup_scene.py\n")
+            f.write(f"Working Directory: {script_dir}\n")
+            f.write("=" * 50 + "\n\n")
     except:
         pass
 
     import sys
-    if script_dir not in sys.path:
-        sys.path.append(script_dir)
-        
+    import importlib.util
+    
+    # Remove any .blend file paths from sys.path that might interfere
+    sys.path = [p for p in sys.path if not p.endswith('.blend')]
+    
+    # Make sure script_dir is first in the path for priority
+    if script_dir in sys.path:
+        sys.path.remove(script_dir)
+    sys.path.insert(0, script_dir)
+    print(f"Added to sys.path (priority): {script_dir}")
+    
+    # Remove cached import if it exists (from failed previous attempts)
+    if 'textured_cut' in sys.modules:
+        del sys.modules['textured_cut']
+    
+    print(f"Attempting to import textured_cut from: {script_dir}")
+    
     try:
-        import textured_cut
-        import importlib
-        importlib.reload(textured_cut) # Ensure we use the latest version if modified
+        # Use importlib to manually load the module from the file path
+        textured_cut_path = os.path.join(script_dir, "textured_cut.py")
+        print(f"Loading module from: {textured_cut_path}")
+        print(f"File exists: {os.path.exists(textured_cut_path)}")
+        
+        spec = importlib.util.spec_from_file_location("textured_cut", textured_cut_path)
+        textured_cut = importlib.util.module_from_spec(spec)
+        sys.modules['textured_cut'] = textured_cut
+        spec.loader.exec_module(textured_cut)
+        
+        print("Successfully imported textured_cut!")
         
         print("Starting Cut Operations...")
-        # Execute the cuts as requested
-        textured_cut.cut("Guitar_Body", location=(0, 10.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top", part2_name="Guitar_Bottom", solidify_offset=1.0)
-
-        textured_cut.cut("Guitar_Bottom", location=(0, 10.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Bot_Right", part2_name="Guitar_Bot_Left", solidify_offset=1.0)
+        # Execute the cuts as requested - stop if any cut fails
+        # Note: part1_name = DIFFERENCE (what remains), part2_name = INTERSECT (what's cut off)
         
-        # Rotated -90 Y (270) to Flip normal so Intersect captures the Left side instead of Full
-        textured_cut.cut("Guitar_Top", location=(-5.0, 20.0, 0), rotation_deg=(0, -90, 0), part1_name="Guitar_Middle_Right", part2_name="Guitar_Left", solidify_offset=1.0)
-        # Note: Guitar_Middle_Right is the big piece, which is split into Middle and Right.
-        # Rot 90 (X>5) keeps Right (Part B). Diff (Part A) matches Middle.
-        # So Part1(A)=Middle, Part2(B)=Right.
-        textured_cut.cut("Guitar_Middle_Right", location=(5.0, 20.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Right", part2_name="Guitar_Middle", solidify_offset=1.0)
+        if not textured_cut.cut("Guitar_Body", location=(0, 10.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top", part2_name="Guitar_Bottom", solidify_offset=1.0):
+            print("ERROR: Cut 1 failed. Stopping.")
+            return
 
-        textured_cut.cut("Guitar_Left", location=(-10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Left", part2_name="Guitar_Mid_Left", solidify_offset=1.0)
-        textured_cut.cut("Guitar_Right", location=(10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Right", part2_name="Guitar_Mid_Right", solidify_offset=1.0)
+        # Swap: Left/Right were backwards
+        if not textured_cut.cut("Guitar_Bottom", location=(0, 10.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Bot_Left", part2_name="Guitar_Bot_Right", solidify_offset=1.0):
+            print("ERROR: Cut 2 failed. Stopping.")
+            return
+        
+        # Vertical cut at X=-5
+        if not textured_cut.cut("Guitar_Top", location=(-5.0, 20.0, 0), rotation_deg=(0, -90, 0), part1_name="Guitar_Middle_Right", part2_name="Guitar_Left", solidify_offset=1.0):
+            print("ERROR: Cut 3 failed. Stopping.")
+            return
+            
+        # Vertical cut at X=5 - Swap: Middle/Right were backwards
+        if not textured_cut.cut("Guitar_Middle_Right", location=(5.0, 20.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Middle", part2_name="Guitar_Right", solidify_offset=1.0):
+            print("ERROR: Cut 4 failed. Stopping.")
+            return
 
-        # Cut 7: Split Guitar_Middle (Center Strip). Rot -90 (Keeps Top / Y > Cut).
-        # So Part2(B)=Top. Part1(A)=Bottom.
-        textured_cut.cut("Guitar_Middle", location=(0, 27.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Mid", part2_name="Guitar_Mid", solidify_offset=1.0)
+        if not textured_cut.cut("Guitar_Left", location=(-10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Left", part2_name="Guitar_Mid_Left", solidify_offset=1.0):
+            print("ERROR: Cut 5 failed. Stopping.")
+            return
+        
+        # Swap: Top_Right/Mid_Right were backwards - swap again to fix
+        if not textured_cut.cut("Guitar_Right", location=(10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Right", part2_name="Guitar_Mid_Right", solidify_offset=1.0):
+            print("ERROR: Cut 6 failed. Stopping.")
+            return
 
-        # Final Cleanup Sweep
-        print("Running Final Debris Cleanup...")
-        for obj in bpy.data.objects:
-             # Delete Cutters
-             if obj.name.startswith("Cutter_Tool") or obj.name.startswith("Auto_Cutter"):
-                 print(f"  Removing debris: {obj.name}")
-                 bpy.data.objects.remove(obj, do_unlink=True)
-                 continue
-                 
-             # Delete Processed parents
-             if obj.name.endswith("_Processed"):
-                 print(f"  Removing intermediate: {obj.name}")
-                 bpy.data.objects.remove(obj, do_unlink=True)
-                 continue
-                 
-             # Delete duplicates (.00X)
-             if is_debris(obj.name):
-                  print(f"  Removing duplicate/artifact: {obj.name}")
-                  bpy.data.objects.remove(obj, do_unlink=True)
+        # Cut 7: Swap: Top_Mid/Mid were backwards - swap again to fix
+        if not textured_cut.cut("Guitar_Middle", location=(0, 27.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Mid", part2_name="Guitar_Mid", solidify_offset=1.0):
+            print("ERROR: Cut 7 failed. Stopping.")
+            return
+        
+        print("All cuts completed successfully!")
         
         # Save Debug State
         debug_path = r"E:\3D Printer\GuitarBuilder\debug_guitar_result.blend"
@@ -223,30 +263,16 @@ def setup_scene():
         print(f"Saving debug result to: {debug_path}")
         bpy.ops.wm.save_as_mainfile(filepath=debug_path)
         
-    except ImportError:
-        print("Error: Could not import textured_cut.py. Make sure it is in the same directory.")
+    except ImportError as e:
+        print(f"Error: Could not import textured_cut.py: {e}")
+        import traceback
+        traceback.print_exc()
     except Exception as e:
         print(f"An error occurred during cutting: {e}")
+        import traceback
+        traceback.print_exc()
 
     print("Scene setup and processing complete.")
-
-def is_debris(name):
-    # Helper to identify unwanted suffixes
-    if ".00" in name:
-        # Check if it's a version of a known valid part?
-        # Setup list of expected final names
-        valid_names = [
-            "Guitar_Bot_Left", "Guitar_Bot_Right",
-            "Guitar_Top_Left", "Guitar_Top_Right", "Guitar_Top_Mid",
-            "Guitar_Mid_Left", "Guitar_Mid_Right", "Guitar_Mid",
-            # Neck?
-            "NeckAmericanStandard"
-        ]
-        base_name = name.split(".00")[0]
-        # If the base name is valid, then this .001 is a duplicate we don't want.
-        # Unless the valid name IS the one with .001 (unlikely).
-        return True
-    return False
 
 if __name__ == "__main__":
     setup_scene()
