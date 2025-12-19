@@ -255,6 +255,62 @@ def setup_scene():
         
         print("All cuts completed successfully!")
         
+        # Export all resultant parts to separate STL files
+        print("Exporting parts to STL files...")
+        models_dir = os.path.join(script_dir, "models")
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+            print(f"Created models directory: {models_dir}")
+        
+        # List of all final part names
+        final_parts = [
+            "Guitar_Bot_Left",
+            "Guitar_Bot_Right",
+            "Guitar_Top_Left",
+            "Guitar_Mid_Left",
+            "Guitar_Top_Right",
+            "Guitar_Mid_Right",
+            "Guitar_Top_Mid",
+            "Guitar_Mid"
+        ]
+        
+        exported_count = 0
+        for part_name in final_parts:
+            obj = bpy.data.objects.get(part_name)
+            if obj:
+                # Deselect all, then select only this object
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                
+                # Export to STL with global scale of 10.0
+                stl_path = os.path.join(models_dir, f"{part_name}.stl")
+                
+                # Try Blender 5.0+ operator first, fallback to older versions
+                try:
+                    if hasattr(bpy.ops.wm, 'stl_export'):
+                        # Blender 5.0+ uses wm.stl_export
+                        bpy.ops.wm.stl_export(
+                            filepath=stl_path,
+                            export_selected_objects=True,
+                            global_scale=10.0
+                        )
+                    else:
+                        # Older Blender versions use export_mesh.stl
+                        bpy.ops.export_mesh.stl(
+                            filepath=stl_path,
+                            use_selection=True,
+                            global_scale=10.0
+                        )
+                    print(f"Exported: {stl_path}")
+                    exported_count += 1
+                except Exception as export_error:
+                    print(f"Error exporting {part_name}: {export_error}")
+            else:
+                print(f"Warning: Part '{part_name}' not found for export")
+        
+        print(f"Successfully exported {exported_count} parts to {models_dir}")
+        
         # Save Debug State
         debug_path = r"E:\3D Printer\GuitarBuilder\debug_guitar_result.blend"
         if bpy.data.filepath:
