@@ -2,9 +2,224 @@ import bpy
 import os
 
 
+def import_stl(stl_filename, script_dir, rotation_z=0, offset_y=0, offset_z=0):
+    """
+    Import an STL file and apply transformations.
+    
+    Args:
+        stl_filename: Name of the STL file to import
+        script_dir: Directory where the STL file is located
+        rotation_z: Rotation around Z axis in degrees (default 0)
+        offset_y: Y axis offset (default 0)
+        offset_z: Z axis offset (default 0)
+    
+    Returns:
+        The imported object if successful, None otherwise
+    """
+    import math
+    
+    stl_path = os.path.join(script_dir, stl_filename)
+    
+    if not os.path.exists(stl_path):
+        print(f"Warning: Could not find {stl_path}")
+        return None
+    
+    print(f"Found STL: {stl_path}")
+    # Deselect everything first
+    bpy.ops.object.select_all(action='DESELECT')
+    
+    try:
+        # Import STL
+        if hasattr(bpy.ops.wm, 'stl_import'):
+            print("Using bpy.ops.wm.stl_import...")
+            bpy.ops.wm.stl_import(filepath=stl_path)
+        else:
+            print("Using bpy.ops.import_mesh.stl...")
+            bpy.ops.import_mesh.stl(filepath=stl_path)
+        
+        # Get the imported object
+        imported_obj = bpy.context.active_object
+        if not imported_obj:
+            print("Warning: Could not find imported STL object.")
+            return None
+        
+        obj_name = f"Hardware_{stl_filename.replace('.stl', '')}"
+        imported_obj.name = obj_name
+        print(f"Renamed imported object to: {imported_obj.name}")
+        
+        # Apply transformations
+        if rotation_z != 0:
+            imported_obj.rotation_euler[2] = math.radians(rotation_z)
+            bpy.context.view_layer.update()
+        
+        if offset_y != 0:
+            imported_obj.location.y += offset_y
+        if offset_z != 0:
+            imported_obj.location.z += offset_z
+        bpy.context.view_layer.update()
+        
+        print(f"{obj_name} Location: {imported_obj.location}")
+        print(f"{obj_name} Rotation: {imported_obj.rotation_euler}")
+        
+        return imported_obj
+        
+    except Exception as e:
+        print(f"STL Import Failed: {e}")
+        return None
+
+
+def import_obj(obj_filename, script_dir, rotation_x=0, rotation_y=0, rotation_z=0, offset_x=0, offset_y=0, offset_z=0):
+    """
+    Import an OBJ file and apply transformations.
+    
+    Args:
+        obj_filename: Name of the OBJ file to import
+        script_dir: Directory where the OBJ file is located
+        rotation_x: Rotation around X axis in degrees (default 0)
+        rotation_y: Rotation around Y axis in degrees (default 0)
+        rotation_z: Rotation around Z axis in degrees (default 0)
+        offset_x: X axis offset (default 0)
+        offset_y: Y axis offset (default 0)
+        offset_z: Z axis offset (default 0)
+    
+    Returns:
+        The imported object if successful, None otherwise
+    """
+    import math
+    
+    obj_path = os.path.join(script_dir, obj_filename)
+    
+    if not os.path.exists(obj_path):
+        print(f"Warning: Could not find {obj_path}")
+        return None
+    
+    print(f"Found OBJ: {obj_path}")
+    # Deselect everything first
+    bpy.ops.object.select_all(action='DESELECT')
+    
+    try:
+        # Import OBJ
+        if hasattr(bpy.ops.wm, 'obj_import'):
+            print("Using bpy.ops.wm.obj_import...")
+            bpy.ops.wm.obj_import(filepath=obj_path)
+        else:
+            print("Using bpy.ops.import_scene.obj...")
+            bpy.ops.import_scene.obj(filepath=obj_path)
+        
+        # Get the imported object
+        imported_obj = bpy.context.active_object
+        if not imported_obj:
+            print("Warning: Could not find imported OBJ object.")
+            return None
+        
+        print(f"Imported object: {imported_obj.name}")
+        
+        # Apply rotations
+        imported_obj.rotation_mode = 'XYZ'
+        if rotation_x != 0:
+            imported_obj.rotation_euler[0] += math.radians(rotation_x)
+        if rotation_y != 0:
+            imported_obj.rotation_euler[1] += math.radians(rotation_y)
+        if rotation_z != 0:
+            imported_obj.rotation_euler[2] += math.radians(rotation_z)
+        
+        bpy.context.view_layer.update()
+        
+        # Apply offsets
+        if offset_x != 0:
+            imported_obj.location.x += offset_x
+        if offset_y != 0:
+            imported_obj.location.y += offset_y
+        if offset_z != 0:
+            imported_obj.location.z += offset_z
+        bpy.context.view_layer.update()
+        
+        print(f"{imported_obj.name} Location: {imported_obj.location}")
+        print(f"{imported_obj.name} Rotation: {imported_obj.rotation_euler}")
+        
+        return imported_obj
+        
+    except Exception as e:
+        print(f"OBJ Import Failed: {e}")
+        return None
+
+
+def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0, offset_y=0, offset_z=0, keep_object=False):
+    """
+    Import an STL file, position/rotate it, and subtract it from the guitar body using boolean operation.
+    
+    Args:
+        stl_filename: Name of the STL file to import
+        guitar_body: The guitar body object to subtract from
+        script_dir: Directory where the STL file is located
+        rotation_z: Rotation around Z axis in degrees (default 0)
+        offset_y: Y axis offset (default 0)
+        offset_z: Z axis offset (default 0)
+        keep_object: If True, keep the imported object after subtraction (default False)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    # Import the STL file
+    imported_obj = import_stl(stl_filename, script_dir, rotation_z, offset_y, offset_z)
+    if not imported_obj:
+        return False
+    
+    obj_name = imported_obj.name
+    
+    # Boolean operation: Subtract from guitar body
+    if not guitar_body:
+        print("Warning: Guitar_Body not found for boolean operation")
+        return False
+    
+    print(f"Subtracting {obj_name} from Guitar_Body...")
+    
+    # Make sure Guitar_Body is the active object
+    bpy.ops.object.select_all(action='DESELECT')
+    guitar_body.select_set(True)
+    bpy.context.view_layer.objects.active = guitar_body
+    
+    # Add boolean modifier
+    bool_mod = guitar_body.modifiers.new(name=f"{obj_name}_Boolean", type='BOOLEAN')
+    bool_mod.operation = 'DIFFERENCE'
+    bool_mod.object = imported_obj
+    bool_mod.solver = 'FLOAT'  # Use FLOAT solver (valid options: FLOAT, EXACT, MANIFOLD)
+    
+    # Apply the modifier
+    try:
+        bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+        print(f"{obj_name} subtracted successfully from Guitar_Body")
+    except Exception as e:
+        print(f"Error applying boolean modifier: {e}")
+        return False
+    
+    # Delete the hardware object after boolean operation (unless keep_object is True)
+    if not keep_object:
+        # Ensure we're in object mode
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Deselect all and select only the hardware object
+        bpy.ops.object.select_all(action='DESELECT')
+        imported_obj.select_set(True)
+        
+        # Delete the selected object
+        bpy.ops.object.delete()
+        print(f"{obj_name} removed")
+    else:
+        print(f"{obj_name} kept in scene")
+    
+    return True
+
 
 def setup_scene(no_cut = False):
     print("Starting Scene Setup...")
+    
+    # Initialize progress bar
+    wm = bpy.context.window_manager
+    wm.progress_begin(0, 100)
+    progress = 0
+    wm.progress_update(progress)
     
     # 1. Clear Objects (Keep Lights and Cameras)
     # 1. Clear Objects (Keep Lights and Cameras)
@@ -122,139 +337,25 @@ def setup_scene(no_cut = False):
     else:
         print(f"Error: Could not find {guitar_path}")
 
-    # Import Hardware STL
-    hardware_stl_filename = "hardware.stl"
-    hardware_path = os.path.join(script_dir, hardware_stl_filename)
-    
-    if os.path.exists(hardware_path):
-        print(f"Found Hardware STL: {hardware_path}")
-        # Deselect everything first
-        bpy.ops.object.select_all(action='DESELECT')
-        
-        try:
-            if hasattr(bpy.ops.wm, 'stl_import'):
-                print("Using bpy.ops.wm.stl_import...")
-                bpy.ops.wm.stl_import(filepath=hardware_path)
-            else:
-                print("Using bpy.ops.import_mesh.stl...")
-                bpy.ops.import_mesh.stl(filepath=hardware_path)
-            
-            # Get the imported hardware object
-            hardware = bpy.context.active_object
-            if hardware:
-                hardware.name = "Hardware"
-                print(f"Renamed imported object to: {hardware.name}")
-                
-                import math
-                # Rotate 180 degrees around Z axis
-                hardware.rotation_euler[2] = math.radians(180)
-                bpy.context.view_layer.update()
-                
-                # Shift by 33 in Y and 2 in Z
-                hardware.location.y += 40
-                hardware.location.z += 2
-                bpy.context.view_layer.update()
-                
-                print(f"Hardware Location: {hardware.location}")
-                print(f"Hardware Rotation: {hardware.rotation_euler}")
-            else:
-                print("Warning: Could not find imported hardware object.")
-                
-        except Exception as e:
-            print(f"Hardware STL Import Failed: {e}")
-    else:
-        print(f"Warning: Could not find {hardware_path}")
+    progress = 25
+    wm.progress_update(progress)
 
-    # Import Neck OBJ
-    if os.path.exists(neck_path):
-        print(f"Found Neck OBJ: {neck_path}")
-        # Deselect everything first so we know what gets selected is the new import
-        bpy.ops.object.select_all(action='DESELECT')
-        
-        try:
-            if hasattr(bpy.ops.wm, 'obj_import'):
-                print("Using bpy.ops.wm.obj_import...")
-                bpy.ops.wm.obj_import(filepath=neck_path)
-            else:
-                print("Using bpy.ops.import_scene.obj...")
-                bpy.ops.import_scene.obj(filepath=neck_path)
-                
-            # Rotate Neck
-            # The import usually selects the new objects.
-            # We specifically want 'NeckAmericanStandard' (or the active object if it's the only one).
-            
-            # Simple assumption: The active object is the neck we just imported
-            neck = bpy.context.active_object
-            
-            # Verify name just in case, or fallback to searching
-            if neck is None or "Neck" not in neck.name:
-                # Try to find by exact name
-                neck = bpy.data.objects.get("NeckAmericanStandard")
-            
-            if neck:
-                print(f"Rotating {neck.name}...")
-                import math
-                neck.rotation_mode = 'XYZ'
-                # 90 degrees around X, then 90 around Z (cumulative)
-                # Note: Euler rotation applied in XYZ order means X first, then Y, then Z.
-                # So setting both at once works for "X then Z".
-                neck.rotation_euler[0] += math.radians(-90)
-                neck.rotation_euler[2] += math.radians(90)
-            else:
-                print("Warning: Could not find imported neck object to rotate.")
-                
-        except Exception as e:
-            print(f"OBJ Import Failed: {e}")
-            # Fallback attempt
-            try: 
-                 bpy.ops.import_scene.obj(filepath=neck_path)
-            except:
-                pass
-    else:
-        print(f"Error: Could not find {neck_path}")
-    
-    # Boolean operation: Subtract hardware from Guitar_Body
+    # Import and subtract hardware STL from guitar body
     guitar_body = bpy.data.objects.get("Guitar_Body")
-    hardware_obj = bpy.data.objects.get("Hardware")
+    import_and_subtract_stl("hardware.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_mask.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_fixings.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
     
-    if guitar_body and hardware_obj:
-        print("Subtracting hardware from Guitar_Body...")
-        
-        # Make sure Guitar_Body is the active object
-        bpy.ops.object.select_all(action='DESELECT')
-        guitar_body.select_set(True)
-        bpy.context.view_layer.objects.active = guitar_body
-        
-        # Add boolean modifier
-        bool_mod = guitar_body.modifiers.new(name="Hardware_Boolean", type='BOOLEAN')
-        bool_mod.operation = 'DIFFERENCE'
-        bool_mod.object = hardware_obj
-        bool_mod.solver = 'FLOAT'  # Use FLOAT solver (valid options: FLOAT, EXACT, MANIFOLD)
-        
-        # Apply the modifier
-        try:
-            bpy.ops.object.modifier_apply(modifier=bool_mod.name)
-            print("Hardware subtracted successfully from Guitar_Body")
-        except Exception as e:
-            print(f"Error applying boolean modifier: {e}")
-        
-        # Delete the hardware object after boolean operation
-        # Ensure we're in object mode
-        if bpy.context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-        
-        # Deselect all and select only the hardware object
-        bpy.ops.object.select_all(action='DESELECT')
-        hardware_obj.select_set(True)
-        
-        # Delete the selected object
-        bpy.ops.object.delete()
-        print("Hardware object removed")
-    else:
-        if not guitar_body:
-            print("Warning: Guitar_Body not found for boolean operation")
-        if not hardware_obj:
-            print("Warning: Hardware object not found for boolean operation")
+    # Import backplate.stl (without subtraction, just for visualization/reference)
+    import_stl("backplate.stl", script_dir, rotation_z=180, offset_y=40, offset_z=2)
+
+    progress = 45
+    wm.progress_update(progress)
+
+    # Import Neck OBJ using the import_obj function
+    neck = import_obj(neck_obj_filename, script_dir, rotation_x=-90, rotation_z=90, offset_z=-0.85)
+    if not neck:
+        print(f"Error: Could not import neck from {neck_obj_filename}")
 
     if no_cut:
         return

@@ -80,7 +80,7 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     
     # Create Texture
     tex = bpy.data.textures.new("CutTexture", 'CLOUDS')
-    tex.noise_scale = 5.0 # Scaled 10x (was 0.5)
+    tex.noise_scale = 1.0 # Scaled 10x (was 0.5)
     tex.noise_depth = 3 # Increased from 2 to 3 for more complexity
     
     # Displace
