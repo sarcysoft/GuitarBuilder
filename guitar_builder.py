@@ -188,7 +188,7 @@ def parse_wrapper_args(argv):
     uncut = False
     angle = "all"
     engine = "eevee"
-    material = "red"
+    material = "gloss"
     lighting = "studio"
     
     i = 0

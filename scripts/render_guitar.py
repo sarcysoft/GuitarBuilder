@@ -94,13 +94,13 @@ def get_or_create_satin_maple():
     return mat
 
 
-def create_candy_red():
-    mat = bpy.data.materials.new(name="Candy Apple Red")
+def create_glossy(name="Glossy Paint", color=(0.65, 0.01, 0.02, 1.0)):
+    mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     p = get_principled_bsdf(nodes)
     if p:
-        p.inputs[0].default_value = (0.65, 0.01, 0.02, 1.0)
+        p.inputs[0].default_value = color
         p.inputs.get("Roughness").default_value = 0.08
         if "Metallic" in p.inputs:
             p.inputs["Metallic"].default_value = 0.3
@@ -114,25 +114,6 @@ def create_candy_red():
             p.inputs["Coat Roughness"].default_value = 0.05
         elif "Clearcoat Roughness" in p.inputs:
             p.inputs["Clearcoat Roughness"].default_value = 0.05
-    return mat
-
-
-def create_electric_blue():
-    mat = bpy.data.materials.new(name="Electric Blue")
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    p = get_principled_bsdf(nodes)
-    if p:
-        p.inputs[0].default_value = (0.01, 0.2, 0.7, 1.0)
-        p.inputs.get("Roughness").default_value = 0.08
-        if "Metallic" in p.inputs:
-            p.inputs["Metallic"].default_value = 0.4
-        elif "Metallic Weight" in p.inputs:
-            p.inputs["Metallic Weight"].default_value = 0.4
-        if "Coat" in p.inputs:
-            p.inputs["Coat"].default_value = 1.0
-        elif "Clearcoat" in p.inputs:
-            p.inputs["Clearcoat"].default_value = 1.0
     return mat
 
 
@@ -342,10 +323,19 @@ def get_material_by_name(mat_name):
     """Retrieve or construct a material based on the parsed name."""
     mat_name = mat_name.lower().strip()
     
-    if mat_name == "red":
-        return create_candy_red()
+    if mat_name.startswith("gloss"):
+        # Format: gloss or gloss:color
+        parts = mat_name.split(":")
+        color = (0.65, 0.01, 0.02, 1.0)  # default candy apple red
+        name = "Glossy Paint"
+        if len(parts) >= 2:
+            color = parse_color(parts[1])
+            name = f"Glossy {parts[1]}"
+        return create_glossy(name, color)
+    elif mat_name == "red":
+        return create_glossy("Glossy Red", (0.65, 0.01, 0.02, 1.0))
     elif mat_name == "blue":
-        return create_electric_blue()
+        return create_glossy("Glossy Blue", (0.01, 0.2, 0.7, 1.0))
     elif mat_name == "gold":
         return create_gold_top()
     elif mat_name == "chrome" or mat_name == "silver":
@@ -379,8 +369,8 @@ def get_material_by_name(mat_name):
             
         return create_sparkle(name, main_color, sparkle_color)
     else:
-        # Fallback to candy red
-        return create_candy_red()
+        # Fallback to default gloss (red)
+        return create_glossy()
 
 
 def check_and_apply_neck_material(neck_obj):
@@ -796,7 +786,7 @@ def run_rendering():
     parser.add_argument("--body-only", action="store_true", help="Render only the guitar body")
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
     parser.add_argument("--engine", default="eevee", choices=["eevee", "cycles"], help="Blender render engine")
-    parser.add_argument("--material", default="red", help="Material preset (red, blue, gold, chrome, black, glass, sunburst, striped, random, or custom list)")
+    parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, black, glass, sunburst, striped, random, or custom list)")
     parser.add_argument("--lighting", default="studio", choices=["studio", "dramatic", "warm", "sunset"], help="Lighting setup preset")
     
     args = parser.parse_args(args_to_parse)
@@ -906,15 +896,15 @@ def run_rendering():
             # Setup list of shaders
             if material_mode == "striped":
                 striped_mats = [
-                    create_candy_red(),
-                    create_electric_blue(),
+                    create_glossy(name="Gloss Red", color=(0.65, 0.01, 0.02, 1.0)),
+                    create_glossy(name="Gloss Blue", color=(0.01, 0.2, 0.7, 1.0)),
                     create_gold_top(),
                     create_polished_chrome()
                 ]
             elif material_mode == "random":
                 rand_mats = [
-                    create_candy_red(),
-                    create_electric_blue(),
+                    create_glossy(name="Gloss Red", color=(0.65, 0.01, 0.02, 1.0)),
+                    create_glossy(name="Gloss Blue", color=(0.01, 0.2, 0.7, 1.0)),
                     create_gold_top(),
                     create_polished_chrome(),
                     create_glossy_black(),
