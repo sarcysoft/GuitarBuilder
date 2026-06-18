@@ -55,6 +55,22 @@ def get_modifier_inputs(geom_modifier):
     return mapping
 
 
+def resolve_config_path(filepath, script_dir):
+    """Ensure the config file is placed in or read from the 'config' directory by default if a relative name is given, and create parent folders if missing."""
+    if not os.path.isabs(filepath):
+        norm_path = os.path.normpath(filepath)
+        parts = norm_path.split(os.sep)
+        if parts[0] != 'config':
+            filepath = os.path.join('config', filepath)
+        filepath = os.path.join(script_dir, filepath)
+        
+    parent_dir = os.path.dirname(filepath)
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
+        
+    return filepath
+
+
 def export_config(geom_modifier, filepath):
     """Read Geometry Nodes modifier values and write them to a JSON configuration file."""
     mapping = get_modifier_inputs(geom_modifier)
@@ -210,14 +226,16 @@ else:
     script_dir = os.path.dirname(os.path.abspath(bpy.data.filepath)) if bpy.data.filepath else os.getcwd()
     
     if args.import_config:
-        print(f"Importing parameters from: {args.import_config}...")
-        import_config(geom_modifier, args.import_config)
+        resolved_path = resolve_config_path(args.import_config, script_dir)
+        print(f"Importing parameters from: {resolved_path}...")
+        import_config(geom_modifier, resolved_path)
         print("Saving updated parameters to guitar.blend...")
         bpy.ops.wm.save_mainfile()
         
     if args.export_config:
-        print(f"Exporting parameters...")
-        export_config(geom_modifier, args.export_config)
+        resolved_path = resolve_config_path(args.export_config, script_dir)
+        print(f"Exporting parameters to: {resolved_path}...")
+        export_config(geom_modifier, resolved_path)
         
     if args.generate:
         print("Generating mesh...")
