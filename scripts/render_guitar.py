@@ -342,15 +342,21 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
     mix = nodes.new(type="ShaderNodeMix")
     mix.data_type = 'RGBA'
     mix.blend_type = 'MIX'
-    try:
-        mix.inputs[4].default_value = main_color_rgb[:3]
-        mix.inputs[5].default_value = sparkle_color_rgb[:3]
-    except Exception:
-        try:
-            mix.inputs[4].default_value = main_color_rgb
-            mix.inputs[5].default_value = sparkle_color_rgb
-        except Exception:
-            pass
+    
+    # Find RGBA type sockets to avoid hardcoded indices
+    color_a_socket = None
+    color_b_socket = None
+    for inp in mix.inputs:
+        if inp.type == 'RGBA':
+            if color_a_socket is None:
+                color_a_socket = inp
+            else:
+                color_b_socket = inp
+                break
+                
+    if color_a_socket and color_b_socket:
+        color_a_socket.default_value = main_color_rgb
+        color_b_socket.default_value = sparkle_color_rgb
     
     # Bump node to perturb normals to create shimmering highlights
     bump = nodes.new(type="ShaderNodeBump")
@@ -360,7 +366,16 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
     # Connections
     links.new(voronoi.outputs['Distance'], map_range.inputs[0])
     links.new(map_range.outputs['Result'], mix.inputs[0])
-    links.new(mix.outputs[2], p.inputs[0])  # Connect Mix output to Base Color
+    
+    # Connect Mix output to Base Color by matching RGBA output socket
+    rgba_output = None
+    for out in mix.outputs:
+        if out.type == 'RGBA':
+            rgba_output = out
+            break
+            
+    if rgba_output:
+        links.new(rgba_output, p.inputs[0])
     
     # Connect voronoi to bump normal
     links.new(voronoi.outputs['Distance'], bump.inputs[2])
@@ -449,16 +464,12 @@ def check_and_apply_neck_material(neck_obj):
     """Checks if the neck has valid materials loaded. If not, applies Satin Maple."""
     has_valid_material = False
     for slot in neck_obj.material_slots:
-        if slot.material and slot.material.name not in ["Material", "Default", ""]:
-            # If the material uses nodes and has more than 2 nodes, assume it has textures/details
-            if slot.material.use_nodes and len(slot.material.node_tree.nodes) > 2:
+        if slot.material:
+            name = slot.material.name.lower().strip()
+            # If a custom material name is loaded (not standard generic default names), assume it's valid
+            if name and not name.startswith("material") and not name.startswith("default"):
                 has_valid_material = True
                 break
-            elif not slot.material.use_nodes:
-                # If not using nodes, verify it's not default white
-                if slot.material.diffuse_color[:3] != (1.0, 1.0, 1.0):
-                    has_valid_material = True
-                    break
                     
     if not has_valid_material:
         print("No valid material detected on imported neck. Applying Satin Maple fallback...")
