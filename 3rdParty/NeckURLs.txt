@@ -1,5 +1,5 @@
+Free Online Converter - To STL
+https://imagetostl.com/convert/file/f3d/to/blend
+
 NeckAmericanStandard:
 https://grabcad.com/library/fender-stratocaster-neck-american-standard-1
-
-NeckParametric:
-https://grabcad.com/library/parametric-guitar-neck-1

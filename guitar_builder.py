@@ -13,26 +13,41 @@ except ImportError:
 
 
 def find_blender():
-    """Locate the Blender executable on Windows."""
+    """Locate the Blender executable on Windows, macOS, and Linux."""
     # 1. Check if 'blender' is in the system PATH
     try:
-        result = subprocess.run(["where", "blender"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        cmd = ["where", "blender"] if os.name == "nt" else ["which", "blender"]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode == 0:
-            return "blender"
+            # Strip trailing newline if any
+            return result.stdout.strip().split('\n')[0].strip()
     except Exception:
         pass
     
-    # 2. Check the standard installation directories in Program Files
-    pf = os.environ.get("ProgramFiles", "C:\\Program Files")
-    bf = os.path.join(pf, "Blender Foundation")
-    if os.path.exists(bf):
-        subdirs = [os.path.join(bf, d) for d in os.listdir(bf) if d.startswith("Blender")]
-        # Sort subdirs to get the highest version first (e.g. Blender 5.1 over 4.2)
-        subdirs.sort(reverse=True)
-        for sd in subdirs:
-            exe = os.path.join(sd, "blender.exe")
-            if os.path.exists(exe):
-                return exe
+    # 2. Check platform-specific standard installation directories
+    if os.name == "nt":
+        pf = os.environ.get("ProgramFiles", "C:\\Program Files")
+        bf = os.path.join(pf, "Blender Foundation")
+        if os.path.exists(bf):
+            subdirs = [os.path.join(bf, d) for d in os.listdir(bf) if d.startswith("Blender")]
+            subdirs.sort(reverse=True)
+            for sd in subdirs:
+                exe = os.path.join(sd, "blender.exe")
+                if os.path.exists(exe):
+                    return exe
+    elif sys.platform == "darwin":
+        mac_path = "/Applications/Blender.app/Contents/MacOS/blender"
+        if os.path.exists(mac_path):
+            return mac_path
+    else:
+        linux_paths = [
+            "/usr/bin/blender",
+            "/usr/local/bin/blender",
+            "/snap/bin/blender"
+        ]
+        for path in linux_paths:
+            if os.path.exists(path):
+                return path
                 
     # 3. Fallback to 'blender'
     return "blender"
@@ -158,33 +173,176 @@ def generate_obj(guitar_body, script_dir, filename="guitar.obj"):
         sys.exit(1)
 
 
-if not inside_blender:
+def parse_wrapper_args(argv):
+    """Custom command-line argument parser for wrapper shell execution mode."""
+    no_cut = False
+    config = None
+    export_config = None
+    export_config_flag = False
+    import_config = None
+    generate = False
+    
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ["--no-cut", "--no_cut", "no_cut"]:
+            no_cut = True
+            i += 1
+        elif arg in ["--export-config", "--export_config"]:
+            export_config_flag = True
+            if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                export_config = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg in ["--import-config", "--import_config"]:
+            if i + 1 < len(argv):
+                import_config = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg == "--config":
+            if i + 1 < len(argv):
+                config = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg == "--generate":
+            generate = True
+            i += 1
+        elif arg.startswith("-"):
+            # Skip/ignore other unsupported flags
+            i += 1
+        else:
+            # Positional argument: set config if not already set
+            if not config:
+                config = arg
+            i += 1
+            
+    return no_cut, config, export_config_flag, export_config, import_config, generate
+
+
+def run_wrapper_mode():
     # =========================================================================
     # WRAPPER MODE (System Shell)
     # =========================================================================
     script_dir = os.path.dirname(os.path.abspath(__file__))
     blender_exe = find_blender()
     
-    guitar_blend = os.path.join(script_dir, "guitar.blend")
+    guitar_blend = os.path.join(script_dir, "scripts", "guitar.blend")
     if not os.path.exists(guitar_blend):
         print(f"Error: {guitar_blend} not found in the workspace.")
         sys.exit(1)
         
-    # Re-run this script inside Blender
-    cmd = [
-        blender_exe,
-        "--background",
-        guitar_blend,
-        "--python",
-        os.path.abspath(__file__),
-        "--"
-    ] + sys.argv[1:]
+    # Parse command line args
+    no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate = parse_wrapper_args(sys.argv[1:])
     
-    print(f"Launching Blender in background mode...")
-    result = subprocess.run(cmd)
-    sys.exit(result.returncode)
+    # Case 1: Config Export Mode
+    if export_config_flag:
+        print("Exporting guitar model configuration...")
+        cmd_args = []
+        if config:
+            cmd_args += ["--config", config]
+        if wrapper_export_config:
+            cmd_args += ["--export-config", wrapper_export_config]
+        else:
+            cmd_args += ["--export-config"]
+            
+        cmd = [
+            blender_exe,
+            "--background",
+            guitar_blend,
+            "--python",
+            os.path.abspath(__file__),
+            "--"
+        ] + cmd_args
+        
+        result = subprocess.run(cmd)
+        sys.exit(result.returncode)
+        
+    # Case 2: Config Import Mode
+    if wrapper_import_config:
+        print(f"Importing configuration: {wrapper_import_config}...")
+        cmd_args = ["--import-config", wrapper_import_config]
+        if config:
+            cmd_args += ["--config", config]
+        if generate:
+            cmd_args += ["--generate"]
+            
+        cmd = [
+            blender_exe,
+            "--background",
+            guitar_blend,
+            "--python",
+            os.path.abspath(__file__),
+            "--"
+        ] + cmd_args
+        
+        result = subprocess.run(cmd)
+        sys.exit(result.returncode)
+        
+    # Case 3: Build Mode (Stage 1 Configurator -> Stage 2 Scene Setup)
+    setup_scene_path = os.path.join(script_dir, "scripts", "setup_scene.py")
+    if not os.path.exists(setup_scene_path):
+        print(f"Error: setup_scene.py not found at {setup_scene_path}")
+        sys.exit(1)
+        
+    if config:
+        print(f"Generating guitar model for config: {config}...")
+        # Run Stage 1 (Configurator inside Blender)
+        cmd1 = [
+            blender_exe,
+            "--background",
+            guitar_blend,
+            "--python",
+            os.path.abspath(__file__),
+            "--",
+            "--config", config,
+            "--generate"
+        ]
+        print(f"-> Launching Stage 1 Configurator...")
+        res1 = subprocess.run(cmd1)
+        if res1.returncode != 0:
+            print(f"Error: Configurator stage failed with return code {res1.returncode}")
+            sys.exit(res1.returncode)
+            
+        # Run Stage 2 (Scene Setup inside Blender)
+        setup_args = ["--config", config]
+        if no_cut:
+            setup_args.append("--no-cut")
+            
+        cmd2 = [
+            blender_exe,
+            "--background",
+            "--python",
+            setup_scene_path,
+            "--"
+        ] + setup_args
+        
+        print(f"-> Launching Stage 2 Scene Setup...")
+        res2 = subprocess.run(cmd2)
+        sys.exit(res2.returncode)
+        
+    else:
+        # No config profile specified: run Stage 2 directly with optional --no-cut
+        setup_args = []
+        if no_cut:
+            setup_args.append("--no-cut")
+            
+        cmd2 = [
+            blender_exe,
+            "--background",
+            "--python",
+            setup_scene_path,
+            "--"
+        ] + setup_args
+        
+        print(f"-> Launching Stage 2 Scene Setup (no configuration profile)...")
+        res2 = subprocess.run(cmd2)
+        sys.exit(res2.returncode)
 
-else:
+
+def run_internal_mode():
     # =========================================================================
     # BLENDER INTERNAL MODE (Running inside Blender)
     # =========================================================================
@@ -225,6 +383,8 @@ else:
         sys.exit(1)
         
     script_dir = os.path.dirname(os.path.abspath(bpy.data.filepath)) if bpy.data.filepath else os.getcwd()
+    if os.path.basename(script_dir) == "scripts":
+        script_dir = os.path.dirname(script_dir)
     
     # Handle the --config helper
     config_name = args.config
@@ -264,3 +424,14 @@ else:
         generate_obj(guitar_body, script_dir, obj_filename)
         
     print("Execution complete.")
+
+
+def main():
+    if not inside_blender:
+        run_wrapper_mode()
+    else:
+        run_internal_mode()
+
+
+if __name__ == "__main__":
+    main()

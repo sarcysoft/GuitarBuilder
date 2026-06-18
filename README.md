@@ -20,81 +20,59 @@ The pipeline uses Geometry Nodes inside Blender for parametric body generation, 
 
 - **Blender 4.0+** (Blender 5.1+ is recommended/tested).
 - **Python 3.10+**.
-- Ensure `blender` is in your system's PATH. If not, the Windows runner (`guitar_builder.bat`) will attempt to automatically locate it in standard paths (like `C:\Program Files\Blender Foundation\`).
+- Ensure `blender` is in your system's PATH. If not, the script will attempt to automatically locate it in standard installation paths for your platform (Windows, macOS, and Linux).
 
 ---
 
-## Usage (`guitar_builder`)
+## Usage (`guitar_builder.py`)
 
-All setup, custom configuration profiling, and generation tasks can be performed using the unified `guitar_builder` script.
+All setup, custom configuration profiling, and generation tasks can be performed using the unified `guitar_builder.py` script.
 
 ### 1. Slicing & Scene Setup (Full Pipeline)
 To build the guitar model and run the complete scene setup (applying cuts and exporting the output parts):
 
-#### On Windows:
-```cmd
-:: Run with default parameters
-guitar_builder.bat
-
-:: Run with a custom profile (e.g., config/sarcaster.json)
-guitar_builder.bat sarcaster
-
-:: Export full body model without cutting it
-guitar_builder.bat --no-cut
-
-:: Combined: Run custom profile and export full body without cuts
-guitar_builder.bat sarcaster --no-cut
-```
-
-#### On macOS / Linux:
 ```bash
-# Make the script executable first
-chmod +x guitar_builder.sh
-
 # Run with default parameters
-./guitar_builder.sh
+python guitar_builder.py
 
-# Run with custom profile
-./guitar_builder.sh sarcaster
+# Run with a custom profile (e.g., config/sarcaster.json)
+python guitar_builder.py sarcaster
 
-# Run without cutting
-./guitar_builder.sh --no-cut
+# Export full body model without cutting it
+python guitar_builder.py --no-cut
 
-# Combined
-./guitar_builder.sh sarcaster --no-cut
+# Combined: Run custom profile and export full body without cuts
+python guitar_builder.py sarcaster --no-cut
 ```
 
 ### 2. Exporting Model Configuration
 Extract the current parameters of the Blender model to a JSON file (stored under the `config/` directory by default):
 ```bash
 # Export default parameters to config/guitar_config.json
-./guitar_builder.sh --export-config
+python guitar_builder.py --export-config
 
 # Export parameters under a specific profile name (e.g. config/sarcaster.json)
-./guitar_builder.sh sarcaster --export-config
+python guitar_builder.py sarcaster --export-config
 
 # Export parameters to a custom file name
-./guitar_builder.sh --export-config custom.json
+python guitar_builder.py --export-config custom.json
 ```
 
----
+### 3. Importing and Configurator Utility (Bypassing Slicing)
+If you want to configure and build the base guitar mesh directly without doing any scene setup or cutting:
 
-## 3. Under the Hood: Configurator Script (`configure_guitar.py`)
-
-If you want to bypass the main setup runners, you can execute `configure_guitar.py` directly to configure and build the base guitar mesh without doing any scene setup or cutting:
-
-- **Export Config**: `python configure_guitar.py --export-config sarcaster.json`
-- **Import Config**: `python configure_guitar.py --import-config sarcaster.json`
-- **Generate Mesh**: `python configure_guitar.py --generate`
-- **Combined Import & Generate**: `python configure_guitar.py --config sarcaster --generate`
+- **Export Config**: `python guitar_builder.py --export-config sarcaster.json`
+- **Import Config**: `python guitar_builder.py --import-config sarcaster.json`
+- **Generate Mesh**: `python guitar_builder.py --generate`
+- **Combined Import & Generate**: `python guitar_builder.py --config sarcaster --generate`
 
 ---
 
-## 4. OpenSCAD STL Compilation (`compile_scad.py`)
+## 4. OpenSCAD STL Compilation (`scripts/compile_scad.py`)
 
 If you edit the `.scad` files in the `models/` folder, you can regenerate their corresponding `.stl` files by running:
 ```bash
-python compile_scad.py
+python scripts/compile_scad.py
 ```
 - **Utility Exclusions**: Any `.scad` file starting with an underscore (such as `_rounded_poly.scad`) is treated as a utility script and is skipped during compilation.
 - **Custom Path**: If the script cannot automatically locate `openscad.exe`, you can define its path using the `OPENSCAD_PATH` environment variable.

@@ -265,10 +265,15 @@ def setup_scene(no_cut = False, config_name = None):
             script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
     
     print(f"Script directory: {script_dir}")
-    models_dir = os.path.join(script_dir, "models")
-    third_party_dir = os.path.join(script_dir, "3rdParty")
-    blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else script_dir
-    debug_dir = os.path.join(blend_dir, "debug")
+    if os.path.basename(script_dir) == "scripts":
+        root_dir = os.path.dirname(script_dir)
+    else:
+        root_dir = script_dir
+    print(f"Root directory: {root_dir}")
+    
+    models_dir = os.path.join(root_dir, "models")
+    third_party_dir = os.path.join(root_dir, "3rdParty")
+    debug_dir = os.path.join(root_dir, "debug")
     if not os.path.exists(debug_dir):
         os.makedirs(debug_dir)
             
@@ -384,7 +389,7 @@ def setup_scene(no_cut = False, config_name = None):
 
     if no_cut:
         print("no_cut is True. Exporting Guitar_Full_Body to STL...")
-        output_dir = os.path.join(script_dir, "output")
+        output_dir = os.path.join(root_dir, "output")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             print(f"Created output directory: {output_dir}")
@@ -514,7 +519,7 @@ def setup_scene(no_cut = False, config_name = None):
         
         # Export all resultant parts to separate STL files
         print("Exporting parts to STL files...")
-        output_dir = os.path.join(script_dir, "output")
+        output_dir = os.path.join(root_dir, "output")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             print(f"Created output directory: {output_dir}")

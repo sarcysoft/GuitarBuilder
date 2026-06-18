@@ -38,7 +38,11 @@ def find_openscad():
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    models_dir = os.path.join(script_dir, "models")
+    if os.path.basename(script_dir) == "scripts":
+        root_dir = os.path.dirname(script_dir)
+    else:
+        root_dir = script_dir
+    models_dir = os.path.join(root_dir, "models")
     
     if not os.path.exists(models_dir):
         print(f"Error: models directory '{models_dir}' not found.")
