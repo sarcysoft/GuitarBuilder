@@ -90,7 +90,18 @@ If you want to bypass the main setup runners, you can execute `configure_guitar.
 
 ---
 
-## 4. Custom Profiles
+## 4. OpenSCAD STL Compilation (`compile_scad.py`)
+
+If you edit the `.scad` files in the `models/` folder, you can regenerate their corresponding `.stl` files by running:
+```bash
+python compile_scad.py
+```
+- **Utility Exclusions**: Any `.scad` file starting with an underscore (such as `_rounded_poly.scad`) is treated as a utility script and is skipped during compilation.
+- **Custom Path**: If the script cannot automatically locate `openscad.exe`, you can define its path using the `OPENSCAD_PATH` environment variable.
+
+---
+
+## 5. Custom Profiles
 
 Configuration JSON files (saved inside the `config/` directory) contain human-readable keys corresponding to Blender's Geometry Nodes parameters. Example structure (`config/sarcaster.json`):
 
