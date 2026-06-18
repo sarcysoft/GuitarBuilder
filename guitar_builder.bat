@@ -31,6 +31,8 @@ set "BLENDER_CMD=%FOUND_BLENDER%"
 :: Default to empty
 set "NO_CUT_ARG="
 set "CONFIG_ARG="
+set "EXPORT_CONFIG_FLAG="
+set "EXPORT_VAL_ARG="
 
 :parse_args
 if "%~1"=="" goto :args_done
@@ -49,6 +51,32 @@ if "%~1"=="no_cut" (
     shift
     goto :parse_args
 )
+if "%~1"=="--export-config" (
+    set "EXPORT_CONFIG_FLAG=1"
+    set "NEXT_ARG=%~2"
+    if defined NEXT_ARG (
+        set "FIRST_CHAR=!NEXT_ARG:~0,1!"
+        if not "!FIRST_CHAR!"=="-" (
+            set "EXPORT_VAL_ARG=!NEXT_ARG!"
+            shift
+        )
+    )
+    shift
+    goto :parse_args
+)
+if "%~1"=="--export_config" (
+    set "EXPORT_CONFIG_FLAG=1"
+    set "NEXT_ARG=%~2"
+    if defined NEXT_ARG (
+        set "FIRST_CHAR=!NEXT_ARG:~0,1!"
+        if not "!FIRST_CHAR!"=="-" (
+            set "EXPORT_VAL_ARG=!NEXT_ARG!"
+            shift
+        )
+    )
+    shift
+    goto :parse_args
+)
 if "%~1"=="--config" (
     set "CONFIG_ARG=%~2"
     shift
@@ -61,6 +89,19 @@ shift
 goto :parse_args
 
 :args_done
+
+if defined EXPORT_CONFIG_FLAG (
+    echo Exporting guitar model configuration...
+    set "CMD_ARGS="
+    if defined CONFIG_ARG set "CMD_ARGS=--config !CONFIG_ARG!"
+    if defined EXPORT_VAL_ARG (
+        set "CMD_ARGS=!CMD_ARGS! --export-config !EXPORT_VAL_ARG!"
+    ) else (
+        set "CMD_ARGS=!CMD_ARGS! --export-config"
+    )
+    python "%SCRIPT_DIR%configure_guitar.py" !CMD_ARGS!
+    goto :eof
+)
 
 if defined CONFIG_ARG (
     echo Generating guitar model for config: %CONFIG_ARG%...

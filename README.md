@@ -20,82 +20,77 @@ The pipeline uses Geometry Nodes inside Blender for parametric body generation, 
 
 - **Blender 4.0+** (Blender 5.1+ is recommended/tested).
 - **Python 3.10+**.
-- Ensure `blender` is in your system's PATH. If not, the Windows runner (`run_setup.bat`) will attempt to automatically locate it in standard paths (like `C:\Program Files\Blender Foundation\`).
+- Ensure `blender` is in your system's PATH. If not, the Windows runner (`guitar_builder.bat`) will attempt to automatically locate it in standard paths (like `C:\Program Files\Blender Foundation\`).
 
 ---
 
-## 1. Full Pipeline Execution (`run_setup`)
+## Usage (`guitar_builder`)
 
-To run the complete setup pipeline (which processes the parameters, loads the models, performs boolean operations, cuts the guitar body, and exports the final parts):
+All setup, custom configuration profiling, and generation tasks can be performed using the unified `guitar_builder` script.
 
-### On Windows
+### 1. Slicing & Scene Setup (Full Pipeline)
+To build the guitar model and run the complete scene setup (applying cuts and exporting the output parts):
+
+#### On Windows:
 ```cmd
-:: Run with default parameters and perform body cuts
-run_setup.bat
+:: Run with default parameters
+guitar_builder.bat
 
 :: Run with a custom profile (e.g., config/sarcaster.json)
-run_setup.bat sarcaster
+guitar_builder.bat sarcaster
 
 :: Export full body model without cutting it
-run_setup.bat --no-cut
+guitar_builder.bat --no-cut
 
 :: Combined: Run custom profile and export full body without cuts
-run_setup.bat sarcaster --no-cut
+guitar_builder.bat sarcaster --no-cut
 ```
 
-### On macOS / Linux
+#### On macOS / Linux:
 ```bash
 # Make the script executable first
-chmod +x run_setup.sh
+chmod +x guitar_builder.sh
 
 # Run with default parameters
-./run_setup.sh
+./guitar_builder.sh
 
 # Run with custom profile
-./run_setup.sh sarcaster
+./guitar_builder.sh sarcaster
 
 # Run without cutting
-./run_setup.sh --no-cut
+./guitar_builder.sh --no-cut
 
 # Combined
-./run_setup.sh sarcaster --no-cut
+./guitar_builder.sh sarcaster --no-cut
+```
+
+### 2. Exporting Model Configuration
+Extract the current parameters of the Blender model to a JSON file (stored under the `config/` directory by default):
+```bash
+# Export default parameters to config/guitar_config.json
+./guitar_builder.sh --export-config
+
+# Export parameters under a specific profile name (e.g. config/sarcaster.json)
+./guitar_builder.sh sarcaster --export-config
+
+# Export parameters to a custom file name
+./guitar_builder.sh --export-config custom.json
 ```
 
 ---
 
-## 2. Command-Line Guitar Model Configurator (`configure_guitar.py`)
+## 3. Under the Hood: Configurator Script (`configure_guitar.py`)
 
-If you want to configure parameters or regenerate only the base guitar mesh without running the cutting and scene setup operations, you can run the utility script `configure_guitar.py`.
+If you want to bypass the main setup runners, you can execute `configure_guitar.py` directly to configure and build the base guitar mesh without doing any scene setup or cutting:
 
-It runs directly from your system shell and launches Blender in background mode.
-
-### Exporting parameters from Blender
-Extract the current parameters of the Blender model to a JSON file (by default saved under the `config/` directory):
-```bash
-python configure_guitar.py --export-config sarcaster.json
-```
-
-### Importing parameters to Blender
-Write parameters from a JSON configuration profile directly into the Blender file:
-```bash
-python configure_guitar.py --import-config sarcaster.json
-```
-
-### Generating the mesh only
-Regenerate and export the custom guitar body geometry to `models/guitar.obj`:
-```bash
-python configure_guitar.py --generate
-```
-
-### Combined Profile import and generation
-Import a config profile, save it to the `.blend` file, and export the custom mesh (e.g. `models/sarcaster.obj`) in a single step:
-```bash
-python configure_guitar.py --config sarcaster --generate
-```
+- **Export Config**: `python configure_guitar.py --export-config sarcaster.json`
+- **Import Config**: `python configure_guitar.py --import-config sarcaster.json`
+- **Generate Mesh**: `python configure_guitar.py --generate`
+- **Combined Import & Generate**: `python configure_guitar.py --config sarcaster --generate`
 
 ---
 
-## 3. Custom Profiles
+## 4. Custom Profiles
 
 Configuration JSON files (saved inside the `config/` directory) contain human-readable keys corresponding to Blender's Geometry Nodes parameters. Example structure (`config/sarcaster.json`):
 

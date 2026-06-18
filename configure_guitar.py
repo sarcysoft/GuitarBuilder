@@ -196,7 +196,7 @@ else:
         args_to_parse = []
         
     parser = argparse.ArgumentParser(description="Configure and generate Guitar Model from command line.")
-    parser.add_argument("--export-config", help="Export current model parameters to a JSON file")
+    parser.add_argument("--export-config", nargs='?', const='__default__', help="Export current model parameters to a JSON file")
     parser.add_argument("--import-config", help="Import model parameters from a JSON file and save to guitar.blend")
     parser.add_argument("--config", help="Name of configuration profile to import and generate (e.g. 'sarcaster')")
     parser.add_argument("--generate", action="store_true", help="Generate and export models/guitar.obj")
@@ -240,6 +240,12 @@ else:
             obj_filename = f"{config_name}.obj"
         else:
             obj_filename = "guitar.obj"
+            
+    if export_path == '__default__':
+        if config_name and config_name != "default":
+            export_path = f"{config_name}.json"
+        else:
+            export_path = "guitar_config.json"
             
     if import_path:
         resolved_path = resolve_config_path(import_path, script_dir)
