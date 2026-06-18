@@ -276,33 +276,34 @@ def configure_sunburst_material(mat):
     min_z = min(w[2] for w in world_coords)
     max_z = max(w[2] for w in world_coords)
     
-    center_x = (min_x + max_x) / 2.0
-    center_y = (min_y + max_y) / 2.0
-    center_z = (min_z + max_z) / 2.0
-    
     size_x = max_x - min_x
     size_y = max_y - min_y
     
-    # Set Mapping Translation (moves center of gradient to center of body)
-    try:
-        loc_input = mapping.inputs.get('Location') or mapping.inputs[1]
-        loc_input.default_value = (-center_x, -center_y, -center_z)
-    except Exception as e:
-        print(f"Error setting mapping Location: {e}")
-        
-    # Set Mapping Scale (adjusts Y scale to make the radial gradient elliptical matching body proportions)
+    center_x = (min_x + max_x) / 2.0
+    center_y = min_y + size_y * 0.38
+    
+    scale_y = size_x / size_y if (size_y > 0 and size_x > 0) else 1.0
+    
+    # Set Mapping Scale (adjusts Y scale to make the radial gradient elliptical matching body proportions, and projects 2D along Z)
     try:
         scale_input = mapping.inputs.get('Scale') or mapping.inputs[3]
-        if size_y > 0 and size_x > 0:
-            scale_input.default_value = (1.0, size_x / size_y, 1.0)
+        scale_input.default_value = (1.0, scale_y, 0.0)
     except Exception as e:
         print(f"Error setting mapping Scale: {e}")
         
+    # Set Mapping Translation (moves center of gradient to center of body - requires scaling the Location coordinates for POINT mapping)
+    try:
+        loc_input = mapping.inputs.get('Location') or mapping.inputs[1]
+        loc_input.default_value = (-center_x, -center_y * scale_y, 0.0)
+    except Exception as e:
+        print(f"Error setting mapping Location: {e}")
+        
     # Set Map Range From Max (radius of the sunburst fits half the body width)
     try:
-        map_range.inputs[2].default_value = size_x / 2.0
+        map_range.inputs[2].default_value = size_y * 0.55
     except Exception as e:
         print(f"Error setting map range From Max: {e}")
+
 
 
 def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
