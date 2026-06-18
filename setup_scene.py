@@ -265,12 +265,14 @@ def setup_scene(no_cut = False):
             script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
     
     print(f"Script directory: {script_dir}")
+    models_dir = os.path.join(script_dir, "models")
+    third_party_dir = os.path.join(script_dir, "3rdParty")
             
     guitar_obj_filename = "guitar.obj"
     neck_obj_filename = "NeckAmericanStandard.obj"
     
-    guitar_path = os.path.join(script_dir, guitar_obj_filename)
-    neck_path = os.path.join(script_dir, neck_obj_filename)
+    guitar_path = os.path.join(models_dir, guitar_obj_filename)
+    neck_path = os.path.join(third_party_dir, neck_obj_filename)
     
     # Import Guitar OBJ
     if os.path.exists(guitar_path):
@@ -347,35 +349,38 @@ def setup_scene(no_cut = False):
     # Import and subtract hardware STL from guitar body
     guitar_body = bpy.data.objects.get("Guitar_Body")
 
-    import_and_subtract_stl("backplate_mask.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_and_subtract_stl("backplate_fixings.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_mask.stl", guitar_body, models_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_fixings.stl", guitar_body, models_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl("elec_backplate_mask.stl", guitar_body, script_dir,offset_x=0, offset_y=0, offset_z=2)
-    import_and_subtract_stl("elec_backplate_fixings.stl", guitar_body, script_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("elec_backplate_mask.stl", guitar_body, models_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("elec_backplate_fixings.stl", guitar_body, models_dir,offset_x=0, offset_y=0, offset_z=2)
 
-    import_and_subtract_stl("hardware.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("hardware.stl", guitar_body, models_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl("electronics.stl", guitar_body, script_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("electronics.stl", guitar_body, models_dir,offset_x=0, offset_y=0, offset_z=2)
 
     
     # Import backplate.stl (without subtraction, just for visualization/reference)
-    import_stl("backplate.stl", script_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_stl("elec_backplate.stl", script_dir, offset_y=0, offset_z=2)
+    import_stl("backplate.stl", models_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_stl("elec_backplate.stl", models_dir, offset_y=0, offset_z=2)
 
     progress = 45
     wm.progress_update(progress)
 
-    # Import Neck OBJ using the import_obj function
-    neck = import_obj(neck_obj_filename, script_dir, rotation_x=-90, rotation_z=90, offset_z=-0.85)
-    if not neck:
-        print(f"Error: Could not import neck from {neck_obj_filename}")
+    # Import Neck OBJ using the import_obj function (optional for display)
+    try:
+        neck = import_obj(neck_obj_filename, third_party_dir, rotation_x=-90, rotation_z=90, offset_z=-0.85)
+        if not neck:
+            print(f"Warning: Optional display neck '{neck_obj_filename}' not loaded from 3rdParty.")
+    except Exception as e:
+        print(f"Warning: Failed to import optional neck: {e}")
 
     if no_cut:
         print("no_cut is True. Exporting Guitar_Full_Body to STL...")
-        models_dir = os.path.join(script_dir, "models")
-        if not os.path.exists(models_dir):
-            os.makedirs(models_dir)
-            print(f"Created models directory: {models_dir}")
+        output_dir = os.path.join(script_dir, "output")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"Created output directory: {output_dir}")
         
         guitar_body = bpy.data.objects.get("Guitar_Body")
         if guitar_body:
@@ -385,7 +390,7 @@ def setup_scene(no_cut = False):
             bpy.context.view_layer.objects.active = guitar_body
             
             # Export to STL with global scale of 10.0
-            stl_path = os.path.join(models_dir, "Guitar_Full_Body.stl")
+            stl_path = os.path.join(output_dir, "Guitar_Full_Body.stl")
             try:
                 if hasattr(bpy.ops.wm, 'stl_export'):
                     bpy.ops.wm.stl_export(
@@ -504,10 +509,10 @@ def setup_scene(no_cut = False):
         
         # Export all resultant parts to separate STL files
         print("Exporting parts to STL files...")
-        models_dir = os.path.join(script_dir, "models")
-        if not os.path.exists(models_dir):
-            os.makedirs(models_dir)
-            print(f"Created models directory: {models_dir}")
+        output_dir = os.path.join(script_dir, "output")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"Created output directory: {output_dir}")
         
         # List of all final part names
         final_parts = [
@@ -531,7 +536,7 @@ def setup_scene(no_cut = False):
                 bpy.context.view_layer.objects.active = obj
                 
                 # Export to STL with global scale of 10.0
-                stl_path = os.path.join(models_dir, f"{part_name}.stl")
+                stl_path = os.path.join(output_dir, f"{part_name}.stl")
                 
                 # Try Blender 5.0+ operator first, fallback to older versions
                 try:
@@ -556,7 +561,7 @@ def setup_scene(no_cut = False):
             else:
                 print(f"Warning: Part '{part_name}' not found for export")
         
-        print(f"Successfully exported {exported_count} parts to {models_dir}")
+        print(f"Successfully exported {exported_count} parts to {output_dir}")
         
         # Save Debug State
         debug_path = os.path.join(script_dir, "debug_guitar_result.blend")
