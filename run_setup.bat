@@ -28,22 +28,60 @@ if not defined FOUND_BLENDER (
 set "BLENDER_CMD=%FOUND_BLENDER%"
 
 :find_args
-:: Default to false
+:: Default to empty
 set "NO_CUT_ARG="
+set "CONFIG_ARG="
 
-:: Check arguments passed to this script
-for %%A in (%*) do (
-    if "%%A"=="--no-cut" set "NO_CUT_ARG=--no-cut"
-    if "%%A"=="--no_cut" set "NO_CUT_ARG=--no-cut"
-    if "%%A"=="no_cut"   set "NO_CUT_ARG=--no-cut"
+:parse_args
+if "%~1"=="" goto :args_done
+if "%~1"=="--no-cut" (
+    set "NO_CUT_ARG=--no-cut"
+    shift
+    goto :parse_args
 )
+if "%~1"=="--no_cut" (
+    set "NO_CUT_ARG=--no-cut"
+    shift
+    goto :parse_args
+)
+if "%~1"=="no_cut" (
+    set "NO_CUT_ARG=--no-cut"
+    shift
+    goto :parse_args
+)
+if "%~1"=="--config" (
+    set "CONFIG_ARG=%~2"
+    shift
+    shift
+    goto :parse_args
+)
+:: Otherwise, assume it is a config argument (e.g. sarcaster)
+set "CONFIG_ARG=%~1"
+shift
+goto :parse_args
 
-if defined NO_CUT_ARG (
-    echo Running setup_scene.py with --no-cut - no cuts, exporting full body...
-    "%BLENDER_CMD%" --background --python "%SCRIPT_DIR%setup_scene.py" -- --no-cut
+:args_done
+
+if defined CONFIG_ARG (
+    echo Generating guitar model for config: %CONFIG_ARG%...
+    python "%SCRIPT_DIR%configure_guitar.py" --config %CONFIG_ARG% --generate
+    
+    if defined NO_CUT_ARG (
+        echo Running setup_scene.py with --no-cut and --config %CONFIG_ARG%...
+        "%BLENDER_CMD%" --background --python "%SCRIPT_DIR%setup_scene.py" -- --no-cut --config %CONFIG_ARG%
+    ) else (
+        echo Running setup_scene.py with --config %CONFIG_ARG%...
+        "%BLENDER_CMD%" --background --python "%SCRIPT_DIR%setup_scene.py" -- --config %CONFIG_ARG%
+    )
 ) else (
-    echo Running setup_scene.py - performing cuts and exporting all parts...
-    "%BLENDER_CMD%" --background --python "%SCRIPT_DIR%setup_scene.py"
+    if defined NO_CUT_ARG (
+        echo Running setup_scene.py with --no-cut...
+        "%BLENDER_CMD%" --background --python "%SCRIPT_DIR%setup_scene.py" -- --no-cut
+    ) else (
+        echo Running setup_scene.py...
+        "%BLENDER_CMD%" --background --python "%SCRIPT_DIR%setup_scene.py"
+    )
 )
 
 endlocal
+

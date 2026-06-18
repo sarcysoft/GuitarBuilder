@@ -117,7 +117,7 @@ def import_config(geom_modifier, filepath):
     print(f"Successfully updated {updated_count} parameters.")
 
 
-def generate_obj(guitar_body, script_dir):
+def generate_obj(guitar_body, script_dir, filename="guitar.obj"):
     """Deselect all objects, select the Guitar Body, and export it as an OBJ mesh."""
     # Ensure we are in Object Mode
     if bpy.context.mode != 'OBJECT':
@@ -135,7 +135,7 @@ def generate_obj(guitar_body, script_dir):
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
         
-    obj_path = os.path.join(models_dir, "guitar.obj")
+    obj_path = os.path.join(models_dir, filename)
     print(f"Exporting Guitar Body mesh to: {obj_path}")
     
     # Export with modifiers applied
@@ -198,11 +198,12 @@ else:
     parser = argparse.ArgumentParser(description="Configure and generate Guitar Model from command line.")
     parser.add_argument("--export-config", help="Export current model parameters to a JSON file")
     parser.add_argument("--import-config", help="Import model parameters from a JSON file and save to guitar.blend")
+    parser.add_argument("--config", help="Name of configuration profile to import and generate (e.g. 'sarcaster')")
     parser.add_argument("--generate", action="store_true", help="Generate and export models/guitar.obj")
     
     args = parser.parse_args(args_to_parse)
     
-    if not (args.export_config or args.import_config or args.generate):
+    if not (args.export_config or args.import_config or args.config or args.generate):
         parser.print_help()
         sys.exit(0)
         
@@ -225,20 +226,35 @@ else:
         
     script_dir = os.path.dirname(os.path.abspath(bpy.data.filepath)) if bpy.data.filepath else os.getcwd()
     
-    if args.import_config:
-        resolved_path = resolve_config_path(args.import_config, script_dir)
+    # Handle the --config helper
+    config_name = args.config
+    import_path = args.import_config
+    export_path = args.export_config
+    obj_filename = "guitar.obj"
+    
+    if config_name:
+        if config_name != "default":
+            # If no import/export path is explicitly specified, default import path to <config_name>.json
+            if not import_path and not export_path:
+                import_path = f"{config_name}.json"
+            obj_filename = f"{config_name}.obj"
+        else:
+            obj_filename = "guitar.obj"
+            
+    if import_path:
+        resolved_path = resolve_config_path(import_path, script_dir)
         print(f"Importing parameters from: {resolved_path}...")
         import_config(geom_modifier, resolved_path)
         print("Saving updated parameters to guitar.blend...")
         bpy.ops.wm.save_mainfile()
         
-    if args.export_config:
-        resolved_path = resolve_config_path(args.export_config, script_dir)
+    if export_path:
+        resolved_path = resolve_config_path(export_path, script_dir)
         print(f"Exporting parameters to: {resolved_path}...")
         export_config(geom_modifier, resolved_path)
         
     if args.generate:
-        print("Generating mesh...")
-        generate_obj(guitar_body, script_dir)
+        print(f"Generating mesh as '{obj_filename}'...")
+        generate_obj(guitar_body, script_dir, obj_filename)
         
     print("Execution complete.")

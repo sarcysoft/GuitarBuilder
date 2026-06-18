@@ -216,7 +216,7 @@ def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0,
     return True
 
 
-def setup_scene(no_cut = False):
+def setup_scene(no_cut = False, config_name = None):
     print("Starting Scene Setup...")
     
     # Initialize progress bar
@@ -272,7 +272,10 @@ def setup_scene(no_cut = False):
     if not os.path.exists(debug_dir):
         os.makedirs(debug_dir)
             
-    guitar_obj_filename = "guitar.obj"
+    if config_name and config_name != "default":
+        guitar_obj_filename = f"{config_name}.obj"
+    else:
+        guitar_obj_filename = "guitar.obj"
     neck_obj_filename = "NeckAmericanStandard.obj"
     
     guitar_path = os.path.join(models_dir, guitar_obj_filename)
@@ -585,18 +588,21 @@ def setup_scene(no_cut = False):
 if __name__ == "__main__":
     import sys
     
-    # Check if run with --no-cut or --no_cut
     no_cut_val = False
+    config_name_val = None
+    
+    args = []
     if "--" in sys.argv:
-        # Arguments passed after "--" are intended for the script
-        args_after_double_dash = sys.argv[sys.argv.index("--") + 1:]
-        if any(arg in args_after_double_dash for arg in ["--no-cut", "--no_cut", "no_cut"]):
-            no_cut_val = True
+        args = sys.argv[sys.argv.index("--") + 1:]
     else:
-        # Fallback check of all arguments in case "--" wasn't used
-        for arg in sys.argv:
-            if arg in ["--no-cut", "--no_cut", "no_cut"]:
-                no_cut_val = True
-                break
+        args = sys.argv[1:]
+        
+    for i, arg in enumerate(args):
+        if arg in ["--no-cut", "--no_cut", "no_cut"]:
+            no_cut_val = True
+        elif arg.startswith("--config="):
+            config_name_val = arg.split("=", 1)[1]
+        elif arg == "--config" and i + 1 < len(args):
+            config_name_val = args[i + 1]
                 
-    setup_scene(no_cut_val)
+    setup_scene(no_cut_val, config_name_val)
