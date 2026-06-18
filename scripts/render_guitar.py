@@ -387,7 +387,7 @@ def check_and_apply_neck_material(neck_obj):
                 neck_obj.material_slots[i].material = maple_mat
 
 
-def import_stl(filepath, name, material=None):
+def import_stl(filepath, name, material=None, scale_factor=1.0):
     """Helper to import an STL and assign a material."""
     if not os.path.exists(filepath):
         print(f"Warning: File not found: {filepath}")
@@ -405,6 +405,15 @@ def import_stl(filepath, name, material=None):
         imported_obj = bpy.context.active_object
         if imported_obj:
             imported_obj.name = name
+            
+            # Apply scale factor if needed (e.g. 0.1 to offset 10x export scale)
+            if scale_factor != 1.0:
+                imported_obj.scale = (scale_factor, scale_factor, scale_factor)
+                bpy.ops.object.select_all(action='DESELECT')
+                imported_obj.select_set(True)
+                bpy.context.view_layer.objects.active = imported_obj
+                bpy.ops.object.transform_apply(scale=True)
+                
             if material:
                 if len(imported_obj.material_slots) == 0:
                     imported_obj.data.materials.append(material)
@@ -645,7 +654,7 @@ def run_rendering():
                 body_obj.data.materials.append(body_mat)
                 body_objects.append(body_obj)
         else:
-            body_obj = import_stl(body_path, "Guitar_Body", body_mat)
+            body_obj = import_stl(body_path, "Guitar_Body", body_mat, scale_factor=0.1)
             if body_obj:
                 body_objects.append(body_obj)
     else:
@@ -670,7 +679,7 @@ def run_rendering():
                 body_path = os.path.join(models_dir, "guitar.obj")
                 body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
             else:
-                body_obj = import_stl(body_path, "Guitar_Body", body_mat)
+                body_obj = import_stl(body_path, "Guitar_Body", body_mat, scale_factor=0.1)
             if body_obj:
                 body_objects.append(body_obj)
         else:
@@ -716,7 +725,7 @@ def run_rendering():
                 elif custom_mats:
                     part_mat = custom_mats[idx % len(custom_mats)]
                     
-                part_obj = import_stl(part_path, part_name, part_mat)
+                part_obj = import_stl(part_path, part_name, part_mat, scale_factor=0.1)
                 if part_obj:
                     body_objects.append(part_obj)
 
