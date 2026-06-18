@@ -44,7 +44,7 @@ union()
     translate([0,20.1,0]) rotate([0,0,-7]) pickup();    
         
     for(i = [0 : 0.2 : 1])
-        translate([-2.65 + i * 5.3,24.5 ,0]) cylinder(2,0.2,0.2);
+        translate([-2.65 + i * 5.3,24.5 ,0]) cylinder(2.5,0.2,0.2);
  
     translate([-3.2,26.8,0])
         cylinder_between_points([0, 0], [6.4, 0], radius=0.8, height=2.1);

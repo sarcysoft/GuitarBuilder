@@ -2,7 +2,7 @@ import bpy
 import os
 
 
-def import_stl(stl_filename, script_dir, rotation_z=0, offset_y=0, offset_z=0):
+def import_stl(stl_filename, script_dir, rotation_z=0, offset_x=0, offset_y=0, offset_z=0):
     """
     Import an STL file and apply transformations.
     
@@ -10,6 +10,7 @@ def import_stl(stl_filename, script_dir, rotation_z=0, offset_y=0, offset_z=0):
         stl_filename: Name of the STL file to import
         script_dir: Directory where the STL file is located
         rotation_z: Rotation around Z axis in degrees (default 0)
+        offset_x: X axis offset (default 0)
         offset_y: Y axis offset (default 0)
         offset_z: Z axis offset (default 0)
     
@@ -52,6 +53,8 @@ def import_stl(stl_filename, script_dir, rotation_z=0, offset_y=0, offset_z=0):
             imported_obj.rotation_euler[2] = math.radians(rotation_z)
             bpy.context.view_layer.update()
         
+        if offset_x != 0:
+            imported_obj.location.x += offset_x
         if offset_y != 0:
             imported_obj.location.y += offset_y
         if offset_z != 0:
@@ -144,7 +147,7 @@ def import_obj(obj_filename, script_dir, rotation_x=0, rotation_y=0, rotation_z=
         return None
 
 
-def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0, offset_y=0, offset_z=0, keep_object=False):
+def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0, offset_x=0, offset_y=0, offset_z=0, keep_object=False):
     """
     Import an STL file, position/rotate it, and subtract it from the guitar body using boolean operation.
     
@@ -153,6 +156,7 @@ def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0,
         guitar_body: The guitar body object to subtract from
         script_dir: Directory where the STL file is located
         rotation_z: Rotation around Z axis in degrees (default 0)
+        offset_x: X axis offset (default 0)
         offset_y: Y axis offset (default 0)
         offset_z: Z axis offset (default 0)
         keep_object: If True, keep the imported object after subtraction (default False)
@@ -161,7 +165,7 @@ def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0,
         True if successful, False otherwise
     """
     # Import the STL file
-    imported_obj = import_stl(stl_filename, script_dir, rotation_z, offset_y, offset_z)
+    imported_obj = import_stl(stl_filename, script_dir, rotation_z, offset_x, offset_y, offset_z)
     if not imported_obj:
         return False
     
@@ -258,7 +262,7 @@ def setup_scene(no_cut = False):
             if script_dir.endswith('.blend'):
                 script_dir = os.path.dirname(script_dir)
         except:
-            script_dir = r"E:\3D Printer\GuitarBuilder"
+            script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
     
     print(f"Script directory: {script_dir}")
             
@@ -342,12 +346,21 @@ def setup_scene(no_cut = False):
 
     # Import and subtract hardware STL from guitar body
     guitar_body = bpy.data.objects.get("Guitar_Body")
-    import_and_subtract_stl("hardware.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+
     import_and_subtract_stl("backplate_mask.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
     import_and_subtract_stl("backplate_fixings.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+
+    import_and_subtract_stl("elec_backplate_mask.stl", guitar_body, script_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("elec_backplate_fixings.stl", guitar_body, script_dir,offset_x=0, offset_y=0, offset_z=2)
+
+    import_and_subtract_stl("hardware.stl", guitar_body, script_dir, rotation_z=180, offset_y=40, offset_z=2)
+
+    import_and_subtract_stl("electronics.stl", guitar_body, script_dir,offset_x=0, offset_y=0, offset_z=2)
+
     
     # Import backplate.stl (without subtraction, just for visualization/reference)
     import_stl("backplate.stl", script_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_stl("elec_backplate.stl", script_dir, offset_y=0, offset_z=2)
 
     progress = 45
     wm.progress_update(progress)
@@ -358,13 +371,57 @@ def setup_scene(no_cut = False):
         print(f"Error: Could not import neck from {neck_obj_filename}")
 
     if no_cut:
+        print("no_cut is True. Exporting Guitar_Full_Body to STL...")
+        models_dir = os.path.join(script_dir, "models")
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+            print(f"Created models directory: {models_dir}")
+        
+        guitar_body = bpy.data.objects.get("Guitar_Body")
+        if guitar_body:
+            # Deselect all, then select only this object
+            bpy.ops.object.select_all(action='DESELECT')
+            guitar_body.select_set(True)
+            bpy.context.view_layer.objects.active = guitar_body
+            
+            # Export to STL with global scale of 10.0
+            stl_path = os.path.join(models_dir, "Guitar_Full_Body.stl")
+            try:
+                if hasattr(bpy.ops.wm, 'stl_export'):
+                    bpy.ops.wm.stl_export(
+                        filepath=stl_path,
+                        export_selected_objects=True,
+                        global_scale=10.0
+                    )
+                else:
+                    bpy.ops.export_mesh.stl(
+                        filepath=stl_path,
+                        use_selection=True,
+                        global_scale=10.0
+                    )
+                print(f"Exported: {stl_path}")
+            except Exception as export_error:
+                print(f"Error exporting Guitar_Full_Body: {export_error}")
+        else:
+            print("Warning: Guitar_Body not found for export")
+            
+        # Save Debug State
+        debug_path = os.path.join(script_dir, "debug_guitar_result.blend")
+        if bpy.data.filepath:
+             debug_path = os.path.join(os.path.dirname(bpy.data.filepath), "debug_guitar_result.blend")
+        print(f"Saving debug result to: {debug_path}")
+        try:
+            bpy.ops.wm.save_as_mainfile(filepath=debug_path)
+        except Exception as save_error:
+            print(f"Error saving debug blend file: {save_error}")
+            
         return
 
     # 3. Perform Cuts
     # Ensure the script directory is in sys.path to import textured_cut
     # Helper to clear log
     from datetime import datetime
-    LOG_FILE = os.path.join(os.path.dirname(bpy.data.filepath) if bpy.data.filepath else r"E:\3D Printer\GuitarBuilder", "cut_log.txt")
+    LOG_FILE = os.path.join(os.path.dirname(bpy.data.filepath) if bpy.data.filepath else script_dir, "cut_log.txt")
     try:
         with open(LOG_FILE, "w") as f:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -502,7 +559,7 @@ def setup_scene(no_cut = False):
         print(f"Successfully exported {exported_count} parts to {models_dir}")
         
         # Save Debug State
-        debug_path = r"E:\3D Printer\GuitarBuilder\debug_guitar_result.blend"
+        debug_path = os.path.join(script_dir, "debug_guitar_result.blend")
         if bpy.data.filepath:
              debug_path = os.path.join(os.path.dirname(bpy.data.filepath), "debug_guitar_result.blend")
         
@@ -521,4 +578,20 @@ def setup_scene(no_cut = False):
     print("Scene setup and processing complete.")
 
 if __name__ == "__main__":
-    setup_scene(True)
+    import sys
+    
+    # Check if run with --no-cut or --no_cut
+    no_cut_val = False
+    if "--" in sys.argv:
+        # Arguments passed after "--" are intended for the script
+        args_after_double_dash = sys.argv[sys.argv.index("--") + 1:]
+        if any(arg in args_after_double_dash for arg in ["--no-cut", "--no_cut", "no_cut"]):
+            no_cut_val = True
+    else:
+        # Fallback check of all arguments in case "--" wasn't used
+        for arg in sys.argv:
+            if arg in ["--no-cut", "--no_cut", "no_cut"]:
+                no_cut_val = True
+                break
+                
+    setup_scene(no_cut_val)
