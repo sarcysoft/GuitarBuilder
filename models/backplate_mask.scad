@@ -1,5 +1,5 @@
 // Import the rounded_poly module
-use <rounded_poly.scad>
+use <_rounded_poly.scad>
 $fn=128;
 
 module backplate_mask()

@@ -1,4 +1,6 @@
 *.stl
 *.obj
 *.mtl
+*.blend1
+*.pyc
 debug/
