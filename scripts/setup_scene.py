@@ -389,7 +389,10 @@ def setup_scene(no_cut = False, config_name = None):
 
     if no_cut:
         print("no_cut is True. Exporting Guitar_Full_Body to STL...")
-        output_dir = os.path.join(root_dir, "output")
+        if config_name and config_name != "default":
+            output_dir = os.path.join(root_dir, "output", config_name)
+        else:
+            output_dir = os.path.join(root_dir, "output")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             print(f"Created output directory: {output_dir}")
@@ -519,7 +522,10 @@ def setup_scene(no_cut = False, config_name = None):
         
         # Export all resultant parts to separate STL files
         print("Exporting parts to STL files...")
-        output_dir = os.path.join(root_dir, "output")
+        if config_name and config_name != "default":
+            output_dir = os.path.join(root_dir, "output", config_name)
+        else:
+            output_dir = os.path.join(root_dir, "output")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             print(f"Created output directory: {output_dir}")
