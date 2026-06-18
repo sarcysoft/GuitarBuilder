@@ -186,6 +186,7 @@ def parse_wrapper_args(argv):
     render = False
     body_only = False
     uncut = False
+    save_blend = False
     angle = "all"
     engine = "eevee"
     material = "gloss"
@@ -230,6 +231,9 @@ def parse_wrapper_args(argv):
                 i += 2
             else:
                 i += 1
+        elif arg in ["--save-blend", "--save_blend"]:
+            save_blend = True
+            i += 1
         elif arg in ["--export-config", "--export_config"]:
             export_config_flag = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
@@ -261,7 +265,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, uncut, angle, engine, material, lighting
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, uncut, angle, engine, material, lighting, save_blend
 
 
 def run_wrapper_mode():
@@ -278,7 +282,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, uncut, angle, engine, material, lighting) = parse_wrapper_args(sys.argv[1:])
+     render, body_only, uncut, angle, engine, material, lighting, save_blend) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render:
@@ -293,6 +297,8 @@ def run_wrapper_mode():
             render_args.append("--uncut")
         if body_only:
             render_args.append("--body-only")
+        if save_blend:
+            render_args.append("--save-blend")
         render_args += ["--angle", angle]
         render_args += ["--engine", engine]
         render_args += ["--material", material]

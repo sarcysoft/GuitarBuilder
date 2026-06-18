@@ -136,33 +136,18 @@ def create_gold_top():
     return mat
 
 
-def create_polished_chrome():
-    mat = bpy.data.materials.new(name="Polished Chrome")
+def create_polished_chrome(name="Polished Chrome", color=(0.85, 0.85, 0.85, 1.0)):
+    mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     p = get_principled_bsdf(nodes)
     if p:
-        p.inputs[0].default_value = (0.85, 0.85, 0.85, 1.0)
+        p.inputs[0].default_value = color
         p.inputs.get("Roughness").default_value = 0.05
         if "Metallic" in p.inputs:
             p.inputs["Metallic"].default_value = 1.0
         elif "Metallic Weight" in p.inputs:
             p.inputs["Metallic Weight"].default_value = 1.0
-    return mat
-
-
-def create_glossy_black():
-    mat = bpy.data.materials.new(name="Glossy Black")
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    p = get_principled_bsdf(nodes)
-    if p:
-        p.inputs[0].default_value = (0.02, 0.02, 0.02, 1.0)
-        p.inputs.get("Roughness").default_value = 0.1
-        if "Coat" in p.inputs:
-            p.inputs["Coat"].default_value = 1.0
-        elif "Clearcoat" in p.inputs:
-            p.inputs["Clearcoat"].default_value = 1.0
     return mat
 
 
@@ -204,8 +189,8 @@ def create_transparent_glass(name="Transparent Glass", color=(1.0, 1.0, 1.0, 1.0
     return mat
 
 
-def create_sunburst():
-    mat = bpy.data.materials.new(name="Sunburst Lacquer")
+def create_sunburst(name="Sunburst Lacquer", center_color=(0.9, 0.7, 0.08, 1.0), mid_color=(0.65, 0.02, 0.02, 1.0), outer_color=(0.02, 0.02, 0.02, 1.0)):
+    mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
@@ -236,16 +221,16 @@ def create_sunburst():
     color_ramp = nodes.new(type="ShaderNodeValToRGB")
     color_ramp.color_ramp.interpolation = 'B_SPLINE'
     
-    # Sunburst color steps: Center (Yellow) -> Mid (Red) -> Outer (Black)
+    # Sunburst color steps: Center -> Mid -> Outer
     color_ramp.color_ramp.elements[0].position = 0.0
-    color_ramp.color_ramp.elements[0].color = (0.9, 0.7, 0.08, 1.0)  # Yellow
+    color_ramp.color_ramp.elements[0].color = center_color
     
-    # Add Middle Red color
-    el_red = color_ramp.color_ramp.elements.new(position=0.45)
-    el_red.color = (0.65, 0.02, 0.02, 1.0)                           # Red
+    # Add Middle color
+    el_mid = color_ramp.color_ramp.elements.new(position=0.45)
+    el_mid.color = mid_color
     
     color_ramp.color_ramp.elements[-1].position = 0.85
-    color_ramp.color_ramp.elements[-1].color = (0.02, 0.02, 0.02, 1.0) # Black
+    color_ramp.color_ramp.elements[-1].color = outer_color
     
     # Link up nodes
     links.new(tex_coord.outputs['Object'], vec_math.inputs[0])
@@ -338,10 +323,17 @@ def get_material_by_name(mat_name):
         return create_glossy("Glossy Blue", (0.01, 0.2, 0.7, 1.0))
     elif mat_name == "gold":
         return create_gold_top()
-    elif mat_name == "chrome" or mat_name == "silver":
-        return create_polished_chrome()
+    elif mat_name.startswith("chrome") or mat_name.startswith("silver"):
+        # Format: chrome or chrome:color
+        parts = mat_name.split(":")
+        color = (0.85, 0.85, 0.85, 1.0)  # default silver
+        name = "Polished Chrome"
+        if len(parts) >= 2:
+            color = parse_color(parts[1])
+            name = f"Chrome {parts[1]}"
+        return create_polished_chrome(name, color)
     elif mat_name == "black":
-        return create_glossy_black()
+        return create_glossy("Glossy Black", (0.02, 0.02, 0.02, 1.0))
     elif mat_name.startswith("glass"):
         # Format: glass or glass:color
         parts = mat_name.split(":")
@@ -351,8 +343,25 @@ def get_material_by_name(mat_name):
             color = parse_color(parts[1])
             name = f"Glass {parts[1]}"
         return create_transparent_glass(name, color)
-    elif mat_name == "sunburst":
-        return create_sunburst()
+    elif mat_name.startswith("sunburst"):
+        # Format: sunburst or sunburst:center or sunburst:center:mid or sunburst:center:mid:outer
+        parts = mat_name.split(":")
+        center = (0.9, 0.7, 0.08, 1.0)
+        mid = (0.65, 0.02, 0.02, 1.0)
+        outer = (0.02, 0.02, 0.02, 1.0)
+        name = "Sunburst Lacquer"
+        
+        if len(parts) >= 2:
+            center = parse_color(parts[1])
+            name = f"Sunburst {parts[1]}"
+        if len(parts) >= 3:
+            mid = parse_color(parts[2])
+            name += f"-{parts[2]}"
+        if len(parts) >= 4:
+            outer = parse_color(parts[3])
+            name += f"-{parts[3]}"
+            
+        return create_sunburst(name, center, mid, outer)
     elif mat_name.startswith("sparkle"):
         # Format: sparkle or sparkle:main_color:sparkle_color
         parts = mat_name.split(":")
@@ -786,8 +795,9 @@ def run_rendering():
     parser.add_argument("--body-only", action="store_true", help="Render only the guitar body")
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
     parser.add_argument("--engine", default="eevee", choices=["eevee", "cycles"], help="Blender render engine")
-    parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, black, glass, sunburst, striped, random, or custom list)")
+    parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, chrome:color, glass, sunburst, sunburst:colors, striped, random, or custom list)")
     parser.add_argument("--lighting", default="studio", choices=["studio", "dramatic", "warm", "sunset"], help="Lighting setup preset")
+    parser.add_argument("--save-blend", action="store_true", help="Optionally save the .blend scene inside the renders directory")
     
     args = parser.parse_args(args_to_parse)
     
@@ -838,7 +848,7 @@ def run_rendering():
     # Setup Shaders
     body_mat = get_material_by_name(args.material)
     chrome_mat = create_polished_chrome()
-    black_plastic_mat = create_glossy_black()
+    black_plastic_mat = create_glossy("Black Plastic", (0.02, 0.02, 0.02, 1.0))
     
     # Import Body Meshes
     body_objects = []
@@ -907,7 +917,7 @@ def run_rendering():
                     create_glossy(name="Gloss Blue", color=(0.01, 0.2, 0.7, 1.0)),
                     create_gold_top(),
                     create_polished_chrome(),
-                    create_glossy_black(),
+                    create_glossy(name="Gloss Black", color=(0.02, 0.02, 0.02, 1.0)),
                     create_transparent_glass()
                 ]
             elif "," in material_mode:
@@ -1047,6 +1057,12 @@ def run_rendering():
             
             bpy.data.objects.remove(temp_parent, do_unlink=True)
             bpy.context.view_layer.update()
+            
+    # Save the blend file if requested
+    if args.save_blend:
+        blend_filepath = os.path.join(renders_dir, "guitar.blend")
+        print(f"Saving blend file to: {blend_filepath}")
+        bpy.ops.wm.save_as_mainfile(filepath=blend_filepath)
             
     print("Headless rendering complete.")
 
