@@ -208,13 +208,18 @@ def create_sunburst(name="Sunburst Lacquer", center_color=(0.9, 0.7, 0.08, 1.0),
         
     # Create nodes for radial gradient
     tex_coord = nodes.new(type="ShaderNodeTexCoord")
+    
+    mapping = nodes.new(type="ShaderNodeMapping")
+    mapping.name = "Sunburst_Mapping"
+    
     vec_math = nodes.new(type="ShaderNodeVectorMath")
     vec_math.operation = 'LENGTH'
     
     # Map range to scale distance
     map_range = nodes.new(type="ShaderNodeMapRange")
+    map_range.name = "Sunburst_MapRange"
     map_range.inputs[1].default_value = 0.0   # From Min
-    map_range.inputs[2].default_value = 18.0  # From Max (approximate guitar hip radius)
+    map_range.inputs[2].default_value = 18.0  # From Max (approximate guitar hip radius fallback)
     map_range.inputs[3].default_value = 0.0   # To Min
     map_range.inputs[4].default_value = 1.0   # To Max
     
@@ -233,12 +238,71 @@ def create_sunburst(name="Sunburst Lacquer", center_color=(0.9, 0.7, 0.08, 1.0),
     color_ramp.color_ramp.elements[-1].color = outer_color
     
     # Link up nodes
-    links.new(tex_coord.outputs['Object'], vec_math.inputs[0])
+    links.new(tex_coord.outputs['Object'], mapping.inputs['Vector'])
+    links.new(mapping.outputs['Vector'], vec_math.inputs[0])
     links.new(vec_math.outputs['Value'], map_range.inputs[0])
     links.new(map_range.outputs['Result'], color_ramp.inputs[0])
     links.new(color_ramp.outputs['Color'], p.inputs[0])
     
     return mat
+
+
+def configure_sunburst_material(mat):
+    """Automatically centers and scales the sunburst texture coordinates based on body bounding box."""
+    if not mat or not mat.use_nodes:
+        return
+        
+    mapping = mat.node_tree.nodes.get("Sunburst_Mapping")
+    map_range = mat.node_tree.nodes.get("Sunburst_MapRange")
+    
+    if not mapping or not map_range:
+        return
+        
+    # Find all body meshes in the scene
+    body_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name.startswith("Guitar_") and obj.name != "Ground_Plane"]
+    if not body_objs:
+        return
+        
+    import mathutils
+    world_coords = []
+    for obj in body_objs:
+        for v in obj.bound_box:
+            world_coords.append(obj.matrix_world @ mathutils.Vector(v))
+            
+    min_x = min(w[0] for w in world_coords)
+    max_x = max(w[0] for w in world_coords)
+    min_y = min(w[1] for w in world_coords)
+    max_y = max(w[1] for w in world_coords)
+    min_z = min(w[2] for w in world_coords)
+    max_z = max(w[2] for w in world_coords)
+    
+    center_x = (min_x + max_x) / 2.0
+    center_y = (min_y + max_y) / 2.0
+    center_z = (min_z + max_z) / 2.0
+    
+    size_x = max_x - min_x
+    size_y = max_y - min_y
+    
+    # Set Mapping Translation (moves center of gradient to center of body)
+    try:
+        loc_input = mapping.inputs.get('Location') or mapping.inputs[1]
+        loc_input.default_value = (center_x, center_y, center_z)
+    except Exception as e:
+        print(f"Error setting mapping Location: {e}")
+        
+    # Set Mapping Scale (adjusts Y scale to make the radial gradient elliptical matching body proportions)
+    try:
+        scale_input = mapping.inputs.get('Scale') or mapping.inputs[3]
+        if size_y > 0 and size_x > 0:
+            scale_input.default_value = (1.0, size_x / size_y, 1.0)
+    except Exception as e:
+        print(f"Error setting mapping Scale: {e}")
+        
+    # Set Map Range From Max (radius of the sunburst fits half the body width)
+    try:
+        map_range.inputs[2].default_value = size_x / 2.0
+    except Exception as e:
+        print(f"Error setting map range From Max: {e}")
 
 
 def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
@@ -945,6 +1009,10 @@ def run_rendering():
                 part_obj = import_stl(part_path, part_name, part_mat, scale_factor=0.1)
                 if part_obj:
                     body_objects.append(part_obj)
+
+    # Configure all sunburst materials to center on the body size
+    for mat in bpy.data.materials:
+        configure_sunburst_material(mat)
 
     # Import Neck and Hardware (unless body-only is requested)
     if not args.body_only:
