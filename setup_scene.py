@@ -267,6 +267,10 @@ def setup_scene(no_cut = False):
     print(f"Script directory: {script_dir}")
     models_dir = os.path.join(script_dir, "models")
     third_party_dir = os.path.join(script_dir, "3rdParty")
+    blend_dir = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else script_dir
+    debug_dir = os.path.join(blend_dir, "debug")
+    if not os.path.exists(debug_dir):
+        os.makedirs(debug_dir)
             
     guitar_obj_filename = "guitar.obj"
     neck_obj_filename = "NeckAmericanStandard.obj"
@@ -411,9 +415,7 @@ def setup_scene(no_cut = False):
             print("Warning: Guitar_Body not found for export")
             
         # Save Debug State
-        debug_path = os.path.join(script_dir, "debug_guitar_result.blend")
-        if bpy.data.filepath:
-             debug_path = os.path.join(os.path.dirname(bpy.data.filepath), "debug_guitar_result.blend")
+        debug_path = os.path.join(debug_dir, "debug_guitar_result.blend")
         print(f"Saving debug result to: {debug_path}")
         try:
             bpy.ops.wm.save_as_mainfile(filepath=debug_path)
@@ -426,7 +428,7 @@ def setup_scene(no_cut = False):
     # Ensure the script directory is in sys.path to import textured_cut
     # Helper to clear log
     from datetime import datetime
-    LOG_FILE = os.path.join(os.path.dirname(bpy.data.filepath) if bpy.data.filepath else script_dir, "cut_log.txt")
+    LOG_FILE = os.path.join(debug_dir, "cut_log.txt")
     try:
         with open(LOG_FILE, "w") as f:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -564,9 +566,7 @@ def setup_scene(no_cut = False):
         print(f"Successfully exported {exported_count} parts to {output_dir}")
         
         # Save Debug State
-        debug_path = os.path.join(script_dir, "debug_guitar_result.blend")
-        if bpy.data.filepath:
-             debug_path = os.path.join(os.path.dirname(bpy.data.filepath), "debug_guitar_result.blend")
+        debug_path = os.path.join(debug_dir, "debug_guitar_result.blend")
         
         print(f"Saving debug result to: {debug_path}")
         bpy.ops.wm.save_as_mainfile(filepath=debug_path)
