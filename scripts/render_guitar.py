@@ -286,7 +286,7 @@ def configure_sunburst_material(mat):
     # Set Mapping Translation (moves center of gradient to center of body)
     try:
         loc_input = mapping.inputs.get('Location') or mapping.inputs[1]
-        loc_input.default_value = (center_x, center_y, center_z)
+        loc_input.default_value = (-center_x, -center_y, -center_z)
     except Exception as e:
         print(f"Error setting mapping Location: {e}")
         
