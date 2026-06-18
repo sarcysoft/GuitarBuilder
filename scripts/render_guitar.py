@@ -185,18 +185,24 @@ def create_glossy_black():
     return mat
 
 
-def create_transparent_glass():
-    mat = bpy.data.materials.new(name="Transparent Glass")
+def create_transparent_glass(name="Transparent Glass", color=(1.0, 1.0, 1.0, 1.0)):
+    mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     
     # EEVEE Glass settings
-    mat.blend_method = 'HASHED'
-    mat.shadow_method = 'HASHED'
-    
+    try:
+        mat.blend_method = 'HASHED'
+    except AttributeError:
+        pass
+    try:
+        mat.shadow_method = 'HASHED'
+    except AttributeError:
+        pass
+        
     nodes = mat.node_tree.nodes
     p = get_principled_bsdf(nodes)
     if p:
-        p.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # Base Color
+        p.inputs[0].default_value = color  # Base Color
         p.inputs.get("Roughness").default_value = 0.02
         p.inputs.get("IOR").default_value = 1.45
         
@@ -338,8 +344,15 @@ def get_material_by_name(mat_name):
         return create_polished_chrome()
     elif mat_name == "black":
         return create_glossy_black()
-    elif mat_name == "glass":
-        return create_transparent_glass()
+    elif mat_name.startswith("glass"):
+        # Format: glass or glass:color
+        parts = mat_name.split(":")
+        color = (1.0, 1.0, 1.0, 1.0)  # default white/clear
+        name = "Transparent Glass"
+        if len(parts) >= 2:
+            color = parse_color(parts[1])
+            name = f"Glass {parts[1]}"
+        return create_transparent_glass(name, color)
     elif mat_name == "sunburst":
         return create_sunburst()
     elif mat_name.startswith("sparkle"):
