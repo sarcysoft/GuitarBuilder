@@ -96,3 +96,37 @@ Configuration JSON files (saved inside the `config/` directory) contain human-re
 ```
 
 Updating these parameters and running the configuration tool enables repeatable, parameterized setups for different guitar body shapes.
+
+---
+
+## 6. Rendering Pipeline (`scripts/render_guitar.py`)
+
+Headless, background rendering generates photorealistic images of your configured guitars from multiple camera angles without launching the Blender GUI. It operates on previously generated STL/OBJ files.
+
+To render the generated models for a configuration:
+
+```bash
+# Render all views (front, back, angled) for the 'sarcaster' cut profile
+python guitar_builder.py sarcaster --render
+
+# Render uncut, body-only meshes with Cycles renderer
+python guitar_builder.py sarcaster --render --uncut --body-only --engine cycles
+
+# Render with dramatic neon-tinted lighting and a striped multi-color body
+python guitar_builder.py sarcaster --render --lighting dramatic --material striped
+
+# Render with warm lighting and a blue sparkle body
+python guitar_builder.py sarcaster --render --lighting warm --material sparkle:blue:silver
+```
+
+### Options:
+- `--render`: Triggers the background rendering pipeline.
+- `--uncut`: Force-renders the uncut full body mesh (`Guitar_Full_Body.stl`) instead of the sliced parts.
+- `--body-only`: Renders only the guitar body (excludes neck and backplates).
+- `--angle <front|back|angled|all>` (default: `all`): Camera angle view.
+- `--engine <eevee|cycles>` (default: `eevee`): Blender render engine.
+- `--material <preset>` (default: `red`): Candy Apple Red (`red`), Electric Blue (`blue`), Gold Top (`gold`), Glossy Black (`black`), Chrome (`chrome`), Refractive Glass (`glass`), Radial Sunburst (`sunburst`), alternates (`striped`), random (`random`), custom list, or sparkles:
+  - `sparkle:<base_color>:<flake_color>` (e.g. `sparkle:blue:silver`).
+- `--lighting <theme>` (default: `studio`): Studio lighting (`studio`), dramatic cyan/magenta (`dramatic`), amber/vintage (`warm`), orange/violet gradient (`sunset`).
+
+Renders are saved in `output/<config_name>/renders/` (e.g., `front.png`, `back.png`, `angled.png`).

@@ -182,12 +182,54 @@ def parse_wrapper_args(argv):
     import_config = None
     generate = False
     
+    # Render arguments
+    render = False
+    body_only = False
+    uncut = False
+    angle = "all"
+    engine = "eevee"
+    material = "red"
+    lighting = "studio"
+    
     i = 0
     while i < len(argv):
         arg = argv[i]
         if arg in ["--no-cut", "--no_cut", "no_cut"]:
             no_cut = True
             i += 1
+        elif arg == "--render":
+            render = True
+            i += 1
+        elif arg in ["--body-only", "--body_only", "body_only"]:
+            body_only = True
+            i += 1
+        elif arg == "--uncut":
+            uncut = True
+            i += 1
+        elif arg == "--angle":
+            if i + 1 < len(argv):
+                angle = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg == "--engine":
+            if i + 1 < len(argv):
+                engine = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg == "--material":
+            if i + 1 < len(argv):
+                material = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg == "--lighting":
+            if i + 1 < len(argv):
+                lighting = argv[i + 1]
+                i += 2
+            else:
+                i += 1
         elif arg in ["--export-config", "--export_config"]:
             export_config_flag = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
@@ -219,7 +261,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, uncut, angle, engine, material, lighting
 
 
 def run_wrapper_mode():
@@ -235,7 +277,37 @@ def run_wrapper_mode():
         sys.exit(1)
         
     # Parse command line args
-    no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate = parse_wrapper_args(sys.argv[1:])
+    (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
+     render, body_only, uncut, angle, engine, material, lighting) = parse_wrapper_args(sys.argv[1:])
+    
+    # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
+    if render:
+        print("Launching background rendering pipeline...")
+        if config and config != "default":
+            config_dir = os.path.join(script_dir, "output", config)
+        else:
+            config_dir = os.path.join(script_dir, "output")
+            
+        render_args = ["--config-dir", config_dir]
+        if uncut:
+            render_args.append("--uncut")
+        if body_only:
+            render_args.append("--body-only")
+        render_args += ["--angle", angle]
+        render_args += ["--engine", engine]
+        render_args += ["--material", material]
+        render_args += ["--lighting", lighting]
+        
+        cmd = [
+            blender_exe,
+            "--background",
+            "--python",
+            os.path.join(script_dir, "scripts", "render_guitar.py"),
+            "--"
+        ] + render_args
+        
+        result = subprocess.run(cmd)
+        sys.exit(result.returncode)
     
     # Case 1: Config Export Mode
     if export_config_flag:
