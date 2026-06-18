@@ -397,8 +397,6 @@ def get_material_by_name(mat_name):
             color = parse_color(parts[1])
             name = f"Chrome {parts[1]}"
         return create_polished_chrome(name, color)
-    elif mat_name == "black":
-        return create_glossy("Glossy Black", (0.02, 0.02, 0.02, 1.0))
     elif mat_name.startswith("glass"):
         # Format: glass or glass:color
         parts = mat_name.split(":")
@@ -861,6 +859,7 @@ def run_rendering():
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
     parser.add_argument("--engine", default="eevee", choices=["eevee", "cycles"], help="Blender render engine")
     parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, chrome:color, glass, sunburst, sunburst:colors, striped, random, or custom list)")
+    parser.add_argument("--material-back", "--material_back", default="gloss:black", help="Material preset for backplate parts")
     parser.add_argument("--lighting", default="studio", choices=["studio", "dramatic", "warm", "sunset"], help="Lighting setup preset")
     parser.add_argument("--save-blend", action="store_true", help="Optionally save the .blend scene inside the renders directory")
     
@@ -913,7 +912,7 @@ def run_rendering():
     # Setup Shaders
     body_mat = get_material_by_name(args.material)
     chrome_mat = create_polished_chrome()
-    black_plastic_mat = create_glossy("Black Plastic", (0.02, 0.02, 0.02, 1.0))
+    backplate_mat = get_material_by_name(args.material_back)
     
     # Import Body Meshes
     body_objects = []
@@ -1026,10 +1025,10 @@ def run_rendering():
             
         # Backplates
         backplate_path = os.path.join(models_dir, "backplate.stl")
-        import_stl(backplate_path, "Hardware_backplate", black_plastic_mat)
+        import_stl(backplate_path, "Hardware_backplate", backplate_mat)
         
         elec_backplate_path = os.path.join(models_dir, "elec_backplate.stl")
-        import_stl(elec_backplate_path, "Hardware_elec_backplate", black_plastic_mat)
+        import_stl(elec_backplate_path, "Hardware_elec_backplate", backplate_mat)
         
         # Optionally, move the backplates into place relative to standard layout
         # (similar to setup_scene y offsets)

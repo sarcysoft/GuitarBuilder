@@ -126,12 +126,13 @@ python guitar_builder.py sarcaster --render --lighting warm --material sparkle:b
 - `--save-blend`: Optionally saves the completed Blender scene as a `.blend` file inside the renders directory.
 - `--angle <front|back|angled|all>` (default: `all`): Camera angle view.
 - `--engine <eevee|cycles>` (default: `eevee`): Blender render engine.
-- `--material <preset>` (default: `gloss`): Gloss paint (`gloss`), Gold Top (`gold`), Chrome (`chrome`), Refractive Glass (`glass`), Radial Sunburst (`sunburst`), alternates (`striped`), random (`random`), custom list, sparkles, or colored glass:
+- `--material <preset>` (default: `gloss`): Material preset for the main body components. Supported values include: gloss paint (`gloss`), Gold Top (`gold`), Chrome (`chrome`), Refractive Glass (`glass`), Radial Sunburst (`sunburst`), alternates (`striped`), random (`random`), custom list, sparkles, or colored glass:
   - `gloss:<color>` (e.g. `gloss:blue`, `gloss:black`, `gloss:#ff0000`).
   - `chrome:<color>` (e.g. `chrome:gold`, `chrome:blue`).
   - `sunburst:<center_color>:<mid_color>:<outer_color>` (e.g. `sunburst:yellow:red:black`, `sunburst:gold:orange:purple`).
   - `sparkle:<base_color>:<flake_color>` (e.g. `sparkle:blue:silver`).
   - `glass:<color>` (e.g. `glass:blue`, `glass:red`, `glass:#00ff00`).
+- `--material_back <preset>` (default: `gloss:black`): Material preset for the backplate components (accepts the same formats as `--material`).
 - `--lighting <theme>` (default: `studio`): Studio lighting (`studio`), dramatic cyan/magenta (`dramatic`), amber/vintage (`warm`), orange/violet gradient (`sunset`).
 
 Renders are saved in `output/<config_name>/renders/` (e.g., `front.png`, `back.png`, `angled.png`).

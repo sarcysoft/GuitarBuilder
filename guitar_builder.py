@@ -190,6 +190,7 @@ def parse_wrapper_args(argv):
     angle = "all"
     engine = "eevee"
     material = "gloss"
+    material_back = "gloss:black"
     lighting = "studio"
     
     i = 0
@@ -222,6 +223,12 @@ def parse_wrapper_args(argv):
         elif arg == "--material":
             if i + 1 < len(argv):
                 material = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg in ["--material-back", "--material_back"]:
+            if i + 1 < len(argv):
+                material_back = argv[i + 1]
                 i += 2
             else:
                 i += 1
@@ -265,7 +272,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, uncut, angle, engine, material, lighting, save_blend
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, uncut, angle, engine, material, material_back, lighting, save_blend
 
 
 def run_wrapper_mode():
@@ -282,7 +289,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, uncut, angle, engine, material, lighting, save_blend) = parse_wrapper_args(sys.argv[1:])
+     render, body_only, uncut, angle, engine, material, material_back, lighting, save_blend) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render:
@@ -302,6 +309,7 @@ def run_wrapper_mode():
         render_args += ["--angle", angle]
         render_args += ["--engine", engine]
         render_args += ["--material", material]
+        render_args += ["--material-back", material_back]
         render_args += ["--lighting", lighting]
         
         cmd = [
