@@ -327,18 +327,25 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
     elif "Clearcoat" in p.inputs:
         p.inputs["Clearcoat"].default_value = 1.0
         
-    # High-frequency noise for sparkles
-    voronoi = nodes.new(type="ShaderNodeTexVoronoi")
-    voronoi.inputs[2].default_value = 800.0  # Scale
+    # Texture coordinate node - use Object space so scale is consistent
+    # regardless of mesh scale factor applied at import
+    tex_coord = nodes.new(type="ShaderNodeTexCoord")
     
-    # Sharp threshold mask
+    # Voronoi cells for sparkles - scale of ~2.0 gives ~20-30 visible cells
+    # across the guitar body at standard render resolution.
+    # (Scale=800 would create subpixel cells invisible after anti-aliasing)
+    voronoi = nodes.new(type="ShaderNodeTexVoronoi")
+    voronoi.inputs['Scale'].default_value = 2.0
+    
+    # Sharp threshold mask - selects only the center core of each Voronoi cell
+    # From Min=0 → To Min=1 (sparkle), From Max=0.12 → To Max=0 (body color)
     map_range = nodes.new(type="ShaderNodeMapRange")
     map_range.inputs[1].default_value = 0.00
-    map_range.inputs[2].default_value = 0.05  # Select only center cores of cells
+    map_range.inputs[2].default_value = 0.12  # Controls sparkle dot size
     map_range.inputs[3].default_value = 1.0
     map_range.inputs[4].default_value = 0.0
     
-    # Mix node to interpolate color
+    # Mix node to interpolate between body color (A) and sparkle flake color (B)
     mix = nodes.new(type="ShaderNodeMix")
     mix.data_type = 'RGBA'
     mix.blend_type = 'MIX'
@@ -364,6 +371,7 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
     bump.inputs[1].default_value = 0.01 # Distance
     
     # Connections
+    links.new(tex_coord.outputs['Object'], voronoi.inputs['Vector'])
     links.new(voronoi.outputs['Distance'], map_range.inputs[0])
     links.new(map_range.outputs['Result'], mix.inputs[0])
     
@@ -377,11 +385,13 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
     if rgba_output:
         links.new(rgba_output, p.inputs[0])
     
-    # Connect voronoi to bump normal
-    links.new(voronoi.outputs['Distance'], bump.inputs[2])
+    # Connect voronoi to bump Height (use name to avoid hardcoded index - index 2 is
+    # 'Filter Width' in Blender 5.x, index 3 is 'Height')
+    links.new(voronoi.outputs['Distance'], bump.inputs['Height'])
     links.new(bump.outputs['Normal'], p.inputs['Normal'])
     
     return mat
+
 
 
 def get_material_by_name(mat_name):
