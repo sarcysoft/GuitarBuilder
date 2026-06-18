@@ -445,11 +445,11 @@ def import_obj(filepath, name, rotation_x=0, rotation_y=0, rotation_z=0, offset_
             
             imported_obj.rotation_mode = 'XYZ'
             if rotation_x != 0:
-                imported_obj.rotation_euler[0] = math.radians(rotation_x)
+                imported_obj.rotation_euler[0] += math.radians(rotation_x)
             if rotation_y != 0:
-                imported_obj.rotation_euler[1] = math.radians(rotation_y)
+                imported_obj.rotation_euler[1] += math.radians(rotation_y)
             if rotation_z != 0:
-                imported_obj.rotation_euler[2] = math.radians(rotation_z)
+                imported_obj.rotation_euler[2] += math.radians(rotation_z)
                 
             imported_obj.location.x += offset_x
             imported_obj.location.y += offset_y
@@ -536,6 +536,11 @@ def setup_lighting(theme):
 
 def setup_camera(view_angle, is_body_only):
     """Add and configure camera based on view angle and zoom level."""
+    # Purge any existing camera target
+    for obj in list(bpy.data.objects):
+        if obj.name == "Camera_Target":
+            bpy.data.objects.remove(obj, do_unlink=True)
+
     camera_data = bpy.data.cameras.new(name="Render Camera")
     camera_obj = bpy.data.objects.new(name="Render Camera", object_data=camera_data)
     bpy.context.collection.objects.link(camera_obj)
@@ -545,29 +550,52 @@ def setup_camera(view_angle, is_body_only):
     
     # Position camera based on full guitar vs body-only framing
     if is_body_only:
-        target_center = (0.0, 22.0, 2.0)
+        target_y = 20.0
+        z_dist = 90.0
         if view_angle == "front":
-            camera_obj.location = (0.0, 22.0, 65.0)
-            camera_obj.rotation_euler = (0, 0, 0)
+            camera_obj.location = (0.0, target_y, z_dist)
+            camera_obj.rotation_euler = (0, 0, math.radians(90))
         elif view_angle == "back":
-            camera_obj.location = (0.0, 22.0, -65.0)
-            camera_obj.rotation_euler = (math.radians(180), 0, 0)
+            camera_obj.location = (0.0, target_y, -z_dist)
+            camera_obj.rotation_euler = (math.radians(180), 0, math.radians(-90))
         else:  # angled
-            camera_obj.location = (-28.0, -2.0, 32.0)
-            # Aim at target center
-            camera_obj.rotation_euler = (math.radians(45), 0, math.radians(-38))
+            camera_obj.location = (-56.0, -8.0, 48.0)
+            
+            # Create target empty
+            target_obj = bpy.data.objects.new("Camera_Target", None)
+            bpy.context.collection.objects.link(target_obj)
+            target_obj.location = (0.0, target_y, 1.0)
+            
+            # Add track to constraint
+            constraint = camera_obj.constraints.new(type='TRACK_TO')
+            constraint.target = target_obj
+            constraint.track_axis = 'TRACK_NEGATIVE_Z'
+            constraint.up_axis = 'UP_Y'
     else:
         # Full guitar (includes long neck)
-        target_center = (0.0, 36.0, 2.0)
+        target_y = 50.0
+        z_dist = 145.0
         if view_angle == "front":
-            camera_obj.location = (0.0, 36.0, 125.0)
-            camera_obj.rotation_euler = (0, 0, 0)
+            camera_obj.location = (0.0, target_y, z_dist)
+            camera_obj.rotation_euler = (0, 0, math.radians(90))
         elif view_angle == "back":
-            camera_obj.location = (0.0, 36.0, -125.0)
-            camera_obj.rotation_euler = (math.radians(180), 0, 0)
+            camera_obj.location = (0.0, target_y, -z_dist)
+            camera_obj.rotation_euler = (math.radians(180), 0, math.radians(-90))
         else:  # angled
-            camera_obj.location = (-58.0, -5.0, 58.0)
-            camera_obj.rotation_euler = (math.radians(45), 0, math.radians(-40))
+            camera_obj.location = (-75.0, -2.0, 65.0)
+            
+            # Create target empty
+            target_obj = bpy.data.objects.new("Camera_Target", None)
+            bpy.context.collection.objects.link(target_obj)
+            target_obj.location = (0.0, target_y, 1.0)
+            
+            # Add track to constraint
+            constraint = camera_obj.constraints.new(type='TRACK_TO')
+            constraint.target = target_obj
+            constraint.track_axis = 'TRACK_NEGATIVE_Z'
+            constraint.up_axis = 'UP_Y'
+            
+    bpy.context.view_layer.update()
 
 
 def run_rendering():
