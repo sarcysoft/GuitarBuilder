@@ -1059,6 +1059,134 @@ def setup_camera(view_angle, guitar_objs, custom_pitch=None, custom_guitar_rot=N
     return rig_obj
 
 
+def setup_animation(guitar_objs, margin=0.85):
+    """Create camera and guitar rig, solve locked camera distance, and set animation keyframes."""
+    # 1. Purge any previous camera
+    for obj in list(bpy.data.objects):
+        if obj.type == 'CAMERA':
+            bpy.data.objects.remove(obj, do_unlink=True)
+            
+    # 2. Setup Guitar Rig Empty (initially at (0, 0, -90.0) orientation)
+    rig_obj = setup_guitar_rig(guitar_objs, rot_x=0.0, rot_y=0.0, rot_z=-90.0)
+    if not rig_obj:
+        print("Error: Could not set up guitar rig for animation.")
+        return None
+        
+    # 3. Create active camera
+    camera_data = bpy.data.cameras.new(name="Render Camera")
+    camera_obj = bpy.data.objects.new(name="Render Camera", object_data=camera_data)
+    bpy.context.collection.objects.link(camera_obj)
+    bpy.context.scene.camera = camera_obj
+    
+    # 4. Calculate locked camera distance by sampling key animation frames
+    bpy.context.view_layer.update()
+    d_samples = []
+    
+    # Sample front view
+    d_samples.append(calculate_optimal_camera_distance(camera_obj, 90.0, guitar_objs, margin=margin))
+    
+    # Sample Y spin orientations (90, 180, 270 degrees)
+    for y_rot in [90.0, 180.0, 270.0]:
+        rig_obj.rotation_euler = (0.0, math.radians(y_rot), math.radians(-90.0))
+        bpy.context.view_layer.update()
+        d_samples.append(calculate_optimal_camera_distance(camera_obj, 90.0, guitar_objs, margin=margin))
+        
+    # Sample pitch / tilt transitions
+    for p, rx in [(67.5, -22.5), (45.0, -45.0)]:
+        rig_obj.rotation_euler = (math.radians(rx), 0.0, math.radians(-90.0))
+        bpy.context.view_layer.update()
+        d_samples.append(calculate_optimal_camera_distance(camera_obj, p, guitar_objs, margin=margin))
+        
+    # Sample Z spin orientations
+    for z_rot in [-45.0, 0.0, 45.0, 90.0, 135.0, 180.0, 225.0]:
+        rig_obj.rotation_euler = (math.radians(-45.0), 0.0, math.radians(z_rot))
+        bpy.context.view_layer.update()
+        d_samples.append(calculate_optimal_camera_distance(camera_obj, 45.0, guitar_objs, margin=margin))
+        
+    d = max(d_samples)
+    print(f"Calculated locked camera distance for animation: {d:.2f}")
+    
+    # Restore initial state
+    rig_obj.rotation_euler = (0.0, 0.0, math.radians(-90.0))
+    bpy.context.view_layer.update()
+    
+    # Clear any previous animation data
+    if camera_obj.animation_data:
+        camera_obj.animation_data_clear()
+    if rig_obj.animation_data:
+        rig_obj.animation_data_clear()
+        
+    # Set scene timeline bounds
+    scene = bpy.context.scene
+    scene.frame_start = 1
+    scene.frame_end = 870
+    
+    # 5. Insert Keyframes
+    # Rig location is locked at (0, 0, 0)
+    rig_obj.location = (0.0, 0.0, 0.0)
+    rig_obj.keyframe_insert(data_path="location", frame=1)
+    
+    # Keyframe insertion helper
+    def insert_keys(frame, pitch, rx, ry, rz):
+        # Camera transform
+        pitch_rad = math.radians(pitch)
+        camera_obj.location = (0.0, -d * math.cos(pitch_rad), d * math.sin(pitch_rad))
+        camera_obj.rotation_euler = (math.radians(90.0 - pitch), 0.0, 0.0)
+        camera_obj.keyframe_insert(data_path="location", frame=frame)
+        camera_obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+        
+        # Rig rotation
+        rig_obj.rotation_euler = (math.radians(rx), math.radians(ry), math.radians(rz))
+        rig_obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+        
+    # Phase 1: Pause in Front View (frame 1 to 60)
+    insert_keys(1, 90.0, 0.0, 0.0, -90.0)
+    insert_keys(60, 90.0, 0.0, 0.0, -90.0)
+    
+    # Phase 2: Y-axis 360 rotation (frame 61 to 360)
+    insert_keys(360, 90.0, 0.0, 360.0, -90.0)
+    
+    # Phase 3: Drop camera to 45 while guitar X tilts to -45 (frame 361 to 510)
+    insert_keys(510, 45.0, -45.0, 360.0, -90.0)
+    
+    # Phase 4: Z-axis 360 rotation (frame 511 to 810)
+    insert_keys(810, 45.0, -45.0, 360.0, 270.0)
+    
+    # Phase 5: Final Pause (frame 811 to 870)
+    insert_keys(870, 45.0, -45.0, 360.0, 270.0)
+    
+    # Force Bezier interpolation for all animation curves (ease-in/ease-out)
+    def set_bezier_interpolation(obj):
+        if not obj or not obj.animation_data or not obj.animation_data.action:
+            return
+        action = obj.animation_data.action
+        
+        # Try legacy action fcurves (Blender 3.x and 4.0-4.3)
+        if hasattr(action, "fcurves"):
+            for fcurve in action.fcurves:
+                for kp in fcurve.keyframe_points:
+                    kp.interpolation = 'BEZIER'
+            return
+            
+        # Try new layered action fcurves (Blender 4.4 and 5.x)
+        if hasattr(action, "layers") and hasattr(obj.animation_data, "action_slot"):
+            slot = obj.animation_data.action_slot
+            if slot:
+                for layer in action.layers:
+                    for strip in layer.strips:
+                        cb = strip.channelbag(slot, ensure=True)
+                        if cb and hasattr(cb, "fcurves"):
+                            for fcurve in cb.fcurves:
+                                for kp in fcurve.keyframe_points:
+                                    kp.interpolation = 'BEZIER'
+
+    set_bezier_interpolation(camera_obj)
+    set_bezier_interpolation(rig_obj)
+                
+    print("Animation timeline set up successfully.")
+    return rig_obj, camera_obj
+
+
 def run_rendering():
     """Main rendering execution block inside Blender."""
     if '--' in sys.argv:
@@ -1075,6 +1203,8 @@ def run_rendering():
     parser.add_argument("--pitch", type=float, default=None, help="Camera pitch angle in degrees (0 = horizontal, 90 = looking straight down)")
     parser.add_argument("--guitar-rot", "--guitar_rot", default=None, help="Comma-separated rotation angles for the guitar around X, Y, Z axes in degrees (e.g. 15,30,-45)")
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
+    parser.add_argument("--animate", action="store_true", help="Create an animation timeline and render a movie")
+    parser.add_argument("--no-render-anim", "--no_render_anim", action="store_true", help="Only build the animation timeline without rendering the movie")
     parser.add_argument("--engine", default="eevee", choices=["eevee", "cycles"], help="Blender render engine")
     parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, chrome:color, glass, sunburst, sunburst:colors, random, or custom list)")
     parser.add_argument("--material-back", "--material_back", default="gloss:black", help="Material preset for backplate parts")
@@ -1082,6 +1212,8 @@ def run_rendering():
     parser.add_argument("--save-blend", action="store_true", help="Optionally save the .blend scene inside the renders directory")
     
     args = parser.parse_args(args_to_parse)
+    if args.no_render_anim:
+        args.save_blend = True
     
     # Initialize Scene
     purge_scene()
@@ -1295,49 +1427,118 @@ def run_rendering():
     # Create Ground Plane
     create_ground_plane(target_y, args.lighting)
     
-    # Parse custom camera options
-    custom_pitch = args.pitch
-    custom_guitar_rot = parse_rotation_string(args.guitar_rot) if args.guitar_rot else None
-    
-    # Determine the views to render
-    if custom_pitch is not None or custom_guitar_rot is not None:
-        view_name = "custom" if args.angle == "all" else args.angle
-        angles = [view_name]
-    else:
-        angles = ["front", "back", "angled"] if args.angle == "all" else [args.angle]
-        
     # Gather all guitar meshes for centering/zoom calculations
     guitar_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name != "Ground_Plane"]
     
-    for angle in angles:
-        # Purge any previous camera
-        for obj in list(bpy.data.objects):
-            if obj.type == 'CAMERA':
-                bpy.data.objects.remove(obj, do_unlink=True)
-                
-        # Setup Camera and Guitar Rig (applying pitch, rotation, and dynamic zoom-to-fit)
-        rig_obj = setup_camera(
-            view_angle=angle, 
-            guitar_objs=guitar_objs, 
-            custom_pitch=custom_pitch, 
-            custom_guitar_rot=custom_guitar_rot,
-            margin=0.85
-        )
-        
-        # Keep ground plane visible
-        ground_plane = bpy.data.objects.get("Ground_Plane")
-        if ground_plane:
-            ground_plane.hide_render = False
+    if args.animate:
+        print("Configuring animation timeline...")
+        anim_res = setup_animation(guitar_objs, margin=0.85)
+        if anim_res:
+            rig_obj, camera_obj = anim_res
             
-        # Render
-        output_filepath = os.path.join(renders_dir, f"{angle}.png")
-        print(f"Rendering view '{angle}' to: {output_filepath}")
+            # Keep ground plane visible
+            ground_plane = bpy.data.objects.get("Ground_Plane")
+            if ground_plane:
+                ground_plane.hide_render = False
+                
+            if not args.no_render_anim:
+                output_moviepath = os.path.join(renders_dir, "animation.mp4")
+                scene = bpy.context.scene
+                
+                # Check if FFMPEG format is natively supported by trying to assign it
+                ffmpeg_supported = False
+                try:
+                    scene.render.image_settings.file_format = 'FFMPEG'
+                    ffmpeg_supported = True
+                except Exception:
+                    pass
+                    
+                if ffmpeg_supported:
+                    print(f"Rendering animation movie natively in Blender to: {output_moviepath}")
+                    scene.render.filepath = output_moviepath
+                    scene.render.ffmpeg.format = 'MPEG4'
+                    scene.render.ffmpeg.codec = 'H264'
+                    scene.render.ffmpeg.constant_rate_factor = 'HIGH'
+                    scene.render.ffmpeg.audio_codec = 'NONE'
+                    
+                    # Run native animation render
+                    bpy.ops.render.render(animation=True)
+                    print("Animation movie rendering complete.")
+                else:
+                    print("Native FFMPEG not supported in this Blender build. Rendering PNG sequence and compiling with system ffmpeg...")
+                    frames_dir = os.path.join(renders_dir, "frames")
+                    if not os.path.exists(frames_dir):
+                        os.makedirs(frames_dir)
+                        
+                    # Set rendering options for PNG sequence
+                    scene.render.image_settings.file_format = 'PNG'
+                    scene.render.filepath = os.path.join(frames_dir, "frame_####")
+                    
+                    # Render frame sequence
+                    bpy.ops.render.render(animation=True)
+                    
+                    # Compile using system ffmpeg
+                    import subprocess
+                    ffmpeg_cmd = [
+                        "ffmpeg", "-y",
+                        "-r", "30",
+                        "-i", os.path.join(frames_dir, "frame_%04d.png"),
+                        "-c:v", "mpeg4",
+                        "-pix_fmt", "yuv420p",
+                        output_moviepath
+                    ]
+                    print(f"Executing: {' '.join(ffmpeg_cmd)}")
+                    res = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    if res.returncode == 0:
+                        print(f"Successfully compiled animation to: {output_moviepath}")
+                        # Clean up frames folder
+                        import shutil
+                        shutil.rmtree(frames_dir)
+                    else:
+                        print(f"Error compiling movie with ffmpeg: {res.stderr.decode('utf-8', errors='ignore')}")
+            else:
+                print("Skipping animation rendering (--no-render-anim specified).")
+    else:
+        # Parse custom camera options
+        custom_pitch = args.pitch
+        custom_guitar_rot = parse_rotation_string(args.guitar_rot) if args.guitar_rot else None
         
-        scene.render.filepath = output_filepath
-        bpy.ops.render.render(write_still=True)
-        
-        # Clean up the rig, restoring the meshes to their clean centered state
-        cleanup_guitar_rig(rig_obj, guitar_objs)
+        # Determine the views to render
+        if custom_pitch is not None or custom_guitar_rot is not None:
+            view_name = "custom" if args.angle == "all" else args.angle
+            angles = [view_name]
+        else:
+            angles = ["front", "back", "angled"] if args.angle == "all" else [args.angle]
+            
+        for angle in angles:
+            # Purge any previous camera
+            for obj in list(bpy.data.objects):
+                if obj.type == 'CAMERA':
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                    
+            # Setup Camera and Guitar Rig (applying pitch, rotation, and dynamic zoom-to-fit)
+            rig_obj = setup_camera(
+                view_angle=angle, 
+                guitar_objs=guitar_objs, 
+                custom_pitch=custom_pitch, 
+                custom_guitar_rot=custom_guitar_rot,
+                margin=0.85
+            )
+            
+            # Keep ground plane visible
+            ground_plane = bpy.data.objects.get("Ground_Plane")
+            if ground_plane:
+                ground_plane.hide_render = False
+                
+            # Render
+            output_filepath = os.path.join(renders_dir, f"{angle}.png")
+            print(f"Rendering view '{angle}' to: {output_filepath}")
+            
+            scene.render.filepath = output_filepath
+            bpy.ops.render.render(write_still=True)
+            
+            # Clean up the rig, restoring the meshes to their clean centered state
+            cleanup_guitar_rig(rig_obj, guitar_objs)
             
     # Save the blend file if requested
     if args.save_blend:
