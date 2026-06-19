@@ -112,6 +112,9 @@ python guitar_builder.py sarcaster --render
 # Render uncut, body-only meshes with Cycles renderer
 python guitar_builder.py sarcaster --render --uncut --body-only --engine cycles
 
+# Render exploded body-only views with random materials
+python guitar_builder.py sarcaster --render --exploded-body --material random
+
 # Render with dramatic neon-tinted lighting and a striped multi-color body
 python guitar_builder.py sarcaster --render --lighting dramatic --material striped
 
@@ -123,6 +126,7 @@ python guitar_builder.py sarcaster --render --lighting warm --material sparkle:b
 - `--render`: Triggers the background rendering pipeline.
 - `--uncut`: Force-renders the uncut full body mesh (`Guitar_Full_Body.stl`) instead of the sliced parts.
 - `--body-only`: Renders only the guitar body (excludes neck and backplates).
+- `--exploded-body`: Renders only the guitar body in exploded view, separating the sliced parts in the X and Y axes.
 - `--save-blend`: Optionally saves the completed Blender scene as a `.blend` file inside the renders directory.
 - `--angle <front|back|angled|all>` (default: `all`): Camera angle view.
 - `--engine <eevee|cycles>` (default: `eevee`): Blender render engine.

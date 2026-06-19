@@ -4,21 +4,43 @@ import subprocess
 
 
 def find_openscad():
-    """Locate the OpenSCAD executable on the system."""
+    """Locate the OpenSCAD executable or command on the system."""
     # 1. Check for custom environment variable path
     env_path = os.environ.get("OPENSCAD_PATH")
-    if env_path and os.path.exists(env_path):
-        return env_path
+    if env_path:
+        # If it's a file path, return as a list
+        if os.path.exists(env_path):
+            return [env_path]
+        # Or maybe it's a command like "flatpak run org.openscad.OpenSCAD"
+        import shlex
+        return shlex.split(env_path)
 
-    # 2. Check if 'openscad' is in the system PATH
+    # 2. Check if flatpak version is available
     try:
-        result = subprocess.run(["where", "openscad"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(["flatpak", "run", "org.openscad.OpenSCAD", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3)
         if result.returncode == 0:
-            return result.stdout.strip().split('\n')[0]
+            return ["flatpak", "run", "org.openscad.OpenSCAD"]
     except Exception:
         pass
 
-    # 3. Check common Windows installation paths
+    # 3. Check if 'openscad' is in the system PATH
+    import shutil
+    openscad_path = shutil.which("openscad")
+    if openscad_path:
+        return [openscad_path]
+
+    # Check for 'where openscad' or 'which openscad' as fallbacks
+    try:
+        cmd = ["where", "openscad"] if sys.platform == "win32" else ["which", "openscad"]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            path = result.stdout.strip().split('\n')[0]
+            if path:
+                return [path]
+    except Exception:
+        pass
+
+    # 4. Check common Windows installation paths
     program_files = [
         os.environ.get("ProgramFiles", "C:\\Program Files"),
         os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
@@ -26,12 +48,12 @@ def find_openscad():
     for pf in program_files:
         path = os.path.join(pf, "OpenSCAD", "openscad.exe")
         if os.path.exists(path):
-            return path
+            return [path]
 
-    # 4. Check C:\OpenSCAD directly
+    # 5. Check C:\OpenSCAD directly
     direct_path = "C:\\OpenSCAD\\openscad.exe"
     if os.path.exists(direct_path):
-        return direct_path
+        return [direct_path]
 
     return None
 
@@ -54,7 +76,7 @@ def main():
         print("Please ensure OpenSCAD is installed and added to your PATH, or set the OPENSCAD_PATH environment variable.")
         sys.exit(1)
         
-    print(f"Using OpenSCAD executable: {openscad_exe}")
+    print(f"Using OpenSCAD: {' '.join(openscad_exe)}")
     
     scad_files = [f for f in os.listdir(models_dir) if f.lower().endswith(".scad")]
     
@@ -74,7 +96,7 @@ def main():
         
         print(f"Compiling: {f} -> {stl_name}...")
         
-        cmd = [openscad_exe, "-o", stl_path, scad_path]
+        cmd = openscad_exe + ["-o", stl_path, scad_path]
         try:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if result.returncode == 0:

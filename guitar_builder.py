@@ -185,6 +185,7 @@ def parse_wrapper_args(argv):
     # Render arguments
     render = False
     body_only = False
+    exploded_body = False
     uncut = False
     save_blend = False
     angle = "all"
@@ -204,6 +205,9 @@ def parse_wrapper_args(argv):
             i += 1
         elif arg in ["--body-only", "--body_only", "body_only"]:
             body_only = True
+            i += 1
+        elif arg in ["--exploded-body", "--exploded_body", "exploded_body"]:
+            exploded_body = True
             i += 1
         elif arg == "--uncut":
             uncut = True
@@ -272,7 +276,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, uncut, angle, engine, material, material_back, lighting, save_blend
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend
 
 
 def run_wrapper_mode():
@@ -289,7 +293,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, uncut, angle, engine, material, material_back, lighting, save_blend) = parse_wrapper_args(sys.argv[1:])
+     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render:
@@ -304,6 +308,8 @@ def run_wrapper_mode():
             render_args.append("--uncut")
         if body_only:
             render_args.append("--body-only")
+        if exploded_body:
+            render_args.append("--exploded-body")
         if save_blend:
             render_args.append("--save-blend")
         render_args += ["--angle", angle]

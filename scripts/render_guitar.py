@@ -1,6 +1,7 @@
 import os
 import sys
 import random
+import colorsys
 import argparse
 import math
 
@@ -187,6 +188,39 @@ def create_transparent_glass(name="Transparent Glass", color=(1.0, 1.0, 1.0, 1.0
             p.inputs["Transmission Weight"].default_value = 1.0
             
     return mat
+
+
+def create_random_material(name="Random Material"):
+    """Generate a highly diverse, vibrant, and premium random material (glossy, sparkle, chrome, or glass)."""
+    # Material types:
+    # - "glossy" (Glossy paint)
+    # - "sparkle" (Glitter paint)
+    # - "chrome" (Polished metal tint)
+    # - "glass" (Tinted transparent glass)
+    mat_type = random.choice(["glossy", "sparkle", "chrome", "glass"])
+    
+    # Use HSL/HSV color space for vibrant and diverse colors
+    h = random.random()
+    s = random.uniform(0.55, 0.95)
+    v = random.uniform(0.5, 0.95)
+    r, g, b = colorsys.hsv_to_rgb(h, s, v)
+    color = (r, g, b, 1.0)
+    
+    if mat_type == "glossy":
+        return create_glossy(name=name, color=color)
+    elif mat_type == "sparkle":
+        h_flake = (h + random.uniform(0.1, 0.5)) % 1.0
+        s_flake = random.uniform(0.6, 1.0)
+        v_flake = random.uniform(0.7, 1.0)
+        r2, g2, b2 = colorsys.hsv_to_rgb(h_flake, s_flake, v_flake)
+        return create_sparkle(name=name, main_color_rgb=color, sparkle_color_rgb=(r2, g2, b2, 1.0))
+    elif mat_type == "chrome":
+        return create_polished_chrome(name=name, color=color)
+    elif mat_type == "glass":
+        glass_r, glass_g, glass_b = colorsys.hsv_to_rgb(h, random.uniform(0.2, 0.5), random.uniform(0.8, 1.0))
+        return create_transparent_glass(name=name, color=(glass_r, glass_g, glass_b, 1.0))
+        
+    return create_glossy(name=name, color=color)
 
 
 def create_sunburst(name="Sunburst Lacquer", center_color=(0.9, 0.7, 0.08, 1.0), mid_color=(0.65, 0.02, 0.02, 1.0), outer_color=(0.02, 0.02, 0.02, 1.0)):
@@ -877,9 +911,10 @@ def run_rendering():
     parser.add_argument("--config-dir", required=True, help="Path to config output directory")
     parser.add_argument("--uncut", action="store_true", help="Render the uncut full body mesh")
     parser.add_argument("--body-only", action="store_true", help="Render only the guitar body")
+    parser.add_argument("--exploded-body", "--exploded_body", action="store_true", help="Render only the guitar body in exploded view")
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
     parser.add_argument("--engine", default="eevee", choices=["eevee", "cycles"], help="Blender render engine")
-    parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, chrome:color, glass, sunburst, sunburst:colors, striped, random, or custom list)")
+    parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, chrome:color, glass, sunburst, sunburst:colors, random, or custom list)")
     parser.add_argument("--material-back", "--material_back", default="gloss:black", help="Material preset for backplate parts")
     parser.add_argument("--lighting", default="studio", choices=["studio", "dramatic", "warm", "sunset"], help="Lighting setup preset")
     parser.add_argument("--save-blend", action="store_true", help="Optionally save the .blend scene inside the renders directory")
@@ -988,24 +1023,7 @@ def run_rendering():
             # Parse material scheme for sliced parts
             material_mode = args.material.lower().strip()
             
-            # Setup list of shaders
-            if material_mode == "striped":
-                striped_mats = [
-                    create_glossy(name="Gloss Red", color=(0.65, 0.01, 0.02, 1.0)),
-                    create_glossy(name="Gloss Blue", color=(0.01, 0.2, 0.7, 1.0)),
-                    create_gold_top(),
-                    create_polished_chrome()
-                ]
-            elif material_mode == "random":
-                rand_mats = [
-                    create_glossy(name="Gloss Red", color=(0.65, 0.01, 0.02, 1.0)),
-                    create_glossy(name="Gloss Blue", color=(0.01, 0.2, 0.7, 1.0)),
-                    create_gold_top(),
-                    create_polished_chrome(),
-                    create_glossy(name="Gloss Black", color=(0.02, 0.02, 0.02, 1.0)),
-                    create_transparent_glass()
-                ]
-            elif "," in material_mode:
+            if "," in material_mode:
                 # Comma separated custom list
                 custom_parts = material_mode.split(",")
                 custom_mats = [get_material_by_name(m) for m in custom_parts]
@@ -1020,10 +1038,8 @@ def run_rendering():
                     
                 # Determine part material
                 part_mat = body_mat
-                if material_mode == "striped":
-                    part_mat = striped_mats[idx % len(striped_mats)]
-                elif material_mode == "random":
-                    part_mat = random.choice(rand_mats)
+                if material_mode == "random":
+                    part_mat = create_random_material(f"Random_{part_name}_{idx}")
                 elif custom_mats:
                     part_mat = custom_mats[idx % len(custom_mats)]
                     
@@ -1031,12 +1047,59 @@ def run_rendering():
                 if part_obj:
                     body_objects.append(part_obj)
 
+    # Exploded view offset application
+    if args.exploded_body and not args.uncut:
+        print("Exploding body parts along cut lines in X and Y axis...")
+        valid_objs = [obj for obj in body_objects if obj]
+        if valid_objs:
+            # Force update of scene matrix/geometry details before calculating center
+            bpy.context.view_layer.update()
+            
+            # gap is the separation distance along each cut line (in Blender units)
+            gap = 1.5
+            
+            # Explicit consistent step offsets based on the cuts:
+            # - Bottom pieces: Y shift = -gap
+            # - Mid pieces: Y shift = 0
+            # - Top pieces: Y shift = gap
+            # - Left pieces: X shift = -gap
+            # - Right pieces: X shift = gap
+            # - Mid pieces: X shift = 0
+            # - Bottom Left piece: X shift = -0.5 * gap
+            # - Bottom Right piece: X shift = 0.5 * gap
+            offsets = {
+                "Guitar_Bot_Left":  (-0.5 * gap, -gap),
+                "Guitar_Bot_Right": (0.5 * gap,  -gap),
+                "Guitar_Top_Left":  (-gap,       gap),
+                "Guitar_Mid_Left":  (-gap,       0.0),
+                "Guitar_Top_Right": (gap,        gap),
+                "Guitar_Mid_Right": (gap,        0.0),
+                "Guitar_Top_Mid":   (0.0,        gap),
+                "Guitar_Mid":       (0.0,        0.0),
+            }
+            
+            # Apply offsets to each slice
+            for obj in valid_objs:
+                matched = False
+                for key, offset in offsets.items():
+                    if key in obj.name:
+                        obj.location.x += offset[0]
+                        obj.location.y += offset[1]
+                        print(f"Shifted {obj.name} (matched {key}) by ({offset[0]:.2f}, {offset[1]:.2f})")
+                        matched = True
+                        break
+                if not matched:
+                    print(f"Warning: No explicit offset defined for {obj.name}")
+            
+            # Force update to apply the new locations
+            bpy.context.view_layer.update()
+
     # Configure all sunburst materials to center on the body size
     for mat in bpy.data.materials:
         configure_sunburst_material(mat)
 
-    # Import Neck and Hardware (unless body-only is requested)
-    if not args.body_only:
+    # Import Neck and Hardware (unless body-only or exploded-body is requested)
+    if not args.body_only and not args.exploded_body:
         print("Importing references (neck and backplates) for full guitar view...")
         # Neck
         neck_path = os.path.join(third_party_dir, "NeckAmericanStandard.obj")
@@ -1064,7 +1127,7 @@ def run_rendering():
             ebp_obj.location.z = 2.0
             
     # Setup Lighting
-    target_y = 20.0 if args.body_only else 50.0
+    target_y = 20.0 if (args.body_only or args.exploded_body) else 50.0
     setup_lighting(args.lighting, target_y)
     
     # Create Ground Plane
@@ -1119,7 +1182,7 @@ def run_rendering():
                 bpy.context.view_layer.update()
                 
         # Setup Camera
-        setup_camera(angle, args.body_only)
+        setup_camera(angle, args.body_only or args.exploded_body)
         
         # Keep ground plane visible for all renders since camera is always at +Z looking down
         ground_plane = bpy.data.objects.get("Ground_Plane")
