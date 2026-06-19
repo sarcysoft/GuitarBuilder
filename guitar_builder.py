@@ -193,6 +193,8 @@ def parse_wrapper_args(argv):
     material = "gloss"
     material_back = "gloss:black"
     lighting = "studio"
+    pitch = None
+    guitar_rot = None
     
     i = 0
     while i < len(argv):
@@ -242,6 +244,18 @@ def parse_wrapper_args(argv):
                 i += 2
             else:
                 i += 1
+        elif arg == "--pitch":
+            if i + 1 < len(argv):
+                pitch = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg in ["--guitar-rot", "--guitar_rot"]:
+            if i + 1 < len(argv):
+                guitar_rot = argv[i + 1]
+                i += 2
+            else:
+                i += 1
         elif arg in ["--save-blend", "--save_blend"]:
             save_blend = True
             i += 1
@@ -276,7 +290,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot
 
 
 def run_wrapper_mode():
@@ -293,7 +307,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend) = parse_wrapper_args(sys.argv[1:])
+     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render:
@@ -312,6 +326,10 @@ def run_wrapper_mode():
             render_args.append("--exploded-body")
         if save_blend:
             render_args.append("--save-blend")
+        if pitch is not None:
+            render_args += ["--pitch", str(pitch)]
+        if guitar_rot is not None:
+            render_args += ["--guitar-rot", str(guitar_rot)]
         render_args += ["--angle", angle]
         render_args += ["--engine", engine]
         render_args += ["--material", material]

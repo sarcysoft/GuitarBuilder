@@ -841,62 +841,222 @@ def create_ground_plane(target_y, theme):
         plane_obj.material_slots[0].material = mat
 
 
-def setup_camera(view_angle, is_body_only):
-    """Add and configure camera based on view angle and zoom level."""
-    # Purge any existing camera target
-    for obj in list(bpy.data.objects):
-        if obj.name == "Camera_Target":
-            bpy.data.objects.remove(obj, do_unlink=True)
+def parse_rotation_string(rot_str):
+    """Parse comma-separated rotation string into a tuple of 3 floats."""
+    if not rot_str:
+        return None
+    try:
+        parts = [float(x.strip()) for x in rot_str.split(",")]
+        if len(parts) == 3:
+            return tuple(parts)
+    except Exception as e:
+        print(f"Error parsing rotation string '{rot_str}': {e}")
+    return None
 
+
+def get_camera_fov(camera_obj):
+    """Calculate the horizontal and vertical field of view in radians."""
+    scene = bpy.context.scene
+    render_width = scene.render.resolution_x
+    render_height = scene.render.resolution_y
+    aspect_ratio = render_width / render_height
+    
+    camera_data = camera_obj.data
+    fov = camera_data.angle  # field of view in radians (depends on sensor fit)
+    
+    if camera_data.sensor_fit == 'HORIZONTAL':
+        fov_x = fov
+        fov_y = 2.0 * math.atan(math.tan(fov_x / 2.0) / aspect_ratio)
+    elif camera_data.sensor_fit == 'VERTICAL':
+        fov_y = fov
+        fov_x = 2.0 * math.atan(math.tan(fov_y / 2.0) * aspect_ratio)
+    else:  # AUTO
+        if aspect_ratio >= 1.0:
+            fov_x = fov
+            fov_y = 2.0 * math.atan(math.tan(fov_x / 2.0) / aspect_ratio)
+        else:
+            fov_y = fov
+            fov_x = 2.0 * math.atan(math.tan(fov_y / 2.0) * aspect_ratio)
+            
+    return fov_x, fov_y
+
+
+def calculate_optimal_camera_distance(camera_obj, pitch_angle, guitar_objs, margin=0.85):
+    """
+    Calculate optimal camera distance d to frame the subject.
+    Project bounding box points in camera-oriented space and find d.
+    """
+    import mathutils
+    
+    # Get camera field of view
+    fov_x, fov_y = get_camera_fov(camera_obj)
+    
+    # Camera rotation matrix (pitch down around X axis)
+    pitch_rad = math.radians(90.0 - pitch_angle)
+    R_cam = mathutils.Euler((pitch_rad, 0.0, 0.0)).to_matrix()
+    R_cam_inv = R_cam.inverted()
+    
+    # Collect all bounding box points in world space
+    world_coords = []
+    for obj in guitar_objs:
+        for v in obj.bound_box:
+            world_coords.append(obj.matrix_world @ mathutils.Vector(v))
+            
+    if not world_coords:
+        return 90.0
+        
+    # Usable FOV tangents with margin
+    tan_fov_x = math.tan(fov_x / 2.0) * margin
+    tan_fov_y = math.tan(fov_y / 2.0) * margin
+    
+    max_d = 0.0
+    for p_world in world_coords:
+        q = R_cam_inv @ p_world
+        
+        # depth is d - q.z
+        # we want |q.x| / (d - q.z) <= tan_fov_x  => d >= q.z + |q.x| / tan_fov_x
+        # we want |q.y| / (d - q.z) <= tan_fov_y  => d >= q.z + |q.y| / tan_fov_y
+        d_x = q.z + abs(q.x) / tan_fov_x
+        d_y = q.z + abs(q.y) / tan_fov_y
+        
+        max_d = max(max_d, d_x, d_y)
+        
+    return max(max_d, 5.0)
+
+
+def setup_guitar_rig(guitar_objs, rot_x=0.0, rot_y=0.0, rot_z=0.0):
+    """Center subject meshes above the origin and apply 3-axis rotation."""
+    import mathutils
+    
+    # 1. Compute collective bounding box center
+    world_coords = []
+    for obj in guitar_objs:
+        for v in obj.bound_box:
+            world_coords.append(obj.matrix_world @ mathutils.Vector(v))
+            
+    if not world_coords:
+        return None
+        
+    min_x = min(w[0] for w in world_coords)
+    max_x = max(w[0] for w in world_coords)
+    min_y = min(w[1] for w in world_coords)
+    max_y = max(w[1] for w in world_coords)
+    min_z = min(w[2] for w in world_coords)
+    max_z = max(w[2] for w in world_coords)
+    
+    center_x = (min_x + max_x) / 2.0
+    center_y = (min_y + max_y) / 2.0
+    center_z = (min_z + max_z) / 2.0
+    
+    print(f"Centering subject around bbox center: ({center_x:.2f}, {center_y:.2f}, {center_z:.2f})")
+    
+    # 2. Create Empty parent object
+    rig_name = "Guitar_Rig"
+    old_rig = bpy.data.objects.get(rig_name)
+    if old_rig:
+        bpy.data.objects.remove(old_rig, do_unlink=True)
+        
+    rig_obj = bpy.data.objects.new(rig_name, None)
+    bpy.context.collection.objects.link(rig_obj)
+    rig_obj.location = (center_x, center_y, center_z)
+    
+    # Force update
+    bpy.context.view_layer.update()
+    
+    # 3. Parent meshes keeping transform
+    for obj in guitar_objs:
+        obj.parent = rig_obj
+        obj.matrix_parent_inverse = rig_obj.matrix_world.inverted()
+        
+    bpy.context.view_layer.update()
+    
+    # 4. Relocate rig to origin
+    rig_obj.location = (0.0, 0.0, 0.0)
+    bpy.context.view_layer.update()
+    
+    # 5. Apply rotations
+    rig_obj.rotation_euler = (math.radians(rot_x), math.radians(rot_y), math.radians(rot_z))
+    bpy.context.view_layer.update()
+    
+    return rig_obj
+
+
+def cleanup_guitar_rig(rig_obj, guitar_objs):
+    """Reset rig transformation, unparent children, and delete rig."""
+    if not rig_obj:
+        return
+    # Reset rig
+    rig_obj.rotation_euler = (0.0, 0.0, 0.0)
+    rig_obj.location = (0.0, 0.0, 0.0)
+    bpy.context.view_layer.update()
+    
+    # Unparent children keeping their centered world position
+    for obj in guitar_objs:
+        if obj.parent == rig_obj:
+            world_mat = obj.matrix_world.copy()
+            obj.parent = None
+            obj.matrix_world = world_mat
+            
+    # Delete rig
+    bpy.data.objects.remove(rig_obj, do_unlink=True)
+    bpy.context.view_layer.update()
+
+
+def setup_camera(view_angle, guitar_objs, custom_pitch=None, custom_guitar_rot=None, margin=0.85):
+    """Add and configure camera and rig based on view angle, pitch, and rotation."""
+    
+    # 1. Define default view configs
+    DEFAULT_VIEWS = {
+        "front": {
+            "pitch": 90.0,
+            "guitar_rot": (0.0, 0.0, -90.0)
+        },
+        "back": {
+            "pitch": 90.0,
+            "guitar_rot": (0.0, 180.0, -90.0)
+        },
+        "angled": {
+            "pitch": 35.0,
+            "guitar_rot": (0.0, 0.0, 62.5)
+        }
+    }
+    
+    # Resolve pitch and rotation
+    pitch = custom_pitch
+    guitar_rot = custom_guitar_rot
+    
+    if pitch is None or guitar_rot is None:
+        view_config = DEFAULT_VIEWS.get(view_angle, DEFAULT_VIEWS["front"])
+        if pitch is None:
+            pitch = view_config["pitch"]
+        if guitar_rot is None:
+            guitar_rot = view_config["guitar_rot"]
+            
+    print(f"Setting up view '{view_angle}' with camera pitch {pitch:.1f} and guitar rotation {guitar_rot}")
+    
+    # 2. Setup Guitar Rig (center at origin and apply rotations)
+    rig_obj = setup_guitar_rig(guitar_objs, rot_x=guitar_rot[0], rot_y=guitar_rot[1], rot_z=guitar_rot[2])
+    
+    # 3. Create active camera
     camera_data = bpy.data.cameras.new(name="Render Camera")
     camera_obj = bpy.data.objects.new(name="Render Camera", object_data=camera_data)
     bpy.context.collection.objects.link(camera_obj)
-    
-    # Make active camera
     bpy.context.scene.camera = camera_obj
     
-    # Position camera based on full guitar vs body-only framing
-    if is_body_only:
-        target_y = 20.0
-        z_dist = 90.0
-        if view_angle == "front" or view_angle == "back":
-            camera_obj.location = (0.0, target_y, z_dist)
-            camera_obj.rotation_euler = (0, 0, math.radians(90))
-        else:  # angled
-            camera_obj.location = (-60.0, -10.0, 52.0)
-            
-            # Create target empty
-            target_obj = bpy.data.objects.new("Camera_Target", None)
-            bpy.context.collection.objects.link(target_obj)
-            target_obj.location = (0.0, target_y, 1.0)
-            
-            # Add track to constraint
-            constraint = camera_obj.constraints.new(type='TRACK_TO')
-            constraint.target = target_obj
-            constraint.track_axis = 'TRACK_NEGATIVE_Z'
-            constraint.up_axis = 'UP_Y'
-    else:
-        # Full guitar (includes long neck)
-        target_y = 50.0
-        z_dist = 145.0
-        if view_angle == "front" or view_angle == "back":
-            camera_obj.location = (0.0, target_y, z_dist)
-            camera_obj.rotation_euler = (0, 0, math.radians(90))
-        else:  # angled
-            camera_obj.location = (-100.0, -14.0, 81.0)
-            
-            # Create target empty
-            target_obj = bpy.data.objects.new("Camera_Target", None)
-            bpy.context.collection.objects.link(target_obj)
-            target_obj.location = (0.0, 38.0, 1.0)
-            
-            # Add track to constraint
-            constraint = camera_obj.constraints.new(type='TRACK_TO')
-            constraint.target = target_obj
-            constraint.track_axis = 'TRACK_NEGATIVE_Z'
-            constraint.up_axis = 'UP_Y'
-            
+    # 4. Calculate optimal camera distance
+    # Force a view layer update so the parented mesh matrices are fully recalculated
     bpy.context.view_layer.update()
+    
+    d = calculate_optimal_camera_distance(camera_obj, pitch, guitar_objs, margin=margin)
+    print(f"Calculated optimal camera distance: {d:.2f}")
+    
+    # 5. Position and rotate camera
+    pitch_rad = math.radians(pitch)
+    camera_obj.location = (0.0, -d * math.cos(pitch_rad), d * math.sin(pitch_rad))
+    camera_obj.rotation_euler = (math.radians(90.0 - pitch), 0.0, 0.0)
+    
+    bpy.context.view_layer.update()
+    return rig_obj
 
 
 def run_rendering():
@@ -912,6 +1072,8 @@ def run_rendering():
     parser.add_argument("--uncut", action="store_true", help="Render the uncut full body mesh")
     parser.add_argument("--body-only", action="store_true", help="Render only the guitar body")
     parser.add_argument("--exploded-body", "--exploded_body", action="store_true", help="Render only the guitar body in exploded view")
+    parser.add_argument("--pitch", type=float, default=None, help="Camera pitch angle in degrees (0 = horizontal, 90 = looking straight down)")
+    parser.add_argument("--guitar-rot", "--guitar_rot", default=None, help="Comma-separated rotation angles for the guitar around X, Y, Z axes in degrees (e.g. 15,30,-45)")
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
     parser.add_argument("--engine", default="eevee", choices=["eevee", "cycles"], help="Blender render engine")
     parser.add_argument("--material", default="gloss", help="Material preset (gloss, gloss:color, gold, chrome, chrome:color, glass, sunburst, sunburst:colors, random, or custom list)")
@@ -1133,8 +1295,19 @@ def run_rendering():
     # Create Ground Plane
     create_ground_plane(target_y, args.lighting)
     
-    # View rendering presets
-    angles = ["front", "back", "angled"] if args.angle == "all" else [args.angle]
+    # Parse custom camera options
+    custom_pitch = args.pitch
+    custom_guitar_rot = parse_rotation_string(args.guitar_rot) if args.guitar_rot else None
+    
+    # Determine the views to render
+    if custom_pitch is not None or custom_guitar_rot is not None:
+        view_name = "custom" if args.angle == "all" else args.angle
+        angles = [view_name]
+    else:
+        angles = ["front", "back", "angled"] if args.angle == "all" else [args.angle]
+        
+    # Gather all guitar meshes for centering/zoom calculations
+    guitar_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name != "Ground_Plane"]
     
     for angle in angles:
         # Purge any previous camera
@@ -1142,53 +1315,20 @@ def run_rendering():
             if obj.type == 'CAMERA':
                 bpy.data.objects.remove(obj, do_unlink=True)
                 
-        # For back view, rotate the guitar 180 degrees around Y-axis
-        temp_parent = None
-        if angle == "back":
-            # CRITICAL: update view layer so all matrix_world matrices are fully initialized/updated
-            bpy.context.view_layer.update()
-            guitar_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name != "Ground_Plane"]
-            if guitar_objs:
-                import mathutils
-                # Compute world coordinates of all bounding box corners to find actual center in X, Y, Z
-                world_coords = []
-                for obj in guitar_objs:
-                    for v in obj.bound_box:
-                        world_coords.append(obj.matrix_world @ mathutils.Vector(v))
-                
-                min_x = min(w[0] for w in world_coords)
-                max_x = max(w[0] for w in world_coords)
-                min_y = min(w[1] for w in world_coords)
-                max_y = max(w[1] for w in world_coords)
-                min_z = min(w[2] for w in world_coords)
-                max_z = max(w[2] for w in world_coords)
-                
-                center_x = (min_x + max_x) / 2.0
-                center_y = (min_y + max_y) / 2.0
-                center_z = (min_z + max_z) / 2.0
-                
-                temp_parent = bpy.data.objects.new("Temp_Guitar_Parent", None)
-                bpy.context.collection.objects.link(temp_parent)
-                temp_parent.location = (center_x, center_y, center_z)
-                
-                # CRITICAL: update view layer so matrix_world is initialized before setting matrix_parent_inverse!
-                bpy.context.view_layer.update()
-                
-                for obj in guitar_objs:
-                    obj.parent = temp_parent
-                    obj.matrix_parent_inverse = temp_parent.matrix_world.inverted()
-                
-                temp_parent.rotation_euler[1] = math.radians(180)
-                bpy.context.view_layer.update()
-                
-        # Setup Camera
-        setup_camera(angle, args.body_only or args.exploded_body)
+        # Setup Camera and Guitar Rig (applying pitch, rotation, and dynamic zoom-to-fit)
+        rig_obj = setup_camera(
+            view_angle=angle, 
+            guitar_objs=guitar_objs, 
+            custom_pitch=custom_pitch, 
+            custom_guitar_rot=custom_guitar_rot,
+            margin=0.85
+        )
         
-        # Keep ground plane visible for all renders since camera is always at +Z looking down
+        # Keep ground plane visible
         ground_plane = bpy.data.objects.get("Ground_Plane")
         if ground_plane:
             ground_plane.hide_render = False
-        
+            
         # Render
         output_filepath = os.path.join(renders_dir, f"{angle}.png")
         print(f"Rendering view '{angle}' to: {output_filepath}")
@@ -1196,19 +1336,8 @@ def run_rendering():
         scene.render.filepath = output_filepath
         bpy.ops.render.render(write_still=True)
         
-        # Restore rotation and clean up temp parent
-        if temp_parent:
-            temp_parent.rotation_euler[1] = 0.0
-            bpy.context.view_layer.update()
-            
-            for obj in list(bpy.data.objects):
-                if obj.parent == temp_parent:
-                    matrix_world = obj.matrix_world.copy()
-                    obj.parent = None
-                    obj.matrix_world = matrix_world
-            
-            bpy.data.objects.remove(temp_parent, do_unlink=True)
-            bpy.context.view_layer.update()
+        # Clean up the rig, restoring the meshes to their clean centered state
+        cleanup_guitar_rig(rig_obj, guitar_objs)
             
     # Save the blend file if requested
     if args.save_blend:
