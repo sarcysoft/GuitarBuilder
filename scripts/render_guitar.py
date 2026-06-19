@@ -1078,34 +1078,54 @@ def setup_animation(guitar_objs, margin=0.85):
     bpy.context.collection.objects.link(camera_obj)
     bpy.context.scene.camera = camera_obj
     
-    # 4. Calculate locked camera distance by sampling key animation frames
+    # 4. Calculate locked camera distance and ground plane drop by sampling key animation frames
     bpy.context.view_layer.update()
     d_samples = []
     
+    # Track minimum Z coordinate across all sampled orientations
+    import mathutils
+    min_z_samples = []
+    
+    def record_state(pitch_val):
+        d_val = calculate_optimal_camera_distance(camera_obj, pitch_val, guitar_objs, margin=margin)
+        d_samples.append(d_val)
+        for obj in guitar_objs:
+            for v in obj.bound_box:
+                world_coord = obj.matrix_world @ mathutils.Vector(v)
+                min_z_samples.append(world_coord.z)
+
     # Sample front view
-    d_samples.append(calculate_optimal_camera_distance(camera_obj, 90.0, guitar_objs, margin=margin))
+    record_state(90.0)
     
     # Sample Y spin orientations (90, 180, 270 degrees)
     for y_rot in [90.0, 180.0, 270.0]:
         rig_obj.rotation_euler = (0.0, math.radians(y_rot), math.radians(-90.0))
         bpy.context.view_layer.update()
-        d_samples.append(calculate_optimal_camera_distance(camera_obj, 90.0, guitar_objs, margin=margin))
+        record_state(90.0)
         
     # Sample pitch / tilt transitions (neck tilts up to 45.0)
     for p, rx in [(67.5, 22.5), (45.0, 45.0)]:
         rig_obj.rotation_euler = (math.radians(rx), 0.0, math.radians(-90.0))
         bpy.context.view_layer.update()
-        d_samples.append(calculate_optimal_camera_distance(camera_obj, p, guitar_objs, margin=margin))
+        record_state(p)
         
     # Sample Z spin orientations (guitar rotated around Z from -90 to -450)
     for z_rot in [-90.0, -150.0, -210.0, -270.0, -330.0, -390.0, -450.0]:
         rig_obj.rotation_euler = (math.radians(45.0), 0.0, math.radians(z_rot))
         bpy.context.view_layer.update()
-        d_samples.append(calculate_optimal_camera_distance(camera_obj, 45.0, guitar_objs, margin=margin))
+        record_state(45.0)
         
     d = max(d_samples)
+    min_z_overall = min(min_z_samples) if min_z_samples else -30.0
     print(f"Calculated locked camera distance for animation: {d:.2f}")
+    print(f"Recorded minimum Z coordinate of guitar: {min_z_overall:.2f}")
     
+    # Adjust ground plane location dynamically to accommodate the tilt
+    ground_plane = bpy.data.objects.get("Ground_Plane")
+    if ground_plane:
+        ground_plane.location.z = min_z_overall - 10.0
+        print(f"Adjusted Ground_Plane Z location to: {ground_plane.location.z:.2f}")
+        
     # Restore initial state
     rig_obj.rotation_euler = (0.0, 0.0, math.radians(-90.0))
     bpy.context.view_layer.update()
@@ -1199,7 +1219,7 @@ def run_rendering():
     parser.add_argument("--config-dir", required=True, help="Path to config output directory")
     parser.add_argument("--uncut", action="store_true", help="Render the uncut full body mesh")
     parser.add_argument("--body-only", action="store_true", help="Render only the guitar body")
-    parser.add_argument("--exploded-body", "--exploded_body", action="store_true", help="Render only the guitar body in exploded view")
+    parser.add_argument("--exploded-body", "--exploded_body", "--explode-body", "--explode_body", action="store_true", help="Render only the guitar body in exploded view")
     parser.add_argument("--pitch", type=float, default=None, help="Camera pitch angle in degrees (0 = horizontal, 90 = looking straight down)")
     parser.add_argument("--guitar-rot", "--guitar_rot", default=None, help="Comma-separated rotation angles for the guitar around X, Y, Z axes in degrees (e.g. 15,30,-45)")
     parser.add_argument("--angle", default="all", choices=["front", "back", "angled", "all"], help="Camera view angle")
@@ -1430,7 +1450,7 @@ def run_rendering():
     # Gather all guitar meshes for centering/zoom calculations
     guitar_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name != "Ground_Plane"]
     
-    if args.animate:
+    if args.animate or args.no_render_anim:
         print("Configuring animation timeline...")
         anim_res = setup_animation(guitar_objs, margin=0.85)
         if anim_res:

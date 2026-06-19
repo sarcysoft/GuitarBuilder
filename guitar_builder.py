@@ -210,7 +210,7 @@ def parse_wrapper_args(argv):
         elif arg in ["--body-only", "--body_only", "body_only"]:
             body_only = True
             i += 1
-        elif arg in ["--exploded-body", "--exploded_body", "exploded_body"]:
+        elif arg in ["--exploded-body", "--exploded_body", "exploded_body", "--explode-body", "--explode_body", "explode_body"]:
             exploded_body = True
             i += 1
         elif arg == "--uncut":
@@ -318,7 +318,7 @@ def run_wrapper_mode():
      render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
-    if render:
+    if render or animate or no_render_anim:
         print("Launching background rendering pipeline...")
         if config and config != "default":
             config_dir = os.path.join(script_dir, "output", config)
