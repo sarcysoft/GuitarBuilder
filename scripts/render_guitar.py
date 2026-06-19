@@ -1091,15 +1091,15 @@ def setup_animation(guitar_objs, margin=0.85):
         bpy.context.view_layer.update()
         d_samples.append(calculate_optimal_camera_distance(camera_obj, 90.0, guitar_objs, margin=margin))
         
-    # Sample pitch / tilt transitions
-    for p, rx in [(67.5, -22.5), (45.0, -45.0)]:
+    # Sample pitch / tilt transitions (neck tilts up to 45.0)
+    for p, rx in [(67.5, 22.5), (45.0, 45.0)]:
         rig_obj.rotation_euler = (math.radians(rx), 0.0, math.radians(-90.0))
         bpy.context.view_layer.update()
         d_samples.append(calculate_optimal_camera_distance(camera_obj, p, guitar_objs, margin=margin))
         
-    # Sample Z spin orientations
-    for z_rot in [-45.0, 0.0, 45.0, 90.0, 135.0, 180.0, 225.0]:
-        rig_obj.rotation_euler = (math.radians(-45.0), 0.0, math.radians(z_rot))
+    # Sample Z spin orientations (guitar rotated around Z from -90 to -450)
+    for z_rot in [-90.0, -150.0, -210.0, -270.0, -330.0, -390.0, -450.0]:
+        rig_obj.rotation_euler = (math.radians(45.0), 0.0, math.radians(z_rot))
         bpy.context.view_layer.update()
         d_samples.append(calculate_optimal_camera_distance(camera_obj, 45.0, guitar_objs, margin=margin))
         
@@ -1146,14 +1146,14 @@ def setup_animation(guitar_objs, margin=0.85):
     # Phase 2: Y-axis 360 rotation (frame 61 to 360)
     insert_keys(360, 90.0, 0.0, 360.0, -90.0)
     
-    # Phase 3: Drop camera to 45 while guitar X tilts to -45 (frame 361 to 510)
-    insert_keys(510, 45.0, -45.0, 360.0, -90.0)
+    # Phase 3: Drop camera to 45 while guitar X tilts to +45 (frame 361 to 510)
+    insert_keys(510, 45.0, 45.0, 360.0, -90.0)
     
-    # Phase 4: Z-axis 360 rotation (frame 511 to 810)
-    insert_keys(810, 45.0, -45.0, 360.0, 270.0)
+    # Phase 4: Z-axis 360 rotation (frame 511 to 810) - rotation goes from -90 to -450 (clockwise)
+    insert_keys(810, 45.0, 45.0, 360.0, -450.0)
     
     # Phase 5: Final Pause (frame 811 to 870)
-    insert_keys(870, 45.0, -45.0, 360.0, 270.0)
+    insert_keys(870, 45.0, 45.0, 360.0, -450.0)
     
     # Force Bezier interpolation for all animation curves (ease-in/ease-out)
     def set_bezier_interpolation(obj):
