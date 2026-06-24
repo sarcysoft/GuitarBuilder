@@ -658,6 +658,25 @@ def import_stl(filepath, name, material=None, scale_factor=1.0):
                 bpy.context.view_layer.objects.active = imported_obj
                 bpy.ops.object.transform_apply(scale=True)
                 
+            # Shade Smooth and apply Auto-Smooth to prevent flat facets on curved surfaces
+            bpy.ops.object.select_all(action='DESELECT')
+            imported_obj.select_set(True)
+            bpy.context.view_layer.objects.active = imported_obj
+            bpy.ops.object.shade_smooth()
+            
+            import math
+            if hasattr(imported_obj.data, "use_auto_smooth"):
+                imported_obj.data.use_auto_smooth = True
+                imported_obj.data.auto_smooth_angle = math.radians(30)
+            else:
+                has_modifier = False
+                for mod in imported_obj.modifiers:
+                    if mod.type == 'EDGE_SPLIT':
+                        has_modifier = True
+                        break
+                if not has_modifier:
+                    imported_obj.modifiers.new(name="Edge Split", type='EDGE_SPLIT')
+                    
             if material:
                 if len(imported_obj.material_slots) == 0:
                     imported_obj.data.materials.append(material)
