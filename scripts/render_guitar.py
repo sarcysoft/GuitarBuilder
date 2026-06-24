@@ -85,13 +85,52 @@ def get_or_create_satin_maple():
     mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    
     principled = get_principled_bsdf(nodes)
-    if principled:
-        principled.inputs[0].default_value = (0.9, 0.8, 0.65, 1.0)  # Base Color
-        # Roughness
-        rough_input = principled.inputs.get("Roughness")
-        if rough_input:
-            rough_input.default_value = 0.4
+    if not principled:
+        return mat
+        
+    # Set roughness and reflection settings
+    rough_input = principled.inputs.get("Roughness")
+    if rough_input:
+        rough_input.default_value = 0.35
+        
+    # Nodes for wood grain texture
+    tex_coord = nodes.new(type="ShaderNodeTexCoord")
+    mapping = nodes.new(type="ShaderNodeMapping")
+    
+    # Scale coordinates to stretch noise into long grain lines (maple grain)
+    mapping.inputs['Scale'].default_value = (12.0, 0.4, 12.0)
+    
+    noise = nodes.new(type="ShaderNodeTexNoise")
+    noise.inputs['Scale'].default_value = 6.0
+    noise.inputs['Detail'].default_value = 6.0
+    noise.inputs['Roughness'].default_value = 0.5
+    
+    color_ramp = nodes.new(type="ShaderNodeValToRGB")
+    color_ramp.color_ramp.interpolation = 'LINEAR'
+    
+    # Light maple base and darker grain streak colors
+    color_ramp.color_ramp.elements[0].position = 0.25
+    color_ramp.color_ramp.elements[0].color = (0.86, 0.76, 0.58, 1.0)
+    color_ramp.color_ramp.elements[1].position = 0.75
+    color_ramp.color_ramp.elements[1].color = (0.75, 0.61, 0.43, 1.0)
+    
+    # Subtle bump mapping for grain texture
+    bump = nodes.new(type="ShaderNodeBump")
+    bump.inputs['Strength'].default_value = 0.015
+    bump.inputs['Distance'].default_value = 0.05
+    
+    # Connect nodes
+    links.new(tex_coord.outputs['Object'], mapping.inputs['Vector'])
+    links.new(mapping.outputs['Vector'], noise.inputs['Vector'])
+    links.new(noise.outputs['Factor'], color_ramp.inputs['Factor'])
+    links.new(color_ramp.outputs['Color'], principled.inputs['Base Color'])
+    
+    links.new(noise.outputs['Factor'], bump.inputs['Height'])
+    links.new(bump.outputs['Normal'], principled.inputs['Normal'])
+    
     return mat
 
 
@@ -351,40 +390,51 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
     if not p:
         return mat
         
-    p.inputs.get("Roughness").default_value = 0.15
+    # Standard settings
+    p.inputs.get("Roughness").default_value = 0.25  # default base roughness
     if "Metallic" in p.inputs:
-        p.inputs["Metallic"].default_value = 0.8
+        p.inputs["Metallic"].default_value = 0.0   # base is non-metallic paint
     elif "Metallic Weight" in p.inputs:
-        p.inputs["Metallic Weight"].default_value = 0.8
-    if "Coat" in p.inputs:
+        p.inputs["Metallic Weight"].default_value = 0.0
+        
+    # Setup Clearcoat (Coat) layer properly for Blender 5.x/4.x/3.x
+    if "Coat Weight" in p.inputs:
+        p.inputs["Coat Weight"].default_value = 1.0
+    elif "Coat" in p.inputs:
         p.inputs["Coat"].default_value = 1.0
     elif "Clearcoat" in p.inputs:
         p.inputs["Clearcoat"].default_value = 1.0
         
-    # Texture coordinate node - use Object space so scale is consistent
-    # regardless of mesh scale factor applied at import
+    if "Coat Roughness" in p.inputs:
+        p.inputs["Coat Roughness"].default_value = 0.02
+        
+    # Texture coordinate node
     tex_coord = nodes.new(type="ShaderNodeTexCoord")
     
-    # Voronoi cells for sparkles - scale of ~2.0 gives ~20-30 visible cells
-    # across the guitar body at standard render resolution.
-    # (Scale=800 would create subpixel cells invisible after anti-aliasing)
+    # Voronoi cells for sparkles - scale of 3.5 gives distinct larger flakes
     voronoi = nodes.new(type="ShaderNodeTexVoronoi")
-    voronoi.inputs['Scale'].default_value = 2.0
+    voronoi.inputs['Scale'].default_value = 3.5
     
-    # Sharp threshold mask - selects only the center core of each Voronoi cell
-    # From Min=0 → To Min=1 (sparkle), From Max=0.12 → To Max=0 (body color)
-    map_range = nodes.new(type="ShaderNodeMapRange")
-    map_range.inputs[1].default_value = 0.00
-    map_range.inputs[2].default_value = 0.12  # Controls sparkle dot size
-    map_range.inputs[3].default_value = 1.0
-    map_range.inputs[4].default_value = 0.0
+    # Separate color to extract a random value per Voronoi cell for variation
+    sep_color = nodes.new(type="ShaderNodeSeparateColor")
     
-    # Mix node to interpolate between body color (A) and sparkle flake color (B)
+    # Map random cell value to threshold range (size variation: 0.12 to 0.26)
+    map_thresh = nodes.new(type="ShaderNodeMapRange")
+    map_thresh.inputs[1].default_value = 0.0
+    map_thresh.inputs[2].default_value = 1.0
+    map_thresh.inputs[3].default_value = 0.12  # min flake size
+    map_thresh.inputs[4].default_value = 0.26  # max flake size
+    
+    # Flake Mask (Binary check: Distance < threshold)
+    mask_math = nodes.new(type="ShaderNodeMath")
+    mask_math.operation = 'LESS_THAN'
+    
+    # Mix node for Base Color (Mix between paint color A and flake color B)
     mix = nodes.new(type="ShaderNodeMix")
     mix.data_type = 'RGBA'
     mix.blend_type = 'MIX'
     
-    # Find RGBA type sockets to avoid hardcoded indices
+    # Find RGBA type sockets
     color_a_socket = None
     color_b_socket = None
     for inp in mix.inputs:
@@ -399,31 +449,87 @@ def create_sparkle(name, main_color_rgb, sparkle_color_rgb):
         color_a_socket.default_value = main_color_rgb
         color_b_socket.default_value = sparkle_color_rgb
     
-    # Bump node to perturb normals to create shimmering highlights
+    # Map range to mix Roughness (0.25 for paint, 0.01 for shiny metallic flakes)
+    map_rough = nodes.new(type="ShaderNodeMapRange")
+    map_rough.inputs[1].default_value = 0.0
+    map_rough.inputs[2].default_value = 1.0
+    map_rough.inputs[3].default_value = 0.25  # paint roughness
+    map_rough.inputs[4].default_value = 0.01  # flake roughness
+    
+    # Map range to mix Metallic (0.0 for paint, 1.0 for flakes)
+    map_metal = nodes.new(type="ShaderNodeMapRange")
+    map_metal.inputs[1].default_value = 0.0
+    map_metal.inputs[2].default_value = 1.0
+    map_metal.inputs[3].default_value = 0.0   # paint metallic
+    map_metal.inputs[4].default_value = 1.0   # flake metallic
+    
+    # Geometry input node for clean normals
+    geom_node = nodes.new(type="ShaderNodeNewGeometry")
+    
+    # Bump node to perturb normals on the flakes for glinting
     bump = nodes.new(type="ShaderNodeBump")
-    bump.inputs[0].default_value = 0.6  # Strength
-    bump.inputs[1].default_value = 0.01 # Distance
+    bump.inputs['Strength'].default_value = 1.2  # High strength for maximum angle variance
+    bump.inputs['Distance'].default_value = 0.02
+    
+    # Mix normal node to combine clean normal and bump normal based on binary mask
+    mix_normal = nodes.new(type="ShaderNodeMix")
+    mix_normal.data_type = 'VECTOR'
+    mix_normal.blend_type = 'MIX'
     
     # Connections
     links.new(tex_coord.outputs['Object'], voronoi.inputs['Vector'])
-    links.new(voronoi.outputs['Distance'], map_range.inputs[0])
-    links.new(map_range.outputs['Result'], mix.inputs[0])
+    links.new(voronoi.outputs['Color'], sep_color.inputs['Color'])
     
-    # Connect Mix output to Base Color by matching RGBA output socket
+    # Connect Red channel of cell color to threshold mapping
+    links.new(sep_color.outputs['Red'], map_thresh.inputs[0])
+    
+    # Connect distance and threshold to the binary mask node
+    links.new(voronoi.outputs['Distance'], mask_math.inputs[0])
+    links.new(map_thresh.outputs['Result'], mask_math.inputs[1])
+    
+    # Connect mask directly as factor for all attributes
+    links.new(mask_math.outputs['Value'], mix.inputs[0])
+    
+    # Connect mask to Roughness map
+    links.new(mask_math.outputs['Value'], map_rough.inputs[0])
+    links.new(map_rough.outputs['Result'], p.inputs['Roughness'])
+    
+    # Connect mask to Metallic map
+    links.new(mask_math.outputs['Value'], map_metal.inputs[0])
+    if "Metallic" in p.inputs:
+        links.new(map_metal.outputs['Result'], p.inputs['Metallic'])
+    elif "Metallic Weight" in p.inputs:
+        links.new(map_metal.outputs['Result'], p.inputs['Metallic Weight'])
+        
+    # Connect Base Color mix
     rgba_output = None
     for out in mix.outputs:
         if out.type == 'RGBA':
             rgba_output = out
             break
-            
     if rgba_output:
         links.new(rgba_output, p.inputs[0])
-    
-    # Connect voronoi to bump Height (use name to avoid hardcoded index - index 2 is
-    # 'Filter Width' in Blender 5.x, index 3 is 'Height')
+        
+    # Connect Bump height and normal input
     links.new(voronoi.outputs['Distance'], bump.inputs['Height'])
-    links.new(bump.outputs['Normal'], p.inputs['Normal'])
     
+    # Mix normals: Clean normal (A) and Bumped normal (B) using binary mask
+    a_vector = [i for i in mix_normal.inputs if i.name == 'A' and i.type == 'VECTOR'][0]
+    b_vector = [i for i in mix_normal.inputs if i.name == 'B' and i.type == 'VECTOR'][0]
+    factor_float = [i for i in mix_normal.inputs if i.name == 'Factor' and i.type == 'VALUE'][0]
+    result_vector = [o for o in mix_normal.outputs if o.name == 'Result' and o.type == 'VECTOR'][0]
+    
+    links.new(geom_node.outputs['Normal'], a_vector)
+    links.new(bump.outputs['Normal'], b_vector)
+    links.new(mask_math.outputs['Value'], factor_float)
+    
+    # Connect base normal
+    links.new(result_vector, p.inputs['Normal'])
+    
+    # Connect clean normal to Clearcoat Normal to keep outer surface perfectly smooth/glossy
+    if "Coat Normal" in p.inputs:
+        links.new(geom_node.outputs['Normal'], p.inputs['Coat Normal'])
+        
     return mat
 
 
@@ -598,66 +704,96 @@ def import_obj(filepath, name, rotation_x=0, rotation_y=0, rotation_z=0, offset_
     except Exception as e:
         print(f"Error importing OBJ {filepath}: {e}")
     return None
+def get_body_center_world():
+    """Dynamically compute the collective 3D center of the guitar body objects in world coordinates."""
+    import mathutils
+    body_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name.startswith("Guitar_") and "backplate" not in obj.name.lower()]
+    if not body_objs:
+        return (0.0, 0.0, 0.0)
+    
+    world_coords = []
+    for obj in body_objs:
+        for v in obj.bound_box:
+            world_coords.append(obj.matrix_world @ mathutils.Vector(v))
+            
+    if not world_coords:
+        return (0.0, 0.0, 0.0)
+        
+    min_x = min(w[0] for w in world_coords)
+    max_x = max(w[0] for w in world_coords)
+    min_y = min(w[1] for w in world_coords)
+    max_y = max(w[1] for w in world_coords)
+    min_z = min(w[2] for w in world_coords)
+    max_z = max(w[2] for w in world_coords)
+    
+    return ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, (min_z + max_z) / 2.0)
 
 
-def setup_lighting(theme, target_y=36.0):
+def setup_lighting(theme, target_center=(0.0, 0.0, 0.0)):
     """Build a lighting system based on a custom theme/feel.
     
     Uses a 3-point lighting rig designed to work correctly for front, back
     and angled camera views. Lights are positioned to rake across the
     guitar surface (side-lighting) so detail and depth are visible from
-    all angles, including the top-down front/back views.
+    all angles.
     """
     scene = bpy.context.scene
     
-    # Purge any existing lights
+    # Purge any existing lights and previous light targets
     for obj in list(bpy.data.objects):
-        if obj.type == 'LIGHT':
+        if obj.type == 'LIGHT' or obj.name == "Light_Target":
             bpy.data.objects.remove(obj, do_unlink=True)
             
+    cx, cy, cz = target_center
+    
+    # Create a Light Target empty at the body center for lights to track
+    target_obj = bpy.data.objects.new("Light_Target", None)
+    bpy.context.collection.objects.link(target_obj)
+    target_obj.location = (cx, cy, cz)
+    
     # ------------------------------------------------------------------ #
     # Key light — raking from upper-left side (Y-right, Z-up space)
-    # Position is offset hard to the -X side so it strikes the guitar
-    # surface at an angle in the XZ plane, creating good shadow depth.
     # ------------------------------------------------------------------ #
     key_data = bpy.data.lights.new(name="Key Light", type='AREA')
     key_obj = bpy.data.objects.new(name="Key Light", object_data=key_data)
     bpy.context.collection.objects.link(key_obj)
-    key_obj.location = (-60.0, target_y - 5.0, 55.0)
-    key_obj.rotation_euler = (math.radians(45), math.radians(-40), 0)
-    key_data.size = 12.0   # Smaller = harder shadows = more detail
+    key_obj.location = (cx - 60.0, cy - 5.0, cz + 55.0)
+    key_data.size = 15.0   # Soft but directional shadows
 
     # ------------------------------------------------------------------ #
-    # Fill light — opposite side, much weaker, softens harsh shadows
+    # Fill light — opposite side, softens shadows
     # ------------------------------------------------------------------ #
     fill_data = bpy.data.lights.new(name="Fill Light", type='AREA')
     fill_obj = bpy.data.objects.new(name="Fill Light", object_data=fill_data)
     bpy.context.collection.objects.link(fill_obj)
-    fill_obj.location = (55.0, target_y - 5.0, 35.0)
-    fill_obj.rotation_euler = (math.radians(50), math.radians(45), 0)
-    fill_data.size = 20.0
+    fill_obj.location = (cx + 55.0, cy - 5.0, cz + 35.0)
+    fill_data.size = 25.0
 
     # ------------------------------------------------------------------ #
-    # Rim light — behind and above guitar to create edge definition and
-    # separate the guitar from the background in back views
+    # Rim light — behind and above guitar to create edge definition
     # ------------------------------------------------------------------ #
     rim_data = bpy.data.lights.new(name="Rim Light", type='AREA')
     rim_obj = bpy.data.objects.new(name="Rim Light", object_data=rim_data)
     bpy.context.collection.objects.link(rim_obj)
-    rim_obj.location = (15.0, target_y + 55.0, 30.0)
-    rim_obj.rotation_euler = (math.radians(-50), math.radians(15), math.radians(175))
+    rim_obj.location = (cx + 15.0, cy + 55.0, cz + 30.0)
     rim_data.size = 15.0
 
     # ------------------------------------------------------------------ #
-    # Top overhead soft-box — provides base illumination so the front/
-    # back orthographic-style views don't go dark. Much weaker than key.
+    # Top overhead softbox
     # ------------------------------------------------------------------ #
     top_data = bpy.data.lights.new(name="Top Fill", type='AREA')
     top_obj = bpy.data.objects.new(name="Top Fill", object_data=top_data)
     bpy.context.collection.objects.link(top_obj)
-    top_obj.location = (0.0, target_y, 90.0)
+    top_obj.location = (cx, cy, cz + 90.0)
     top_obj.rotation_euler = (0, 0, 0)
-    top_data.size = 80.0   # Very large soft-box for even overhead fill
+    top_data.size = 40.0   # Moderately sized softbox to preserve shape definition
+
+    # Add Track To constraints so lights automatically track and face the body center
+    for light_obj in [key_obj, fill_obj, rim_obj]:
+        constraint = light_obj.constraints.new(type='TRACK_TO')
+        constraint.target = target_obj
+        constraint.track_axis = 'TRACK_NEGATIVE_Z'
+        constraint.up_axis = 'UP_Y'
 
     # ------------------------------------------------------------------ #
     # World background — subtle ambient bounce that matches theme color.
@@ -670,10 +806,10 @@ def setup_lighting(theme, target_y=36.0):
         "studio":   (0.62, 0.62, 0.62),  # proper mid-grey studio background
     }
     bg_strength = {
-        "dramatic": 0.18,
-        "warm":     0.25,
-        "sunset":   0.18,
-        "studio":   0.60,  # studio needs bright background to feel like a studio
+        "dramatic": 0.22,
+        "warm":     0.28,
+        "sunset":   0.22,
+        "studio":   0.32,  # studio needs bright background to feel like a studio
     }
     bg_color  = bg_colors.get(theme, (0.55, 0.55, 0.55))
     bg_str    = bg_strength.get(theme, 0.25)
@@ -685,27 +821,34 @@ def setup_lighting(theme, target_y=36.0):
         if bg_node:
             bg_node.inputs[0].default_value = (*bg_color, 1.0)
             bg_node.inputs[1].default_value = bg_str
+        
+        # Soft ambient occlusion shadows in world settings for realistic contact shading
+        try:
+            scene.world.light_settings.use_ambient_occlusion = True
+            scene.world.light_settings.ao_factor = 0.08
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ #
     # Per-theme energies and colors
     # ------------------------------------------------------------------ #
     if theme == "dramatic":
         # Theatrical cyan-key / magenta-rim contrast lighting
-        key_data.energy  = 12000.0
+        key_data.energy  = 8000.0
         key_data.color   = (0.15, 0.85, 1.0)   # Icy cyan
 
-        fill_data.energy = 1500.0
+        fill_data.energy = 2500.0
         fill_data.color  = (1.0, 0.9, 1.0)     # Near-white
 
-        rim_data.energy  = 14000.0
+        rim_data.energy  = 9000.0
         rim_data.color   = (1.0, 0.05, 0.75)   # Hot magenta
 
-        top_data.energy  = 800.0
+        top_data.energy  = 1200.0
         top_data.color   = (0.6, 0.4, 1.0)     # Subtle violet overhead
 
     elif theme == "warm":
         # Soft amber studio with warm overhead
-        key_data.energy  = 10000.0
+        key_data.energy  = 7500.0
         key_data.color   = (1.0, 0.78, 0.45)   # Amber
 
         fill_data.energy = 2500.0
@@ -714,39 +857,50 @@ def setup_lighting(theme, target_y=36.0):
         rim_data.energy  = 6000.0
         rim_data.color   = (1.0, 0.96, 0.88)   # Warm white
 
-        top_data.energy  = 4000.0
+        top_data.energy  = 1800.0
         top_data.color   = (1.0, 0.9, 0.75)
 
     elif theme == "sunset":
         # Sunset orange key, violet rim
-        key_data.energy  = 12000.0
+        key_data.energy  = 8000.0
         key_data.color   = (1.0, 0.45, 0.08)   # Orange sun
 
-        fill_data.energy = 1200.0
+        fill_data.energy = 2000.0
         fill_data.color  = (0.85, 0.2, 0.45)   # Pink
 
-        rim_data.energy  = 11000.0
+        rim_data.energy  = 8500.0
         rim_data.color   = (0.25, 0.0, 0.85)   # Deep violet
 
-        top_data.energy  = 800.0
+        top_data.energy  = 1200.0
         top_data.color   = (1.0, 0.5, 0.3)
 
     else:  # studio — clean neutral photography-style rig
         # Key rakes across body for shadows / material detail
-        key_data.energy  = 9000.0
+        key_data.energy  = 6500.0
         key_data.color   = (1.0, 1.0, 1.0)
 
         # Moderate fill to keep shadow side visible without killing contrast
-        fill_data.energy = 2500.0
+        fill_data.energy = 2000.0
         fill_data.color  = (0.95, 0.98, 1.0)   # Slightly cool fill
 
         # Rim adds edge separation, helps back view pop
-        rim_data.energy  = 5000.0
+        rim_data.energy  = 4500.0
         rim_data.color   = (1.0, 1.0, 1.0)
 
         # Top soft-box is the main diffuse fill for front/back views
-        top_data.energy  = 8000.0
+        top_data.energy  = 1000.0
         top_data.color   = (1.0, 1.0, 1.0)
+
+    # For all lights, enable contact shadows for EEVEE realism
+    for light_obj in [key_obj, fill_obj, rim_obj, top_obj]:
+        if light_obj and hasattr(light_obj.data, "use_contact_shadow"):
+            try:
+                light_obj.data.use_contact_shadow = True
+                if hasattr(light_obj.data, "contact_shadow_distance"):
+                    light_obj.data.contact_shadow_distance = 0.3
+            except Exception:
+                pass
+
 def create_ground_plane(target_y, theme):
     """Add a large ground plane to catch shadows and reflections."""
     # Purge any existing ground plane
@@ -787,20 +941,50 @@ def create_ground_plane(target_y, theme):
             color_ramp = nodes.new(type="ShaderNodeValToRGB")
             color_ramp.color_ramp.interpolation = 'LINEAR'
             
-            # Base color palette for floor based on theme
-            if theme == "dramatic":
-                c1 = (0.008, 0.005, 0.015, 1.0)
-                c2 = (0.03, 0.02, 0.045, 1.0)
-            elif theme == "warm":
-                c1 = (0.025, 0.018, 0.012, 1.0)
-                c2 = (0.07, 0.05, 0.035, 1.0)
-            elif theme == "sunset":
-                c1 = (0.015, 0.005, 0.025, 1.0)
-                c2 = (0.05, 0.015, 0.07, 1.0)
-            else: # studio
-                c1 = (0.12, 0.12, 0.12, 1.0)
-                c2 = (0.32, 0.32, 0.32, 1.0)
-                
+            # Theme-specific floor settings for realistic reflections and bump
+            floor_settings = {
+                "dramatic": {
+                    "c1": (0.015, 0.01, 0.03, 1.0),
+                    "c2": (0.04, 0.025, 0.07, 1.0),
+                    "metallic": 0.20,
+                    "rough_min": 0.18,
+                    "rough_max": 0.50,
+                    "bump_strength": 0.08,
+                    "bump_distance": 0.05
+                },
+                "warm": {
+                    "c1": (0.06, 0.04, 0.025, 1.0),
+                    "c2": (0.15, 0.11, 0.075, 1.0),
+                    "metallic": 0.12,
+                    "rough_min": 0.25,
+                    "rough_max": 0.65,
+                    "bump_strength": 0.15,
+                    "bump_distance": 0.05
+                },
+                "sunset": {
+                    "c1": (0.03, 0.01, 0.045, 1.0),
+                    "c2": (0.09, 0.03, 0.13, 1.0),
+                    "metallic": 0.15,
+                    "rough_min": 0.22,
+                    "rough_max": 0.60,
+                    "bump_strength": 0.10,
+                    "bump_distance": 0.05
+                },
+                "studio": {
+                    "c1": (0.12, 0.12, 0.12, 1.0),
+                    "c2": (0.32, 0.32, 0.32, 1.0),
+                    "metallic": 0.10,
+                    "rough_min": 0.30,
+                    "rough_max": 0.70,
+                    "bump_strength": 0.12,
+                    "bump_distance": 0.05
+                }
+            }
+            
+            settings = floor_settings.get(theme, floor_settings["studio"])
+            c1 = settings["c1"]
+            c2 = settings["c2"]
+            
             color_ramp.color_ramp.elements[0].position = 0.4
             color_ramp.color_ramp.elements[0].color = c1
             color_ramp.color_ramp.elements[1].position = 0.6
@@ -812,21 +996,21 @@ def create_ground_plane(target_y, theme):
             links.new(color_ramp.outputs['Color'], p.inputs[0])
                 
             if "Metallic" in p.inputs:
-                p.inputs["Metallic"].default_value = 0.05
+                p.inputs["Metallic"].default_value = settings["metallic"]
             elif "Metallic Weight" in p.inputs:
-                p.inputs["Metallic Weight"].default_value = 0.05
+                p.inputs["Metallic Weight"].default_value = settings["metallic"]
                 
             # Map Range for roughness
             map_rough = nodes.new(type="ShaderNodeMapRange")
             map_rough.inputs[1].default_value = 0.0
             map_rough.inputs[2].default_value = 1.0
-            map_rough.inputs[3].default_value = 0.40  # Min Roughness (glossier parts)
-            map_rough.inputs[4].default_value = 0.85  # Max Roughness (matte parts)
+            map_rough.inputs[3].default_value = settings["rough_min"]  # Min Roughness (glossier parts)
+            map_rough.inputs[4].default_value = settings["rough_max"]  # Max Roughness (matte parts)
             
             # Bump node for floor grain (very pronounced texture)
             bump = nodes.new(type="ShaderNodeBump")
-            bump.inputs['Strength'].default_value = 0.45  # high strength for visible concrete texture
-            bump.inputs['Distance'].default_value = 0.20
+            bump.inputs['Strength'].default_value = settings["bump_strength"]
+            bump.inputs['Distance'].default_value = settings["bump_distance"]
             
             # Connect roughness and bump links
             links.new(noise.outputs['Factor'], map_rough.inputs[0])
@@ -1059,7 +1243,7 @@ def setup_camera(view_angle, guitar_objs, custom_pitch=None, custom_guitar_rot=N
     return rig_obj
 
 
-def setup_animation(guitar_objs, margin=0.85):
+def setup_animation(guitar_objs, margin=0.85, dynamic_zoom=False):
     """Create camera and guitar rig, solve locked camera distance, and set animation keyframes."""
     # 1. Purge any previous camera
     for obj in list(bpy.data.objects):
@@ -1202,9 +1386,82 @@ def setup_animation(guitar_objs, margin=0.85):
 
     set_bezier_interpolation(camera_obj)
     set_bezier_interpolation(rig_obj)
+    
+    # If dynamic zoom is requested, run a frame-by-frame pass to calculate and keyframe the precise camera distance on every single frame
+    if dynamic_zoom:
+        print("Dynamic Zoom enabled. Calculating optimal camera distance for each frame...")
+        # Force update of scene settings
+        bpy.context.view_layer.update()
+        
+        for frame_idx in range(scene.frame_start, scene.frame_end + 1):
+            # Move timeline to this frame to evaluate rig rotation and camera rotation curves
+            scene.frame_set(frame_idx)
+            # Update matrices for meshes at this frame's pose
+            bpy.context.view_layer.update()
+            
+            # Read interpolated pitch from camera rotation_euler
+            current_pitch = 90.0 - math.degrees(camera_obj.rotation_euler[0])
+            
+            # Calculate optimal camera distance for this frame
+            d_frame = calculate_optimal_camera_distance(camera_obj, current_pitch, guitar_objs, margin=margin)
+            
+            # Zoom to halfway between the maximum distance for all frames and the ideal distance for this frame
+            d_final = (d + d_frame) / 2.0
+            
+            # Reposition camera based on the frame-specific distance and pitch
+            pitch_rad = math.radians(current_pitch)
+            camera_obj.location = (0.0, -d_final * math.cos(pitch_rad), d_final * math.sin(pitch_rad))
+            
+            # Keyframe camera location on this frame
+            camera_obj.keyframe_insert(data_path="location", frame=frame_idx)
+            
+        # Reset timeline to frame 1
+        scene.frame_set(1)
+        bpy.context.view_layer.update()
+        print("Dynamic Zoom calculation and baking complete.")
                 
     print("Animation timeline set up successfully.")
     return rig_obj, camera_obj
+
+
+def find_ffmpeg():
+    """Locate the ffmpeg executable on the system."""
+    import subprocess
+    # 1. Check if an environment variable FFMPEG_PATH is set
+    env_path = os.environ.get("FFMPEG_PATH")
+    if env_path:
+        if os.path.exists(env_path) and os.path.isfile(env_path):
+            return env_path
+        # If it's a directory, check if ffmpeg.exe exists inside
+        elif os.path.exists(env_path) and os.path.isdir(env_path):
+            exe = os.path.join(env_path, "ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+            if os.path.exists(exe):
+                return exe
+
+    # 2. Check if 'ffmpeg' is in the system PATH
+    try:
+        cmd = ["where", "ffmpeg"] if os.name == "nt" else ["which", "ffmpeg"]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            path = result.stdout.strip().split('\n')[0].strip()
+            if os.path.exists(path) and os.path.isfile(path):
+                return path
+    except Exception:
+        pass
+
+    # 3. Check known locations on Windows
+    if os.name == "nt":
+        known_paths = [
+            r"E:\Tools\ffmpeg\bin\ffmpeg.exe",
+            r"E:\Tools\video2x-4.8.1-win32-full\dependencies\ffmpeg\bin\ffmpeg.exe",
+            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+            r"C:\ffmpeg\bin\ffmpeg.exe"
+        ]
+        for path in known_paths:
+            if os.path.exists(path):
+                return path
+
+    return "ffmpeg"  # Fallback to system command
 
 
 def run_rendering():
@@ -1230,6 +1487,8 @@ def run_rendering():
     parser.add_argument("--material-back", "--material_back", default="gloss:black", help="Material preset for backplate parts")
     parser.add_argument("--lighting", default="studio", choices=["studio", "dramatic", "warm", "sunset"], help="Lighting setup preset")
     parser.add_argument("--save-blend", action="store_true", help="Optionally save the .blend scene inside the renders directory")
+    parser.add_argument("--preview", action="store_true", help="Fast preview mode with lower resolution, lower sample counts, and simplified EEVEE settings")
+    parser.add_argument("--dynamic-zoom", "--dynamic_zoom", action="store_true", help="Calculate optimal camera distance for each individual frame instead of using a constant zoom level")
     
     args = parser.parse_args(args_to_parse)
     if args.no_render_anim:
@@ -1243,29 +1502,96 @@ def run_rendering():
     if not os.path.exists(renders_dir):
         os.makedirs(renders_dir)
         
-    # Setup rendering engine parameters
+    # Configure render parameters based on preview mode
     scene = bpy.context.scene
+    
+    # 1. Setup Engine & Samples
     if args.engine.lower() == "cycles":
         scene.render.engine = 'CYCLES'
-        scene.cycles.device = 'CPU'  # Default to CPU for maximum headless compatibility
-        scene.cycles.samples = 64     # Set small sample count for faster headless render times
+        scene.cycles.samples = 16 if args.preview else 64
+        try:
+            scene.cycles.use_denoising = True  # Enable denoising for realistic, clean render output
+        except AttributeError:
+            pass
+        
+        # Try to use GPU devices if available for significantly faster render times
+        try:
+            preferences = bpy.context.preferences
+            cycles_addon = preferences.addons.get('cycles')
+            if cycles_addon:
+                cycles_prefs = cycles_addon.preferences
+                cycles_prefs.refresh_devices()
+                
+                # Check different GPU backend categories in order of preference
+                gpu_device_types = ['OPTIX', 'CUDA', 'HIP', 'ONEAPI', 'METAL']
+                gpu_activated = False
+                for d_type in gpu_device_types:
+                    devices = cycles_prefs.get_devices_for_type(d_type)
+                    if devices:
+                        cycles_prefs.compute_device_type = d_type
+                        scene.cycles.device = 'GPU'
+                        # Enable all GPU devices
+                        for device in devices:
+                            device.use = True
+                        print(f"Cycles: Successfully configured GPU rendering using {d_type}")
+                        gpu_activated = True
+                        break
+                if not gpu_activated:
+                    scene.cycles.device = 'CPU'
+                    print("Cycles: No GPU devices found. Defaulting to CPU rendering.")
+            else:
+                scene.cycles.device = 'CPU'
+        except Exception as e:
+            scene.cycles.device = 'CPU'
+            print(f"Cycles: Error configuring GPU devices ({e}). Defaulting to CPU.")
     else:
         # EEVEE
         scene.render.engine = 'BLENDER_EEVEE'
         if hasattr(scene, "eevee"):
             try:
-                scene.eevee.use_raytracing = True
+                # EEVEE samples settings
+                scene.eevee.render_samples = 16 if args.preview else 64
             except AttributeError:
                 pass
             try:
-                scene.eevee.use_ssr = True
-                scene.eevee.use_ssr_refraction = True
+                # Enable raytracing in EEVEE-Next (Blender 4.2+)
+                # Disable in preview mode for speed, enable in standard mode for quality
+                scene.eevee.use_raytracing = False if args.preview else True
+            except AttributeError:
+                pass
+            try:
+                # Shadow quality
+                shadow_size = '1024' if args.preview else '2048'
+                scene.eevee.shadow_cascade_size = shadow_size
+                scene.eevee.shadow_cube_size = shadow_size
+            except AttributeError:
+                pass
+            try:
+                # Screen Space Reflections / Ambient Occlusion for older EEVEE versions
+                # Disable/simplify SSR in preview mode
+                scene.eevee.use_ssr = False if args.preview else True
+                scene.eevee.use_ssr_refraction = False if args.preview else True
+                scene.eevee.use_gtao = True
+                scene.eevee.gtao_distance = 1.0
             except AttributeError:
                 pass
             
+    # Color management for professional film-like realism
+    if hasattr(scene, "view_settings"):
+        try:
+            scene.view_settings.view_transform = 'AgX'
+            scene.view_settings.look = 'Medium High Contrast'
+        except Exception:
+            try:
+                # Fallback to Filmic if AgX is not available (older Blender version)
+                scene.view_settings.view_transform = 'Filmic'
+                scene.view_settings.look = 'Medium High Contrast'
+            except Exception:
+                pass
+
     scene.render.resolution_x = 1920
     scene.render.resolution_y = 1080
-    scene.render.resolution_percentage = 100
+    scene.render.resolution_percentage = 50 if args.preview else 100
     
     # Disable transparent film background to show world background
     scene.render.film_transparent = False
@@ -1440,21 +1766,21 @@ def run_rendering():
         if ebp_obj:
             ebp_obj.location.z = 2.0
             
-    # Setup Lighting
-    target_y = 20.0 if (args.body_only or args.exploded_body) else 50.0
-    setup_lighting(args.lighting, target_y)
-    
-    # Create Ground Plane
-    create_ground_plane(target_y, args.lighting)
+    # Setup initial static lighting and ground plane centered at the origin
+    setup_lighting(args.lighting, (0.0, 0.0, 0.0))
+    create_ground_plane(0.0, args.lighting)
     
     # Gather all guitar meshes for centering/zoom calculations
     guitar_objs = [obj for obj in bpy.data.objects if obj.type == 'MESH' and obj.name != "Ground_Plane"]
     
     if args.animate or args.no_render_anim:
         print("Configuring animation timeline...")
-        anim_res = setup_animation(guitar_objs, margin=0.85)
+        anim_res = setup_animation(guitar_objs, margin=0.85, dynamic_zoom=args.dynamic_zoom)
         if anim_res:
             rig_obj, camera_obj = anim_res
+            
+            # Center lighting rig on the origin for the rotating guitar animation
+            setup_lighting(args.lighting, (0.0, 0.0, 0.0))
             
             # Keep ground plane visible
             ground_plane = bpy.data.objects.get("Ground_Plane")
@@ -1497,13 +1823,15 @@ def run_rendering():
                     # Render frame sequence
                     bpy.ops.render.render(animation=True)
                     
-                    # Compile using system ffmpeg
+                    # Compile using system ffmpeg with high-quality H.264
                     import subprocess
                     ffmpeg_cmd = [
-                        "ffmpeg", "-y",
+                        find_ffmpeg(), "-y",
                         "-r", "30",
                         "-i", os.path.join(frames_dir, "frame_%04d.png"),
-                        "-c:v", "mpeg4",
+                        "-c:v", "libx264",
+                        "-crf", "18",
+                        "-preset", "medium",
                         "-pix_fmt", "yuv420p",
                         output_moviepath
                     ]
@@ -1544,6 +1872,11 @@ def run_rendering():
                 custom_guitar_rot=custom_guitar_rot,
                 margin=0.85
             )
+            
+            # Dynamically position and face the lighting rig relative to the actual guitar body center in this view
+            body_center = get_body_center_world()
+            print(f"Angle '{angle}' body center in world space: ({body_center[0]:.2f}, {body_center[1]:.2f}, {body_center[2]:.2f})")
+            setup_lighting(args.lighting, body_center)
             
             # Keep ground plane visible
             ground_plane = bpy.data.objects.get("Ground_Plane")

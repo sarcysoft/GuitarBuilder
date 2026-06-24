@@ -14,17 +14,28 @@ except ImportError:
 
 def find_blender():
     """Locate the Blender executable on Windows, macOS, and Linux."""
-    # 1. Check if 'blender' is in the system PATH
+    # 1. Check if an environment variable BLENDER_PATH is set
+    env_path = os.environ.get("BLENDER_PATH")
+    if env_path:
+        if os.path.exists(env_path) and os.path.isfile(env_path):
+            return env_path
+        else:
+            print(f"Error: BLENDER_PATH environment variable is set to '{env_path}', but the file does not exist.")
+            sys.exit(1)
+
+    # 2. Check if 'blender' is in the system PATH
     try:
         cmd = ["where", "blender"] if os.name == "nt" else ["which", "blender"]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode == 0:
             # Strip trailing newline if any
-            return result.stdout.strip().split('\n')[0].strip()
+            path = result.stdout.strip().split('\n')[0].strip()
+            if os.path.exists(path) and os.path.isfile(path):
+                return path
     except Exception:
         pass
     
-    # 2. Check platform-specific standard installation directories
+    # 3. Check platform-specific standard installation directories
     if os.name == "nt":
         pf = os.environ.get("ProgramFiles", "C:\\Program Files")
         bf = os.path.join(pf, "Blender Foundation")
@@ -49,8 +60,40 @@ def find_blender():
             if os.path.exists(path):
                 return path
                 
-    # 3. Fallback to 'blender'
-    return "blender"
+    # If not found, print a helpful, descriptive error message and exit.
+    print("=" * 80)
+    print("Error: Blender executable (blender.exe / blender) could not be located.")
+    print("The script requires a standard command-line executable of Blender to run.")
+    print("=" * 80)
+    print("How to fix this:")
+    print("1. Set the BLENDER_PATH environment variable to point to your blender.exe / blender path.")
+    print("   Example (PowerShell):")
+    print("     $env:BLENDER_PATH=\"C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe\"")
+    print("   Example (CMD):")
+    print("     set BLENDER_PATH=C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe")
+    print("   Example (Linux/macOS):")
+    print("     export BLENDER_PATH=/usr/bin/blender")
+    print()
+    print("2. Or add the directory containing the Blender executable to your system's PATH.")
+    print()
+    # Check if they have the Microsoft Store version's alias in PATH
+    try:
+        store_check = subprocess.run(["where", "blender-launcher"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if store_check.returncode == 0:
+            print("Note: It appears you have the Microsoft Store version of Blender installed.")
+            print("      Due to sandboxing restrictions, Microsoft Store applications cannot easily be run")
+            print("      in background/headless mode via automation scripts.")
+            print("      We highly recommend downloading and installing the standard release version")
+            print("      (or the portable .zip version) of Blender from: https://www.blender.org/download/")
+            print("      Once installed/extracted, configure the BLENDER_PATH environment variable as shown above.")
+            print("=" * 80)
+            sys.exit(1)
+    except Exception:
+        pass
+        
+    print("We recommend installing a standard release version of Blender from https://www.blender.org/")
+    print("=" * 80)
+    sys.exit(1)
 
 
 def get_modifier_inputs(geom_modifier):
@@ -197,6 +240,8 @@ def parse_wrapper_args(argv):
     guitar_rot = None
     animate = False
     no_render_anim = False
+    preview = False
+    dynamic_zoom = False
     
     i = 0
     while i < len(argv):
@@ -264,6 +309,12 @@ def parse_wrapper_args(argv):
         elif arg in ["--no-render-anim", "--no_render_anim"]:
             no_render_anim = True
             i += 1
+        elif arg in ["--preview", "-p"]:
+            preview = True
+            i += 1
+        elif arg in ["--dynamic-zoom", "--dynamic_zoom"]:
+            dynamic_zoom = True
+            i += 1
         elif arg in ["--save-blend", "--save_blend"]:
             save_blend = True
             i += 1
@@ -298,7 +349,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom
 
 
 def run_wrapper_mode():
@@ -315,7 +366,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim) = parse_wrapper_args(sys.argv[1:])
+     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render or animate or no_render_anim:
@@ -342,6 +393,10 @@ def run_wrapper_mode():
             render_args.append("--animate")
         if no_render_anim:
             render_args.append("--no-render-anim")
+        if preview:
+            render_args.append("--preview")
+        if dynamic_zoom:
+            render_args.append("--dynamic-zoom")
         render_args += ["--angle", angle]
         render_args += ["--engine", engine]
         render_args += ["--material", material]
