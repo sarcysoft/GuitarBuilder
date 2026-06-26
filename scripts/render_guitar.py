@@ -27,6 +27,93 @@ COLORS = {
 }
 
 
+def generate_distinct_colors(fixed_colors, count, seed=None):
+    """Generate a list of distinct, aesthetic RGBA colors, excluding any too close to fixed_colors."""
+    # Seed the local random generator if a seed is provided
+    local_random = random.Random(seed) if seed is not None else random
+    
+    # A curated list of 24 distinct, vibrant, and premium colors (RGBA)
+    base_palette = [
+        (0.85, 0.05, 0.05, 1.0),  # Candy Red
+        (0.05, 0.25, 0.85, 1.0),  # Royal Blue
+        (0.80, 0.60, 0.05, 1.0),  # Gold
+        (0.05, 0.65, 0.15, 1.0),  # Emerald Green
+        (0.90, 0.35, 0.02, 1.0),  # Sunset Orange
+        (0.40, 0.05, 0.60, 1.0),  # Velvet Purple
+        (0.95, 0.80, 0.02, 1.0),  # Canary Yellow
+        (0.05, 0.75, 0.75, 1.0),  # Turquoise/Teal
+        (0.90, 0.10, 0.60, 1.0),  # Hot Pink
+        (0.10, 0.80, 0.50, 1.0),  # Mint Green
+        (0.55, 0.30, 0.05, 1.0),  # Copper / Bronze
+        (0.30, 0.50, 0.90, 1.0),  # Sky Blue
+        (0.50, 0.05, 0.20, 1.0),  # Maroon
+        (0.10, 0.10, 0.40, 1.0),  # Navy Blue
+        (0.45, 0.60, 0.05, 1.0),  # Olive Green
+        (0.90, 0.60, 0.60, 1.0),  # Coral
+        (0.30, 0.80, 0.20, 1.0),  # Lime Green
+        (0.50, 0.20, 0.80, 1.0),  # Lavender
+        (0.85, 0.85, 0.85, 1.0),  # Silver / Platinum
+        (0.95, 0.95, 0.95, 1.0),  # Arctic White
+        (0.02, 0.02, 0.02, 1.0),  # Jet Black
+        (0.35, 0.35, 0.35, 1.0),  # Slate Grey
+        (0.60, 0.40, 0.80, 1.0),  # Plum
+        (0.90, 0.45, 0.10, 1.0),  # Apricot
+    ]
+    
+    # Filter out colors close to any fixed colors
+    filtered_palette = []
+    for c in base_palette:
+        too_close = False
+        for fc in fixed_colors:
+            # Euclidean distance in RGB
+            dist = math.sqrt(sum((a - b)**2 for a, b in zip(c[:3], fc[:3])))
+            if dist < 0.25:
+                too_close = True
+                break
+        if not too_close:
+            filtered_palette.append(c)
+            
+    # Shuffle using our seeded/unseeded local random generator
+    local_random.shuffle(filtered_palette)
+    
+    # If we need more colors than available, dynamically generate distinct HSV colors
+    while len(filtered_palette) < count:
+        h = local_random.random()
+        s = 0.7 + 0.3 * local_random.random()
+        v = 0.6 + 0.4 * local_random.random()
+        r, g, b = colorsys.hsv_to_rgb(h, s, v)
+        c = (r, g, b, 1.0)
+        # Verify it's not close to fixed colors or already selected colors
+        too_close = False
+        for fc in fixed_colors + filtered_palette:
+            dist = math.sqrt(sum((a - b)**2 for a, b in zip(c[:3], fc[:3])))
+            if dist < 0.25:
+                too_close = True
+                break
+        if not too_close:
+            filtered_palette.append(c)
+            
+    return filtered_palette[:count]
+
+
+def get_concrete_material_string(template, part_index, colors_list, num_rand_per_part):
+    """Replace 'random' color placeholders in the material template with hex colors from colors_list."""
+    parts = template.split(":")
+    concrete_parts = [parts[0]]
+    color_cursor = part_index * num_rand_per_part
+    
+    for p in parts[1:]:
+        if p.lower().strip() == "random":
+            c = colors_list[color_cursor]
+            color_cursor += 1
+            hex_str = f"#{int(c[0]*255):02x}{int(c[1]*255):02x}{int(c[2]*255):02x}"
+            concrete_parts.append(hex_str)
+        else:
+            concrete_parts.append(p)
+            
+    return ":".join(concrete_parts)
+
+
 def parse_color(color_str):
     """Parse color string into RGBA tuple."""
     color_str = color_str.lower().strip()
@@ -1508,6 +1595,7 @@ def run_rendering():
     parser.add_argument("--save-blend", action="store_true", help="Optionally save the .blend scene inside the renders directory")
     parser.add_argument("--preview", action="store_true", help="Fast preview mode with lower resolution, lower sample counts, and simplified EEVEE settings")
     parser.add_argument("--dynamic-zoom", "--dynamic_zoom", action="store_true", help="Calculate optimal camera distance for each individual frame instead of using a constant zoom level")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for material colors")
     
     args = parser.parse_args(args_to_parse)
     if args.no_render_anim:
@@ -1624,8 +1712,32 @@ def run_rendering():
     models_dir = os.path.join(root_dir, "models")
     third_party_dir = os.path.join(root_dir, "3rdParty")
     
-    # Setup Shaders
-    body_mat = get_material_by_name(args.material)
+    # Setup Shaders and resolve random element color mappings
+    has_random_element = "random" in args.material.lower() and args.material.lower().strip() != "random"
+    distinct_colors = []
+    num_random_per_part = 0
+    
+    if has_random_element:
+        # Determine how many random colors we need
+        parts = args.material.split(":")
+        fixed_colors = []
+        for p in parts[1:]:
+            if p.lower().strip() != "random":
+                try:
+                    fixed_colors.append(parse_color(p))
+                except Exception:
+                    pass
+        num_random_per_part = sum(1 for p in parts[1:] if p.lower().strip() == "random")
+        # Pre-generate 8 parts * num_random_per_part colors
+        total_random_needed = num_random_per_part * 8
+        distinct_colors = generate_distinct_colors(fixed_colors, total_random_needed, seed=args.seed)
+        
+        # Resolve body_mat for index 0 as fallback
+        body_mat_str = get_concrete_material_string(args.material, 0, distinct_colors, num_random_per_part)
+        body_mat = get_material_by_name(body_mat_str)
+    else:
+        body_mat = get_material_by_name(args.material)
+        
     chrome_mat = create_polished_chrome()
     backplate_mat = get_material_by_name(args.material_back)
     
@@ -1696,11 +1808,15 @@ def run_rendering():
                     continue
                     
                 # Determine part material
-                part_mat = body_mat
                 if material_mode == "random":
                     part_mat = create_random_material(f"Random_{part_name}_{idx}")
+                elif has_random_element:
+                    part_mat_str = get_concrete_material_string(args.material, idx, distinct_colors, num_random_per_part)
+                    part_mat = get_material_by_name(part_mat_str)
                 elif custom_mats:
                     part_mat = custom_mats[idx % len(custom_mats)]
+                else:
+                    part_mat = body_mat
                     
                 part_obj = import_stl(part_path, part_name, part_mat, scale_factor=0.1)
                 if part_obj:
@@ -1807,7 +1923,15 @@ def run_rendering():
                 ground_plane.hide_render = False
                 
             if not args.no_render_anim:
-                output_moviepath = os.path.join(renders_dir, "animation.mp4")
+                sanitized_mat = args.material.replace(":", "_").replace(",", "-").replace("#", "")
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                preview_suffix = "_preview" if args.preview else ""
+                zoom_suffix = "_dynzoom" if args.dynamic_zoom else ""
+                seed_suffix = f"_seed{args.seed}" if args.seed is not None else ""
+                
+                video_name = f"animation_{sanitized_mat}_{args.lighting}_{args.engine}{preview_suffix}{zoom_suffix}{seed_suffix}_{timestamp}.mp4"
+                output_moviepath = os.path.join(renders_dir, video_name)
                 scene = bpy.context.scene
                 
                 # Check if FFMPEG format is natively supported by trying to assign it
@@ -1820,6 +1944,8 @@ def run_rendering():
                     
                 if ffmpeg_supported:
                     print(f"Rendering animation movie natively in Blender to: {output_moviepath}")
+                    total_frames = scene.frame_end - scene.frame_start + 1
+                    print(f"[ANIMATION_TOTAL_FRAMES] {total_frames}")
                     scene.render.filepath = output_moviepath
                     scene.render.ffmpeg.format = 'MPEG4'
                     scene.render.ffmpeg.codec = 'H264'
@@ -1831,13 +1957,17 @@ def run_rendering():
                     print("Animation movie rendering complete.")
                 else:
                     print("Native FFMPEG not supported in this Blender build. Rendering PNG sequence and compiling with system ffmpeg...")
-                    frames_dir = os.path.join(renders_dir, "frames")
+                    frames_dir = os.path.join(renders_dir, f"frames_{timestamp}")
                     if not os.path.exists(frames_dir):
                         os.makedirs(frames_dir)
                         
                     # Set rendering options for PNG sequence
                     scene.render.image_settings.file_format = 'PNG'
                     scene.render.filepath = os.path.join(frames_dir, "frame_####")
+                    
+                    # Log total frames hook for parent process tracking
+                    total_frames = scene.frame_end - scene.frame_start + 1
+                    print(f"[ANIMATION_TOTAL_FRAMES] {total_frames}")
                     
                     # Render frame sequence
                     bpy.ops.render.render(animation=True)

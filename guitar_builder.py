@@ -218,6 +218,16 @@ def generate_obj(guitar_body, script_dir, filename="guitar.obj"):
 
 def parse_wrapper_args(argv):
     """Custom command-line argument parser for wrapper shell execution mode."""
+    # Pre-parse pass to find --cli-config
+    cli_config_path = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--cli-config" and i + 1 < len(argv):
+            cli_config_path = argv[i + 1]
+            break
+        i += 1
+
+    # Default variables
     no_cut = False
     config = None
     export_config = None
@@ -242,7 +252,40 @@ def parse_wrapper_args(argv):
     no_render_anim = False
     preview = False
     dynamic_zoom = False
-    
+    seed = None
+
+    # Load settings from cli-config if provided
+    if cli_config_path and os.path.exists(cli_config_path):
+        try:
+            with open(cli_config_path, "r") as f:
+                config_data = json.load(f)
+            
+            # Map key-values to variables
+            no_cut = config_data.get("no_cut", no_cut)
+            config = config_data.get("config", config)
+            render = config_data.get("render", render)
+            body_only = config_data.get("body_only", body_only)
+            exploded_body = config_data.get("exploded_body", exploded_body)
+            uncut = config_data.get("uncut", uncut)
+            save_blend = config_data.get("save_blend", save_blend)
+            angle = config_data.get("angle", angle)
+            engine = config_data.get("engine", engine)
+            material = config_data.get("material", material)
+            material_back = config_data.get("material_back", material_back)
+            lighting = config_data.get("lighting", lighting)
+            pitch = config_data.get("pitch", pitch)
+            guitar_rot = config_data.get("guitar_rot", guitar_rot)
+            animate = config_data.get("animate", animate)
+            no_render_anim = config_data.get("no_render_anim", no_render_anim)
+            preview = config_data.get("preview", preview)
+            dynamic_zoom = config_data.get("dynamic_zoom", dynamic_zoom)
+            
+            # Read seed if present and not commented out
+            if "seed" in config_data:
+                seed = config_data["seed"]
+        except Exception as e:
+            print(f"Warning: Failed to load CLI config from '{cli_config_path}': {e}")
+            
     i = 0
     while i < len(argv):
         arg = argv[i]
@@ -318,6 +361,18 @@ def parse_wrapper_args(argv):
         elif arg in ["--save-blend", "--save_blend"]:
             save_blend = True
             i += 1
+        elif arg == "--seed":
+            if i + 1 < len(argv):
+                try:
+                    seed = int(argv[i + 1])
+                except ValueError:
+                    seed = None
+                i += 2
+            else:
+                i += 1
+        elif arg == "--cli-config":
+            # Already handled in pre-parse, just skip
+            i += 2
         elif arg in ["--export-config", "--export_config"]:
             export_config_flag = True
             if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
@@ -349,7 +404,7 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom
+    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed
 
 
 def run_wrapper_mode():
@@ -366,7 +421,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom) = parse_wrapper_args(sys.argv[1:])
+     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render or animate or no_render_anim:
@@ -375,6 +430,51 @@ def run_wrapper_mode():
             config_dir = os.path.join(script_dir, "output", config)
         else:
             config_dir = os.path.join(script_dir, "output")
+            
+        # Seed generation for random material strings if not provided
+        if "random" in material.lower() and material.lower().strip() != "random":
+            if seed is None:
+                import random
+                seed = random.randint(1, 1000000)
+                print(f"Generated random seed for materials: {seed}")
+                
+        # Always save last_config.json
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+        last_config_path = os.path.join(config_dir, "last_config.json")
+        config_dict = {
+            "no_cut": no_cut,
+            "config": config,
+            "render": render,
+            "body_only": body_only,
+            "exploded_body": exploded_body,
+            "uncut": uncut,
+            "save_blend": save_blend,
+            "angle": angle,
+            "engine": engine,
+            "material": material,
+            "material_back": material_back,
+            "lighting": lighting,
+            "pitch": pitch,
+            "guitar_rot": guitar_rot,
+            "animate": animate,
+            "no_render_anim": no_render_anim,
+            "preview": preview,
+            "dynamic_zoom": dynamic_zoom
+        }
+        if "random" in material.lower():
+            if seed is not None:
+                config_dict["//seed"] = seed
+        else:
+            if seed is not None:
+                config_dict["seed"] = seed
+                
+        try:
+            with open(last_config_path, "w") as f:
+                json.dump(config_dict, f, indent=4)
+            print(f"Saved CLI config preset to: {last_config_path}")
+        except Exception as e:
+            print(f"Warning: Failed to save last_config.json: {e}")
             
         render_args = ["--config-dir", config_dir]
         if uncut:
@@ -397,6 +497,8 @@ def run_wrapper_mode():
             render_args.append("--preview")
         if dynamic_zoom:
             render_args.append("--dynamic-zoom")
+        if seed is not None:
+            render_args += ["--seed", str(seed)]
         render_args += ["--angle", angle]
         render_args += ["--engine", engine]
         render_args += ["--material", material]
@@ -411,8 +513,69 @@ def run_wrapper_mode():
             "--"
         ] + render_args
         
-        result = subprocess.run(cmd)
-        sys.exit(result.returncode)
+        import re
+        import time
+        
+        # Launch subprocess with stdout/stderr piped
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        
+        total_frames = 870  # default fallback
+        start_time = None
+        first_frame_num = 1
+        
+        # Regex patterns
+        total_frames_pattern = re.compile(r"\[ANIMATION_TOTAL_FRAMES\]\s+(\d+)")
+        frame_saved_pattern = re.compile(r"Saved:\s+'.*?frame_(\d+)\.png'")
+        
+        def format_duration(seconds):
+            if seconds < 60:
+                return f"{int(seconds)}s"
+            minutes = int(seconds // 60)
+            secs = int(seconds % 60)
+            if minutes < 60:
+                return f"{minutes}m {secs}s"
+            hours = int(minutes // 60)
+            mins = int(minutes % 60)
+            return f"{hours}h {mins}m {secs}s"
+            
+        for line in process.stdout:
+            line_str = line.strip()
+            
+            # Check for total frames hook
+            tf_match = total_frames_pattern.search(line_str)
+            if tf_match:
+                total_frames = int(tf_match.group(1))
+                continue  # suppress the hook printout
+                
+            # Check for saved frame line
+            fs_match = frame_saved_pattern.search(line_str)
+            if fs_match:
+                current_frame = int(fs_match.group(1))
+                if start_time is None:
+                    start_time = time.time()
+                    first_frame_num = current_frame
+                    print(f"Rendering: Frame {current_frame}/{total_frames} ({current_frame/total_frames*100:.1f}%) | ETA: Calculating...", flush=True)
+                else:
+                    elapsed = time.time() - start_time
+                    rendered_count = max(1, current_frame - first_frame_num)
+                    time_per_frame = elapsed / rendered_count
+                    remaining_frames = total_frames - current_frame
+                    eta_seconds = remaining_frames * time_per_frame
+                    eta_str = format_duration(eta_seconds)
+                    percent = (current_frame / total_frames) * 100
+                    print(f"Rendering: Frame {current_frame}/{total_frames} ({percent:.1f}%) | Time per frame: {time_per_frame:.2f}s | ETA: {eta_str}", flush=True)
+            else:
+                # Print other lines as normal
+                print(line_str, flush=True)
+                
+        process.wait()
+        sys.exit(process.returncode)
     
     # Case 1: Config Export Mode
     if export_config_flag:
