@@ -245,7 +245,7 @@ def generate_obj(guitar_body, script_dir, filename="guitar.obj"):
     guitar_body = bpy.context.active_object
     
     # Ensure the models output folder exists
-    models_dir = os.path.join(script_dir, "models")
+    models_dir = os.path.join(script_dir, "models", "obj")
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
         
@@ -757,7 +757,7 @@ def run_internal_mode():
     parser.add_argument("--export-config", nargs='?', const='__default__', help="Export current model parameters to a JSON file")
     parser.add_argument("--import-config", help="Import model parameters from a JSON file and save to guitar.blend")
     parser.add_argument("--config", help="Name of configuration profile to import and generate (e.g. 'sarcaster')")
-    parser.add_argument("--generate", action="store_true", help="Generate and export models/guitar.obj")
+    parser.add_argument("--generate", action="store_true", help="Generate and export models/obj/guitar.obj")
     
     args = parser.parse_args(args_to_parse)
     

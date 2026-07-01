@@ -272,6 +272,8 @@ def setup_scene(no_cut = False, config_name = None):
     print(f"Root directory: {root_dir}")
     
     models_dir = os.path.join(root_dir, "models")
+    obj_dir = os.path.join(models_dir, "obj")
+    stl_dir = os.path.join(models_dir, "stl")
     third_party_dir = os.path.join(root_dir, "3rdParty")
     debug_dir = os.path.join(root_dir, "debug")
     if not os.path.exists(debug_dir):
@@ -283,7 +285,7 @@ def setup_scene(no_cut = False, config_name = None):
         guitar_obj_filename = "guitar.obj"
     neck_obj_filename = "NeckAmericanStandard.obj"
     
-    guitar_path = os.path.join(models_dir, guitar_obj_filename)
+    guitar_path = os.path.join(obj_dir, guitar_obj_filename)
     neck_path = os.path.join(third_party_dir, neck_obj_filename)
     
     # Import Guitar OBJ
@@ -361,20 +363,20 @@ def setup_scene(no_cut = False, config_name = None):
     # Import and subtract hardware STL from guitar body
     guitar_body = bpy.data.objects.get("Guitar_Body")
 
-    import_and_subtract_stl("backplate_mask.stl", guitar_body, models_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_and_subtract_stl("backplate_fixings.stl", guitar_body, models_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_mask.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_fixings.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl("elec_backplate_mask.stl", guitar_body, models_dir,offset_x=0, offset_y=0, offset_z=2)
-    import_and_subtract_stl("elec_backplate_fixings.stl", guitar_body, models_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("elec_backplate_mask.stl", guitar_body, stl_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("elec_backplate_fixings.stl", guitar_body, stl_dir,offset_x=0, offset_y=0, offset_z=2)
 
-    import_and_subtract_stl("hardware.stl", guitar_body, models_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("hardware.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl("electronics.stl", guitar_body, models_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl("electronics.stl", guitar_body, stl_dir,offset_x=0, offset_y=0, offset_z=2)
 
     
     # Import backplate.stl (without subtraction, just for visualization/reference)
-    import_stl("backplate.stl", models_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_stl("elec_backplate.stl", models_dir, offset_y=0, offset_z=2)
+    import_stl("backplate.stl", stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_stl("elec_backplate.stl", stl_dir, offset_y=0, offset_z=2)
 
     progress = 45
     wm.progress_update(progress)

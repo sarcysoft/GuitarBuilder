@@ -64,11 +64,15 @@ def main():
         root_dir = os.path.dirname(script_dir)
     else:
         root_dir = script_dir
-    models_dir = os.path.join(root_dir, "models")
+    scad_dir = os.path.join(root_dir, "models", "scad")
+    stl_dir = os.path.join(root_dir, "models", "stl")
     
-    if not os.path.exists(models_dir):
-        print(f"Error: models directory '{models_dir}' not found.")
+    if not os.path.exists(scad_dir):
+        print(f"Error: OpenSCAD directory '{scad_dir}' not found.")
         sys.exit(1)
+        
+    if not os.path.exists(stl_dir):
+        os.makedirs(stl_dir)
         
     openscad_exe = find_openscad()
     if not openscad_exe:
@@ -78,7 +82,7 @@ def main():
         
     print(f"Using OpenSCAD: {' '.join(openscad_exe)}")
     
-    scad_files = [f for f in os.listdir(models_dir) if f.lower().endswith(".scad")]
+    scad_files = [f for f in os.listdir(scad_dir) if f.lower().endswith(".scad")]
     
     success_count = 0
     fail_count = 0
@@ -90,9 +94,9 @@ def main():
             skipped_files.append(f)
             continue
             
-        scad_path = os.path.join(models_dir, f)
+        scad_path = os.path.join(scad_dir, f)
         stl_name = f[:-5] + ".stl"
-        stl_path = os.path.join(models_dir, stl_name)
+        stl_path = os.path.join(stl_dir, stl_name)
         
         print(f"Compiling: {f} -> {stl_name}...")
         

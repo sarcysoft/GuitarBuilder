@@ -1747,14 +1747,14 @@ def run_rendering():
     if args.uncut:
         # Load single uncut body
         body_path = os.path.join(args.config_dir, "Guitar_Full_Body.stl")
-        # Fallback to root models/guitar.obj if Full Body STL does not exist
+        # Fallback to models/obj/guitar.obj if Full Body STL does not exist
         if not os.path.exists(body_path):
             print(f"Guitar_Full_Body.stl not found in {args.config_dir}. Falling back to default models...")
             # Detect config-specific obj
             config_name = os.path.basename(args.config_dir.strip(os.sep))
-            body_path = os.path.join(models_dir, f"{config_name}.obj")
+            body_path = os.path.join(models_dir, "obj", f"{config_name}.obj")
             if not os.path.exists(body_path):
-                body_path = os.path.join(models_dir, "guitar.obj")
+                body_path = os.path.join(models_dir, "obj", "guitar.obj")
                 
             # OBJ loader
             body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
@@ -1784,7 +1784,7 @@ def run_rendering():
             print("No sliced parts found in config output folder. Falling back to uncut body render...")
             body_path = os.path.join(args.config_dir, "Guitar_Full_Body.stl")
             if not os.path.exists(body_path):
-                body_path = os.path.join(models_dir, "guitar.obj")
+                body_path = os.path.join(models_dir, "obj", "guitar.obj")
                 body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
             else:
                 body_obj = import_stl(body_path, "Guitar_Body", body_mat, scale_factor=0.1)
@@ -1883,10 +1883,10 @@ def run_rendering():
             check_and_apply_neck_material(neck_obj)
             
         # Backplates
-        backplate_path = os.path.join(models_dir, "backplate.stl")
+        backplate_path = os.path.join(models_dir, "stl", "backplate.stl")
         import_stl(backplate_path, "Hardware_backplate", backplate_mat)
         
-        elec_backplate_path = os.path.join(models_dir, "elec_backplate.stl")
+        elec_backplate_path = os.path.join(models_dir, "stl", "elec_backplate.stl")
         import_stl(elec_backplate_path, "Hardware_elec_backplate", backplate_mat)
         
         # Optionally, move the backplates into place relative to standard layout
