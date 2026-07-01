@@ -134,7 +134,29 @@ def export_config(geom_modifier, filepath):
     mapping = get_modifier_inputs(geom_modifier)
     config = {}
     
+    # Check if Symmetric Mode is active in the modifier
+    is_symmetric = False
+    symmetric_info = mapping.get("Symmetric Mode")
+    if symmetric_info:
+        is_symmetric = bool(geom_modifier.get(symmetric_info['identifier']))
+        
+    REDUNDANT_SYMMETRIC_PARAMS = {
+        "Right Hip Height",
+        "Right Waist Height",
+        "Right Chest Height",
+        "Right Shoulder Height",
+        "Right Shoulder Curve",
+        "Right Shoulder Blade",
+        "Right Shoulder Slope",
+        "Right Collar Height",
+        "Right Collar Bone",
+        "Right Neck Curve"
+    }
+    
     for name, info in mapping.items():
+        if is_symmetric and name in REDUNDANT_SYMMETRIC_PARAMS:
+            continue
+            
         ident = info['identifier']
         val = geom_modifier.get(ident)
         
@@ -149,6 +171,8 @@ def export_config(geom_modifier, filepath):
     with open(filepath, 'w') as f:
         json.dump(config, f, indent=4)
     print(f"Successfully exported configuration to: {filepath}")
+    if is_symmetric:
+        print("  Note: Exported in Symmetric Mode (redundant right-side parameters omitted).")
 
 
 def import_config(geom_modifier, filepath):
@@ -160,6 +184,28 @@ def import_config(geom_modifier, filepath):
     with open(filepath, 'r') as f:
         config = json.load(f)
         
+    # Check if Symmetric Mode is enabled in config
+    is_symmetric = config.get("Symmetric Mode", False)
+    if is_symmetric:
+        REDUNDANT_SYMMETRIC_PARAMS = {
+            "Right Hip Height",
+            "Right Waist Height",
+            "Right Chest Height",
+            "Right Shoulder Height",
+            "Right Shoulder Curve",
+            "Right Shoulder Blade",
+            "Right Shoulder Slope",
+            "Right Collar Height",
+            "Right Collar Bone",
+            "Right Neck Curve"
+        }
+        # Synchronize Right parameters to match their Left counterparts if missing
+        for name in REDUNDANT_SYMMETRIC_PARAMS:
+            if name not in config:
+                left_name = name.replace("Right", "Left")
+                if left_name in config:
+                    config[name] = config[left_name]
+                    
     mapping = get_modifier_inputs(geom_modifier)
     updated_count = 0
     
@@ -181,12 +227,22 @@ def generate_obj(guitar_body, script_dir, filename="guitar.obj"):
     if bpy.context.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
         
+    # Re-retrieve object to ensure reference is fresh
+    guitar_body = bpy.data.objects.get(guitar_body.name)
+    
     # Deselect all first
     bpy.ops.object.select_all(action='DESELECT')
     
     # Select Guitar Body and make it active
     guitar_body.select_set(True)
     bpy.context.view_layer.objects.active = guitar_body
+    
+    # Force viewport update to evaluate modifier
+    bpy.context.view_layer.update()
+    
+    # Convert to mesh (applies modifiers in memory)
+    bpy.ops.object.convert(target='MESH')
+    guitar_body = bpy.context.active_object
     
     # Ensure the models output folder exists
     models_dir = os.path.join(script_dir, "models")
@@ -686,6 +742,10 @@ def run_internal_mode():
     # =========================================================================
     # BLENDER INTERNAL MODE (Running inside Blender)
     # =========================================================================
+    # Explicitly reload/open the file to initialize the dependency graph correctly
+    if bpy.data.filepath:
+        bpy.ops.wm.open_mainfile(filepath=bpy.data.filepath)
+        
     # Retrieve arguments passed after '--'
     if '--' in sys.argv:
         args_start = sys.argv.index('--') + 1
