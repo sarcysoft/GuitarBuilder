@@ -1900,19 +1900,21 @@ def run_rendering():
             elec_backplate_name = "elec_backplate.stl"
 
         # Backplates
-        backplate_path = os.path.join(models_dir, "stl", "backplate.stl")
-        import_stl(backplate_path, "Hardware_backplate", backplate_mat)
+        if layout == "sarcaster":
+            backplate_path = os.path.join(models_dir, "stl", "backplate.stl")
+            import_stl(backplate_path, "Hardware_backplate", backplate_mat)
         
         elec_backplate_path = os.path.join(stl_dir, elec_backplate_name)
         import_stl(elec_backplate_path, "Hardware_elec_backplate", backplate_mat)
         
         # Optionally, move the backplates into place relative to standard layout
         # (similar to setup_scene y offsets)
-        bp_obj = bpy.data.objects.get("Hardware_backplate")
-        if bp_obj:
-            bp_obj.rotation_euler[2] = math.radians(180)
-            bp_obj.location.y = 40.0
-            bp_obj.location.z = 2.0
+        if layout == "sarcaster":
+            bp_obj = bpy.data.objects.get("Hardware_backplate")
+            if bp_obj:
+                bp_obj.rotation_euler[2] = math.radians(180)
+                bp_obj.location.y = 40.0
+                bp_obj.location.z = 2.0
             
         ebp_obj = bpy.data.objects.get("Hardware_elec_backplate")
         if ebp_obj:
