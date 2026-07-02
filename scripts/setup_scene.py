@@ -416,9 +416,8 @@ def setup_scene(no_cut = False, config_name = None):
     electronics_file = get_stl_filename("electronics", layout, stl_dir)
     backplate_file = get_stl_filename("elec_backplate", layout, stl_dir)
 
-    if layout == "sarcaster":
-        import_and_subtract_stl("backplate_mask.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
-        import_and_subtract_stl("backplate_fixings.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_mask.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_and_subtract_stl("backplate_fixings.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
     import_and_subtract_stl(mask_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
     import_and_subtract_stl(fixings_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
@@ -429,8 +428,7 @@ def setup_scene(no_cut = False, config_name = None):
 
     
     # Import backplate.stl (without subtraction, just for visualization/reference)
-    if layout == "sarcaster":
-        import_stl("backplate.stl", stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    import_stl("backplate.stl", stl_dir, rotation_z=180, offset_y=40, offset_z=2)
     import_stl(backplate_file, stl_dir, offset_y=0, offset_z=2)
 
     progress = 45
