@@ -1,5 +1,6 @@
 // Import the rounded_poly module
 use <_rounded_poly.scad>
+include <_electronics_layout.scad>
 $fn=128;
 
 module volume_knob() {
@@ -18,7 +19,6 @@ module audio_jack() {
             translate([-1.13,-1,0]) cube([2.26, 4.9, 3.5]);
         }
     }
-
 }
 
 module pickup_selector() {
@@ -29,24 +29,23 @@ module pickup_selector() {
 }
 
 union() {
-    translate([9.0, 22.5, 0.7]) rotate([0,0,-60]) pickup_selector();
+    translate(switch_pos) rotate(switch_rot) pickup_selector();
 
-    translate([7.5, 18.0 ,0.7]) volume_knob();
-    translate([12.0 ,13.5 ,0.7]) volume_knob();
+    translate(vol1_pos) volume_knob();
+    translate(vol2_pos) volume_knob();
     
-    translate([11.0, 6.0 ,-0.3]) rotate([0,0,45]) audio_jack();
+    translate(jack_pos) rotate(jack_rot) audio_jack();
     
     translate([0,0,-2.8]) color("green") {
-        cylinder_between_points([7.5, 18.0], [12.0, 13.5], radius=1.5, height=4.6);
-        cylinder_between_points([7.5, 18.0], [8.75, 21.5], radius=1.5, height=4.6);
-        cylinder_between_points([8.75, 21.5], [10.75, 17.5], radius=1.5, height=4.6);
-        cylinder_between_points([10.75, 17.5], [12.0, 13.5], radius=1.5, height=4.6);
+        cylinder_between_points(cav_p1, cav_p2, radius=1.5, height=4.6);
+        cylinder_between_points(cav_p1, cav_p3, radius=1.5, height=4.6);
+        cylinder_between_points(cav_p3, cav_p4, radius=1.5, height=4.6);
+        cylinder_between_points(cav_p4, cav_p2, radius=1.5, height=4.6);
     }
 
-    translate([9.0, 15.0, 0.0])  color("gray")
-        rotate([90, 0, -10]) cylinder(6, 0.6, 0.6);
-        
-    translate([3.0, 21.0, 0.0])  color("gray")
-        rotate([0, 90, 0]) cylinder(6, 0.8, 0.8);
- }
-
+    // Wiring channels using cylinder_between_points for dynamic placement
+    color("gray") {
+        cylinder_between_points(jack_wire_start, jack_wire_end, radius=0.6, height=1.2);
+        cylinder_between_points(pickup_wire_start, pickup_wire_end, radius=0.8, height=1.6);
+    }
+}

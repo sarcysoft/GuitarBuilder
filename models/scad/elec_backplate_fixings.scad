@@ -1,4 +1,5 @@
 // Import the rounded_poly module
+include <_electronics_layout.scad>
 $fn=128;
 
 module screw()
@@ -13,10 +14,8 @@ module elec_backplate_fixings()
 {
     union()
     {
-
-        //translate([6.25, 17.5,-2.15]) screw();
-        translate([12.75, 11.5,-2.15]) screw();
-        translate([8.75, 23.5,-2.15]) screw();
+        translate(screw_p1) screw();
+        translate(screw_p2) screw();
     }    
 }
 

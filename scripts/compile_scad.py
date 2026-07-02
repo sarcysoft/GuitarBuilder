@@ -94,25 +94,67 @@ def main():
             skipped_files.append(f)
             continue
             
+        base_name = f[:-5]
         scad_path = os.path.join(scad_dir, f)
-        stl_name = f[:-5] + ".stl"
-        stl_path = os.path.join(stl_dir, stl_name)
         
-        print(f"Compiling: {f} -> {stl_name}...")
+        is_electronics = base_name in ["electronics", "elec_backplate", "elec_backplate_mask", "elec_backplate_fixings"]
         
-        cmd = openscad_exe + ["-o", stl_path, scad_path]
-        try:
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode == 0:
-                print(f"  Successfully compiled: {stl_name}")
-                success_count += 1
-            else:
-                print(f"  Error compiling {f}:")
-                print(result.stderr)
+        if is_electronics:
+            layouts = ["sarcaster", "flying_v", "les_paul"]
+            for layout in layouts:
+                stl_name = f"{base_name}_{layout}.stl"
+                stl_path = os.path.join(stl_dir, stl_name)
+                print(f"Compiling variant [{layout}]: {f} -> {stl_name}...")
+                
+                cmd = openscad_exe + ["-o", stl_path, "-D", f'layout_type="{layout}"', scad_path]
+                try:
+                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if result.returncode == 0:
+                        print(f"  Successfully compiled: {stl_name}")
+                        success_count += 1
+                    else:
+                        print(f"  Error compiling variant {layout} of {f}:")
+                        print(result.stderr)
+                        fail_count += 1
+                except Exception as e:
+                    print(f"  Exception occurred compiling variant {layout} of {f}: {e}")
+                    fail_count += 1
+            
+            # Also compile default fallback version without suffix
+            stl_name = base_name + ".stl"
+            stl_path = os.path.join(stl_dir, stl_name)
+            print(f"Compiling default: {f} -> {stl_name}...")
+            cmd = openscad_exe + ["-o", stl_path, scad_path]
+            try:
+                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if result.returncode == 0:
+                    print(f"  Successfully compiled: {stl_name}")
+                    success_count += 1
+                else:
+                    print(f"  Error compiling default {f}:")
+                    print(result.stderr)
+                    fail_count += 1
+            except Exception as e:
+                print(f"  Exception occurred compiling default {f}: {e}")
                 fail_count += 1
-        except Exception as e:
-            print(f"  Exception occurred compiling {f}: {e}")
-            fail_count += 1
+        else:
+            # Standard single compilation
+            stl_name = base_name + ".stl"
+            stl_path = os.path.join(stl_dir, stl_name)
+            print(f"Compiling: {f} -> {stl_name}...")
+            cmd = openscad_exe + ["-o", stl_path, scad_path]
+            try:
+                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if result.returncode == 0:
+                    print(f"  Successfully compiled: {stl_name}")
+                    success_count += 1
+                else:
+                    print(f"  Error compiling {f}:")
+                    print(result.stderr)
+                    fail_count += 1
+            except Exception as e:
+                print(f"  Exception occurred compiling {f}: {e}")
+                fail_count += 1
             
     print("-" * 50)
     print(f"Compilation finished. Success: {success_count}, Failed: {fail_count}")

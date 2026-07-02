@@ -144,7 +144,38 @@ def import_obj(obj_filename, script_dir, rotation_x=0, rotation_y=0, rotation_z=
         
     except Exception as e:
         print(f"OBJ Import Failed: {e}")
-        return None
+def export_full_body_stl(guitar_body, output_dir):
+    """Export the guitar body to a full body STL file in the output directory."""
+    if not guitar_body:
+        print("Warning: Guitar_Body not found for STL export")
+        return False
+        
+    # Deselect all, then select only this object
+    bpy.ops.object.select_all(action='DESELECT')
+    guitar_body.select_set(True)
+    bpy.context.view_layer.objects.active = guitar_body
+    
+    # Export to STL with global scale of 10.0
+    stl_path = os.path.join(output_dir, "Guitar_Full_Body.stl")
+    print(f"Exporting Guitar_Full_Body to STL: {stl_path}")
+    try:
+        if hasattr(bpy.ops.wm, 'stl_export'):
+            bpy.ops.wm.stl_export(
+                filepath=stl_path,
+                export_selected_objects=True,
+                global_scale=10.0
+            )
+        else:
+            bpy.ops.export_mesh.stl(
+                filepath=stl_path,
+                use_selection=True,
+                global_scale=10.0
+            )
+        print(f"Exported: {stl_path}")
+        return True
+    except Exception as export_error:
+        print(f"Error exporting Guitar_Full_Body: {export_error}")
+        return False
 
 
 def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0, offset_x=0, offset_y=0, offset_z=0, keep_object=False):
@@ -363,20 +394,42 @@ def setup_scene(no_cut = False, config_name = None):
     # Import and subtract hardware STL from guitar body
     guitar_body = bpy.data.objects.get("Guitar_Body")
 
+    # Resolve electronics layout type based on config profile name
+    layout = "sarcaster"
+    if config_name:
+        c_name = config_name.lower().strip()
+        if "flying_v" in c_name or "sarcy_v" in c_name:
+            layout = "flying_v"
+        elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
+            layout = "les_paul"
+            
+    print(f"Using electronics layout: {layout}")
+    
+    def get_stl_filename(base_name, layout_name, directory):
+        specific = f"{base_name}_{layout_name}.stl"
+        if os.path.exists(os.path.join(directory, specific)):
+            return specific
+        return f"{base_name}.stl"
+        
+    mask_file = get_stl_filename("elec_backplate_mask", layout, stl_dir)
+    fixings_file = get_stl_filename("elec_backplate_fixings", layout, stl_dir)
+    electronics_file = get_stl_filename("electronics", layout, stl_dir)
+    backplate_file = get_stl_filename("elec_backplate", layout, stl_dir)
+
     import_and_subtract_stl("backplate_mask.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
     import_and_subtract_stl("backplate_fixings.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl("elec_backplate_mask.stl", guitar_body, stl_dir,offset_x=0, offset_y=0, offset_z=2)
-    import_and_subtract_stl("elec_backplate_fixings.stl", guitar_body, stl_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl(mask_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl(fixings_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
 
     import_and_subtract_stl("hardware.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl("electronics.stl", guitar_body, stl_dir,offset_x=0, offset_y=0, offset_z=2)
+    import_and_subtract_stl(electronics_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
 
     
     # Import backplate.stl (without subtraction, just for visualization/reference)
     import_stl("backplate.stl", stl_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_stl("elec_backplate.stl", stl_dir, offset_y=0, offset_z=2)
+    import_stl(backplate_file, stl_dir, offset_y=0, offset_z=2)
 
     progress = 45
     wm.progress_update(progress)
@@ -389,43 +442,19 @@ def setup_scene(no_cut = False, config_name = None):
     except Exception as e:
         print(f"Warning: Failed to import optional neck: {e}")
 
+    # Resolve output directory
+    if config_name and config_name != "default":
+        output_dir = os.path.join(root_dir, "output", config_name)
+    else:
+        output_dir = os.path.join(root_dir, "output")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    guitar_body = bpy.data.objects.get("Guitar_Body")
+
     if no_cut:
         print("no_cut is True. Exporting Guitar_Full_Body to STL...")
-        if config_name and config_name != "default":
-            output_dir = os.path.join(root_dir, "output", config_name)
-        else:
-            output_dir = os.path.join(root_dir, "output")
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-            print(f"Created output directory: {output_dir}")
-        
-        guitar_body = bpy.data.objects.get("Guitar_Body")
-        if guitar_body:
-            # Deselect all, then select only this object
-            bpy.ops.object.select_all(action='DESELECT')
-            guitar_body.select_set(True)
-            bpy.context.view_layer.objects.active = guitar_body
-            
-            # Export to STL with global scale of 10.0
-            stl_path = os.path.join(output_dir, "Guitar_Full_Body.stl")
-            try:
-                if hasattr(bpy.ops.wm, 'stl_export'):
-                    bpy.ops.wm.stl_export(
-                        filepath=stl_path,
-                        export_selected_objects=True,
-                        global_scale=10.0
-                    )
-                else:
-                    bpy.ops.export_mesh.stl(
-                        filepath=stl_path,
-                        use_selection=True,
-                        global_scale=10.0
-                    )
-                print(f"Exported: {stl_path}")
-            except Exception as export_error:
-                print(f"Error exporting Guitar_Full_Body: {export_error}")
-        else:
-            print("Warning: Guitar_Body not found for export")
+        export_full_body_stl(guitar_body, output_dir)
             
         # Save Debug State
         debug_path = os.path.join(debug_dir, "debug_guitar_result.blend")
@@ -436,6 +465,10 @@ def setup_scene(no_cut = False, config_name = None):
             print(f"Error saving debug blend file: {save_error}")
             
         return
+
+    # Always export full body STL for uncut renders even if cutting is performed
+    print("Exporting Guitar_Full_Body to STL (uncut backup)...")
+    export_full_body_stl(guitar_body, output_dir)
 
     # 3. Perform Cuts
     # Ensure the script directory is in sys.path to import textured_cut

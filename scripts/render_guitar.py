@@ -1882,11 +1882,28 @@ def run_rendering():
         if neck_obj:
             check_and_apply_neck_material(neck_obj)
             
+        # Resolve electronics layout type based on config profile name
+        config_name = os.path.basename(args.config_dir.strip(os.sep))
+        layout = "sarcaster"
+        if config_name:
+            c_name = config_name.lower().strip()
+            if "flying_v" in c_name or "sarcy_v" in c_name:
+                layout = "flying_v"
+            elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
+                layout = "les_paul"
+                
+        print(f"Using electronics layout for backplate: {layout}")
+        
+        elec_backplate_name = f"elec_backplate_{layout}.stl"
+        stl_dir = os.path.join(models_dir, "stl")
+        if not os.path.exists(os.path.join(stl_dir, elec_backplate_name)):
+            elec_backplate_name = "elec_backplate.stl"
+
         # Backplates
         backplate_path = os.path.join(models_dir, "stl", "backplate.stl")
         import_stl(backplate_path, "Hardware_backplate", backplate_mat)
         
-        elec_backplate_path = os.path.join(models_dir, "stl", "elec_backplate.stl")
+        elec_backplate_path = os.path.join(stl_dir, elec_backplate_name)
         import_stl(elec_backplate_path, "Hardware_elec_backplate", backplate_mat)
         
         # Optionally, move the backplates into place relative to standard layout
