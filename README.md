@@ -24,19 +24,54 @@ The pipeline uses Geometry Nodes inside Blender for parametric body generation, 
 
 ---
 
+## Graphical User Interface (`gui.py`)
+
+A graphical desktop frontend is provided to configure profiles, slice models, and render scenes without memorizing command-line flags.
+
+To launch the GUI:
+```bash
+python gui.py
+# or
+python guitar_builder.py --gui
+```
+
+### GUI Features:
+- **Profile Selector & Parameter Editor:** Select any body profile (`sarcaster`, `flying_v`, `les_paul`, etc.) from a dropdown, live-edit Geometry Nodes values in a table, and save new profiles.
+- **Slicing & Manufacturing Controls:** One-click toggle between **Flat Cuts** (vertical printing + 6mm locator pin holes) and **Textured Cuts** (legacy horizontal printing), with live pin diameter and length spinboxes.
+- **Photo Studio & Rendering:** Configure camera views, lighting themes (`studio`, `dramatic`, `warm`, `sunset`), materials (`gloss`, `sunburst`, `sparkle`, `chrome`, `glass`), exploded views, and render engines (`eevee`/`cycles`).
+- **Render Gallery:** Built-in thumbnail viewer for previewing generated `front.png`, `back.png`, and `angled.png` renders without leaving the app.
+- **Realtime Console & Command Preview:** Live subprocess terminal log streaming with cancel support, and a live CLI preview showing the exact command being generated.
+
+---
+
 ## Usage (`guitar_builder.py`)
 
-All setup, custom configuration profiling, and generation tasks can be performed using the unified `guitar_builder.py` script.
+All setup, custom configuration profiling, and generation tasks can also be performed via the CLI using `guitar_builder.py`.
 
 ### 1. Slicing & Scene Setup (Full Pipeline)
-To build the guitar model and run the complete scene setup (applying cuts and exporting the output parts):
+To build the guitar model and run the complete scene setup (applying cuts, creating alignment locator pin holes, and exporting the output parts):
 
 ```bash
-# Run with default parameters
+# Run with default parameters (Flat cuts with 6mm locator pin holes for vertical 3D printing)
 python guitar_builder.py
 
 # Run with a custom profile (e.g., config/sarcaster.json)
 python guitar_builder.py sarcaster
+
+# Select a specific hardware variant (e.g. piezo bridge - omits backplate)
+python guitar_builder.py sarcaster --hardware piezo
+
+# Select specific hardware and electronics variants
+python guitar_builder.py sarcaster --hardware standard --electronics sarcaster
+
+# Custom pin dimensions (e.g. 5mm diameter, 20mm length)
+python guitar_builder.py sarcaster --pin-diameter 5.0 --pin-length 20.0
+
+# Flat cuts without any pin holes
+python guitar_builder.py sarcaster --no-pins
+
+# Legacy horizontal-printing textured puzzle joints (displaced wavy cuts)
+python guitar_builder.py sarcaster --cut-type textured
 
 # Export full body model without cutting it
 python guitar_builder.py --no-cut
@@ -44,6 +79,15 @@ python guitar_builder.py --no-cut
 # Combined: Run custom profile and export full body without cuts
 python guitar_builder.py sarcaster --no-cut
 ```
+
+#### Cutting & Alignment Methods:
+- **`--cut-type flat` (Default):** Produces perfectly flat cut lines designed for **vertical 3D printing**. Sections can sit flat directly on the print bed with zero supports on the joint face, maximizing bed adhesion and layer strength under string tension.
+  - Generates coaxial blind holes across all mating seams for **locator dowel pins** (default: 6mm diameter $\times$ 16mm length with 0.4mm diametral clearance for epoxy relief).
+  - Also automatically exports `locator_pin.stl` with chamfered lead-in ends into the output directory for easy printing.
+- **`--cut-type textured`:** Legacy procedural noise-displaced interlocking cuts intended for horizontal print orientations.
+- **`--pin-diameter <float>`:** Nominal locator pin diameter in mm (default: `6.0`).
+- **`--pin-length <float>`:** Total pin length in mm (default: `16.0`, 8mm depth per side).
+- **`--no-pins`:** Disables pin hole subtraction and pin export on flat cuts.
 
 ### 2. Exporting Model Configuration
 Extract the current parameters of the Blender model to a JSON file (stored under the `config/` directory by default):
@@ -68,9 +112,33 @@ If you want to configure and build the base guitar mesh directly without doing a
 
 ---
 
-## 4. OpenSCAD STL Compilation (`scripts/compile_scad.py`)
+## 4. OpenSCAD STL Compilation & Variant Packages (`scripts/compile_scad.py`)
 
-If you edit the `.scad` files in the `models/` folder, you can regenerate their corresponding `.stl` files by running:
+Hardware and electronics are organized into modular variant packages under `models/scad/`:
+
+```
+models/scad/
+  common/                       # Shared utility modules (_rounded_poly.scad, etc.)
+  hardware/
+    standard/                   # Standard tremolo + single-coil pickups
+      hardware.scad
+      backplate.scad            # Tremolo spring cavity cover
+      backplate_mask.scad
+      backplate_fixings.scad
+    piezo/                      # Piezo bridge (omits backplate.scad to skip backplate)
+      hardware.scad
+  electronics/
+    sarcaster/                  # Standard 5-way blade + pots
+      electronics.scad
+      elec_backplate.scad
+      elec_backplate_mask.scad
+      elec_backplate_fixings.scad
+    flying_v/
+    les_paul/
+```
+
+- **Omitting Backplates:** If a hardware or electronics variant does not require a rear cover plate (e.g. `piezo`), simply omit `backplate.scad` from its folder. The compiler and scene setup will cleanly skip all backplate subtractions and covers.
+- **Compiling Variants:** To compile all variants into `models/stl/`:
 ```bash
 python scripts/compile_scad.py
 ```

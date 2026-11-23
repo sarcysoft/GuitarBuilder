@@ -285,6 +285,12 @@ def parse_wrapper_args(argv):
 
     # Default variables
     no_cut = False
+    cut_type = "flat"
+    pin_diameter = 6.0
+    pin_length = 16.0
+    no_pins = False
+    hardware = None
+    electronics = None
     config = None
     export_config = None
     export_config_flag = False
@@ -318,6 +324,12 @@ def parse_wrapper_args(argv):
             
             # Map key-values to variables
             no_cut = config_data.get("no_cut", no_cut)
+            cut_type = config_data.get("cut_type", cut_type)
+            pin_diameter = float(config_data.get("pin_diameter", pin_diameter))
+            pin_length = float(config_data.get("pin_length", pin_length))
+            no_pins = config_data.get("no_pins", no_pins)
+            hardware = config_data.get("hardware", hardware)
+            electronics = config_data.get("electronics", electronics)
             config = config_data.get("config", config)
             render = config_data.get("render", render)
             body_only = config_data.get("body_only", body_only)
@@ -448,6 +460,57 @@ def parse_wrapper_args(argv):
                 i += 2
             else:
                 i += 1
+        elif arg in ["--cut-type", "--cut_type"]:
+            if i + 1 < len(argv):
+                cut_type = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg in ["--textured", "--textured-cut", "--textured_cut"]:
+            cut_type = "textured"
+            i += 1
+        elif arg in ["--flat", "--flat-cut", "--flat_cut"]:
+            cut_type = "flat"
+            i += 1
+        elif arg in ["--pin-diameter", "--pin_diameter"]:
+            if i + 1 < len(argv):
+                try:
+                    pin_diameter = float(argv[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            else:
+                i += 1
+        elif arg in ["--pin-length", "--pin_length"]:
+            if i + 1 < len(argv):
+                try:
+                    pin_length = float(argv[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            else:
+                i += 1
+        elif arg in ["--no-pins", "--no_pins"]:
+            no_pins = True
+            i += 1
+        elif arg.startswith("--hardware="):
+            hardware = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--hardware", "--hardware_variant", "--hw"]:
+            if i + 1 < len(argv):
+                hardware = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg.startswith("--electronics="):
+            electronics = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--electronics", "--electronics_variant", "--elec"]:
+            if i + 1 < len(argv):
+                electronics = argv[i + 1]
+                i += 2
+            else:
+                i += 1
         elif arg == "--generate":
             generate = True
             i += 1
@@ -460,7 +523,11 @@ def parse_wrapper_args(argv):
                 config = arg
             i += 1
             
-    return no_cut, config, export_config_flag, export_config, import_config, generate, render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed
+    return (no_cut, cut_type, pin_diameter, pin_length, no_pins, hardware, electronics,
+            config, export_config_flag, export_config, import_config, generate,
+            render, body_only, exploded_body, uncut, angle, engine,
+            material, material_back, lighting, save_blend, pitch,
+            guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed)
 
 
 def run_wrapper_mode():
@@ -476,8 +543,11 @@ def run_wrapper_mode():
         sys.exit(1)
         
     # Parse command line args
-    (no_cut, config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
-     render, body_only, exploded_body, uncut, angle, engine, material, material_back, lighting, save_blend, pitch, guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed) = parse_wrapper_args(sys.argv[1:])
+    (no_cut, cut_type, pin_diameter, pin_length, no_pins, hardware, electronics,
+     config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
+     render, body_only, exploded_body, uncut, angle, engine,
+     material, material_back, lighting, save_blend, pitch,
+     guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render or animate or no_render_anim:
@@ -706,6 +776,16 @@ def run_wrapper_mode():
         setup_args = ["--config", config]
         if no_cut:
             setup_args.append("--no-cut")
+        if cut_type:
+            setup_args.extend(["--cut-type", cut_type])
+        if no_pins:
+            setup_args.append("--no-pins")
+        else:
+            setup_args.extend(["--pin-diameter", str(pin_diameter), "--pin-length", str(pin_length)])
+        if hardware:
+            setup_args.extend(["--hardware", hardware])
+        if electronics:
+            setup_args.extend(["--electronics", electronics])
             
         cmd2 = [
             blender_exe,
@@ -724,6 +804,16 @@ def run_wrapper_mode():
         setup_args = []
         if no_cut:
             setup_args.append("--no-cut")
+        if cut_type:
+            setup_args.extend(["--cut-type", cut_type])
+        if no_pins:
+            setup_args.append("--no-pins")
+        else:
+            setup_args.extend(["--pin-diameter", str(pin_diameter), "--pin-length", str(pin_length)])
+        if hardware:
+            setup_args.extend(["--hardware", hardware])
+        if electronics:
+            setup_args.extend(["--electronics", electronics])
             
         cmd2 = [
             blender_exe,
@@ -828,6 +918,14 @@ def run_internal_mode():
 
 def main():
     if not inside_blender:
+        if any(arg in ["--gui", "-gui", "gui"] for arg in sys.argv[1:]):
+            try:
+                import gui
+                gui.main()
+                return
+            except Exception as e:
+                print(f"Error launching GUI: {e}")
+                sys.exit(1)
         run_wrapper_mode()
     else:
         run_internal_mode()

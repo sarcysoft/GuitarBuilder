@@ -218,7 +218,7 @@ def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0,
     bool_mod = guitar_body.modifiers.new(name=f"{obj_name}_Boolean", type='BOOLEAN')
     bool_mod.operation = 'DIFFERENCE'
     bool_mod.object = imported_obj
-    bool_mod.solver = 'FLOAT'  # Use FLOAT solver (valid options: FLOAT, EXACT, MANIFOLD)
+    bool_mod.solver = 'EXACT'  # Use EXACT solver for robust boolean cuts
     
     # Apply the modifier
     try:
@@ -247,7 +247,50 @@ def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0,
     return True
 
 
-def setup_scene(no_cut = False, config_name = None):
+SEAM_PINS = [
+    # (part_a, part_b, location, axis)
+    # 1. Bot_Left <-> Bot_Right
+    ("Guitar_Bot_Left", "Guitar_Bot_Right", (0.0, 5.0, 2.0), "X"),
+    
+    # 2. Bot_Left <-> Mid_Left
+    ("Guitar_Bot_Left", "Guitar_Mid_Left", (-9.5, 10.0, 2.0), "Y"),
+    
+    # 3. Bot_Left <-> Mid
+    ("Guitar_Bot_Left", "Guitar_Mid", (-2.5, 10.0, 2.0), "Y"),
+    
+    # 4. Bot_Right <-> Mid
+    ("Guitar_Bot_Right", "Guitar_Mid", (2.5, 10.0, 2.0), "Y"),
+    
+    # 5. Bot_Right <-> Mid_Right
+    ("Guitar_Bot_Right", "Guitar_Mid_Right", (9.5, 10.0, 2.0), "Y"),
+    
+    # 6. Mid_Left <-> Mid (2 pins)
+    ("Guitar_Mid_Left", "Guitar_Mid", (-5.0, 15.0, 2.0), "X"),
+    ("Guitar_Mid_Left", "Guitar_Mid", (-5.0, 21.0, 2.0), "X"),
+    
+    # 7. Mid_Right <-> Mid (2 pins)
+    ("Guitar_Mid_Right", "Guitar_Mid", (5.0, 15.0, 2.0), "X"),
+    ("Guitar_Mid_Right", "Guitar_Mid", (5.0, 21.0, 2.0), "X"),
+    
+    # 8. Mid_Left <-> Top_Left
+    ("Guitar_Mid_Left", "Guitar_Top_Left", (-9.0, 26.0, 2.0), "Y"),
+    
+    # 9. Mid_Right <-> Top_Right
+    ("Guitar_Mid_Right", "Guitar_Top_Right", (9.0, 26.0, 2.0), "Y"),
+    
+    # 10. Top_Left <-> Top_Mid
+    ("Guitar_Top_Left", "Guitar_Top_Mid", (-5.0, 31.0, 2.0), "X"),
+    
+    # 11. Top_Right <-> Top_Mid
+    ("Guitar_Top_Right", "Guitar_Top_Mid", (5.0, 31.0, 2.0), "X"),
+    
+    # 12. Mid <-> Top_Mid (2 pins)
+    ("Guitar_Mid", "Guitar_Top_Mid", (-2.5, 27.5, 2.0), "Y"),
+    ("Guitar_Mid", "Guitar_Top_Mid", (2.5, 27.5, 2.0), "Y"),
+]
+
+
+def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None):
     print("Starting Scene Setup...")
     
     # Initialize progress bar
@@ -394,42 +437,93 @@ def setup_scene(no_cut = False, config_name = None):
     # Import and subtract hardware STL from guitar body
     guitar_body = bpy.data.objects.get("Guitar_Body")
 
-    # Resolve electronics layout type based on config profile name
-    layout = "sarcaster"
+    # Resolve hardware and electronics variants
+    import json
+    cfg_hardware = "standard"
+    cfg_electronics = None
     if config_name:
-        c_name = config_name.lower().strip()
-        if "flying_v" in c_name or "sarcy_v" in c_name:
-            layout = "flying_v"
-        elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
-            layout = "les_paul"
-            
-    print(f"Using electronics layout: {layout}")
-    
-    def get_stl_filename(base_name, layout_name, directory):
-        specific = f"{base_name}_{layout_name}.stl"
-        if os.path.exists(os.path.join(directory, specific)):
-            return specific
-        return f"{base_name}.stl"
-        
-    mask_file = get_stl_filename("elec_backplate_mask", layout, stl_dir)
-    fixings_file = get_stl_filename("elec_backplate_fixings", layout, stl_dir)
-    electronics_file = get_stl_filename("electronics", layout, stl_dir)
-    backplate_file = get_stl_filename("elec_backplate", layout, stl_dir)
+        cfg_file = os.path.join(root_dir, "config", f"{config_name}.json")
+        if os.path.exists(cfg_file):
+            try:
+                with open(cfg_file, "r") as f:
+                    cdata = json.load(f)
+                    cfg_hardware = cdata.get("hardware", cfg_hardware)
+                    cfg_electronics = cdata.get("electronics", cfg_electronics)
+            except Exception as e:
+                print(f"Warning: Failed to read config JSON for variant defaults: {e}")
 
-    import_and_subtract_stl("backplate_mask.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_and_subtract_stl("backplate_fixings.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    hardware = hardware or cfg_hardware or "standard"
+    if not electronics:
+        electronics = cfg_electronics
+        if not electronics and config_name:
+            c_name = config_name.lower().strip()
+            if "flying_v" in c_name or "sarcy_v" in c_name:
+                electronics = "flying_v"
+            elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
+                electronics = "les_paul"
+            else:
+                electronics = "sarcaster"
+        elif not electronics:
+            electronics = "sarcaster"
 
-    import_and_subtract_stl(mask_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
-    import_and_subtract_stl(fixings_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
+    print(f"Active Hardware Variant: {hardware}")
+    print(f"Active Electronics Variant: {electronics}")
 
-    import_and_subtract_stl("hardware.stl", guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    # 1. Hardware subtraction
+    hw_stl = f"hardware_{hardware}.stl"
+    if not os.path.exists(os.path.join(stl_dir, hw_stl)):
+        hw_stl = "hardware.stl"
+    import_and_subtract_stl(hw_stl, guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
-    import_and_subtract_stl(electronics_file, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
+    # Check for backplate on this hardware variant (omitting backplate skips it completely)
+    bp_stl = f"backplate_{hardware}.stl"
+    has_backplate = os.path.exists(os.path.join(stl_dir, bp_stl))
+    if not has_backplate and hardware == "standard" and os.path.exists(os.path.join(stl_dir, "backplate.stl")):
+        bp_stl = "backplate.stl"
+        has_backplate = True
 
-    
-    # Import backplate.stl (without subtraction, just for visualization/reference)
-    import_stl("backplate.stl", stl_dir, rotation_z=180, offset_y=40, offset_z=2)
-    import_stl(backplate_file, stl_dir, offset_y=0, offset_z=2)
+    if has_backplate:
+        print(f"Applying backplate for hardware variant '{hardware}'...")
+        mask_stl = f"backplate_mask_{hardware}.stl"
+        if not os.path.exists(os.path.join(stl_dir, mask_stl)):
+            mask_stl = "backplate_mask.stl"
+        fix_stl = f"backplate_fixings_{hardware}.stl"
+        if not os.path.exists(os.path.join(stl_dir, fix_stl)):
+            fix_stl = "backplate_fixings.stl"
+
+        import_and_subtract_stl(mask_stl, guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+        import_and_subtract_stl(fix_stl, guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+        import_stl(bp_stl, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    else:
+        print(f"Hardware variant '{hardware}' has no backplate. Skipping backplate.")
+
+    # 2. Electronics subtraction
+    elec_stl = f"electronics_{electronics}.stl"
+    if not os.path.exists(os.path.join(stl_dir, elec_stl)):
+        elec_stl = "electronics.stl"
+    import_and_subtract_stl(elec_stl, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
+
+    # Check for electronics backplate (omitting skips it completely)
+    ebp_stl = f"elec_backplate_{electronics}.stl"
+    has_elec_backplate = os.path.exists(os.path.join(stl_dir, ebp_stl))
+    if not has_elec_backplate and electronics == "sarcaster" and os.path.exists(os.path.join(stl_dir, "elec_backplate.stl")):
+        ebp_stl = "elec_backplate.stl"
+        has_elec_backplate = True
+
+    if has_elec_backplate:
+        print(f"Applying electronics backplate for variant '{electronics}'...")
+        emask_stl = f"elec_backplate_mask_{electronics}.stl"
+        if not os.path.exists(os.path.join(stl_dir, emask_stl)):
+            emask_stl = "elec_backplate_mask.stl"
+        efix_stl = f"elec_backplate_fixings_{electronics}.stl"
+        if not os.path.exists(os.path.join(stl_dir, efix_stl)):
+            efix_stl = "elec_backplate_fixings.stl"
+
+        import_and_subtract_stl(emask_stl, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
+        import_and_subtract_stl(efix_stl, guitar_body, stl_dir, offset_x=0, offset_y=0, offset_z=2)
+        import_stl(ebp_stl, stl_dir, offset_y=0, offset_z=2)
+    else:
+        print(f"Electronics variant '{electronics}' has no backplate. Skipping backplate.")
 
     progress = 45
     wm.progress_update(progress)
@@ -516,44 +610,66 @@ def setup_scene(no_cut = False, config_name = None):
         
         print("Successfully imported textured_cut!")
         
-        print("Starting Cut Operations...")
+        print(f"Starting Cut Operations ({cut_type})...")
         # Execute the cuts as requested - stop if any cut fails
         # Note: part1_name = DIFFERENCE (what remains), part2_name = INTERSECT (what's cut off)
         
-        if not textured_cut.cut("Guitar_Body", location=(0, 10.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top", part2_name="Guitar_Bottom", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Body", location=(0, 10.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top", part2_name="Guitar_Bottom", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 1 failed. Stopping.")
             return
 
         # Swap: Left/Right were backwards
-        if not textured_cut.cut("Guitar_Bottom", location=(0, 10.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Bot_Left", part2_name="Guitar_Bot_Right", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Bottom", location=(0, 10.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Bot_Left", part2_name="Guitar_Bot_Right", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 2 failed. Stopping.")
             return
         
         # Vertical cut at X=-5
-        if not textured_cut.cut("Guitar_Top", location=(-5.0, 20.0, 0), rotation_deg=(0, -90, 0), part1_name="Guitar_Middle_Right", part2_name="Guitar_Left", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Top", location=(-5.0, 20.0, 0), rotation_deg=(0, -90, 0), part1_name="Guitar_Middle_Right", part2_name="Guitar_Left", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 3 failed. Stopping.")
             return
             
         # Vertical cut at X=5 - Swap: Middle/Right were backwards
-        if not textured_cut.cut("Guitar_Middle_Right", location=(5.0, 20.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Middle", part2_name="Guitar_Right", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Middle_Right", location=(5.0, 20.0, 0), rotation_deg=(0, 90, 0), part1_name="Guitar_Middle", part2_name="Guitar_Right", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 4 failed. Stopping.")
             return
 
-        if not textured_cut.cut("Guitar_Left", location=(-10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Left", part2_name="Guitar_Mid_Left", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Left", location=(-10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Left", part2_name="Guitar_Mid_Left", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 5 failed. Stopping.")
             return
         
         # Swap: Top_Right/Mid_Right were backwards - swap again to fix
-        if not textured_cut.cut("Guitar_Right", location=(10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Right", part2_name="Guitar_Mid_Right", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Right", location=(10.0, 26.0, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Right", part2_name="Guitar_Mid_Right", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 6 failed. Stopping.")
             return
 
         # Cut 7: Swap: Top_Mid/Mid were backwards - swap again to fix
-        if not textured_cut.cut("Guitar_Middle", location=(0, 27.5, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Mid", part2_name="Guitar_Mid", solidify_offset=1.0):
+        if not textured_cut.cut("Guitar_Middle", location=(0, 27.5, 0), rotation_deg=(90, 0, 0), part1_name="Guitar_Top_Mid", part2_name="Guitar_Mid", solidify_offset=1.0, cut_type=cut_type):
             print("ERROR: Cut 7 failed. Stopping.")
             return
         
         print("All cuts completed successfully!")
+
+        # Apply locator pin holes to mating faces for vertical print assembly
+        if cut_type == "flat" and not no_pins:
+            print(f"Applying locator pin holes ({pin_diameter}mm diam x {pin_length}mm length)...")
+            from collections import defaultdict
+            part_pins_map = defaultdict(list)
+            for part_a, part_b, loc, axis in SEAM_PINS:
+                part_pins_map[part_a].append((loc, axis))
+                part_pins_map[part_b].append((loc, axis))
+            textured_cut.subtract_pin_holes_from_parts(
+                part_pins_map,
+                pin_diameter=pin_diameter,
+                pin_length=pin_length,
+                clearance=0.4
+            )
+            
+            # Export printable locator pin STL
+            textured_cut.export_locator_pin_stl(
+                output_dir,
+                pin_diameter=pin_diameter,
+                pin_length=pin_length
+            )
         
         # Export all resultant parts to separate STL files
         print("Exporting parts to STL files...")
@@ -613,6 +729,21 @@ def setup_scene(no_cut = False, config_name = None):
                 print(f"Warning: Part '{part_name}' not found for export")
         
         print(f"Successfully exported {exported_count} parts to {output_dir}")
+
+        # Copy matching physical backplate STLs to output_dir if present
+        import shutil
+        if has_backplate:
+            src_bp = os.path.join(stl_dir, bp_stl)
+            if os.path.exists(src_bp):
+                dst_bp = os.path.join(output_dir, "Backplate.stl")
+                shutil.copyfile(src_bp, dst_bp)
+                print(f"Exported Backplate.stl ({bp_stl}) to {output_dir}")
+        if has_elec_backplate:
+            src_ebp = os.path.join(stl_dir, ebp_stl)
+            if os.path.exists(src_ebp):
+                dst_ebp = os.path.join(output_dir, "Elec_Backplate.stl")
+                shutil.copyfile(src_ebp, dst_ebp)
+                print(f"Exported Elec_Backplate.stl ({ebp_stl}) to {output_dir}")
         
         # Save Debug State
         debug_path = os.path.join(debug_dir, "debug_guitar_result.blend")
@@ -636,6 +767,12 @@ if __name__ == "__main__":
     
     no_cut_val = False
     config_name_val = None
+    cut_type_val = "flat"
+    pin_diameter_val = 6.0
+    pin_length_val = 16.0
+    no_pins_val = False
+    hardware_val = None
+    electronics_val = None
     
     args = []
     if "--" in sys.argv:
@@ -643,12 +780,58 @@ if __name__ == "__main__":
     else:
         args = sys.argv[1:]
         
-    for i, arg in enumerate(args):
+    i = 0
+    while i < len(args):
+        arg = args[i]
         if arg in ["--no-cut", "--no_cut", "no_cut"]:
             no_cut_val = True
+            i += 1
         elif arg.startswith("--config="):
             config_name_val = arg.split("=", 1)[1]
+            i += 1
         elif arg == "--config" and i + 1 < len(args):
             config_name_val = args[i + 1]
+            i += 2
+        elif arg.startswith("--cut-type="):
+            cut_type_val = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--cut-type", "--cut_type"] and i + 1 < len(args):
+            cut_type_val = args[i + 1]
+            i += 2
+        elif arg in ["--textured", "--textured-cut", "--textured_cut"]:
+            cut_type_val = "textured"
+            i += 1
+        elif arg in ["--flat", "--flat-cut", "--flat_cut"]:
+            cut_type_val = "flat"
+            i += 1
+        elif arg.startswith("--pin-diameter="):
+            pin_diameter_val = float(arg.split("=", 1)[1])
+            i += 1
+        elif arg in ["--pin-diameter", "--pin_diameter"] and i + 1 < len(args):
+            pin_diameter_val = float(args[i + 1])
+            i += 2
+        elif arg.startswith("--pin-length="):
+            pin_length_val = float(arg.split("=", 1)[1])
+            i += 1
+        elif arg in ["--pin-length", "--pin_length"] and i + 1 < len(args):
+            pin_length_val = float(args[i + 1])
+            i += 2
+        elif arg in ["--no-pins", "--no_pins"]:
+            no_pins_val = True
+            i += 1
+        elif arg.startswith("--hardware="):
+            hardware_val = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--hardware", "--hardware_variant", "--hw"] and i + 1 < len(args):
+            hardware_val = args[i + 1]
+            i += 2
+        elif arg.startswith("--electronics="):
+            electronics_val = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--electronics", "--electronics_variant", "--elec"] and i + 1 < len(args):
+            electronics_val = args[i + 1]
+            i += 2
+        else:
+            i += 1
                 
-    setup_scene(no_cut_val, config_name_val)
+    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val)

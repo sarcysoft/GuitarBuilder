@@ -37,10 +37,10 @@ union() {
     translate(jack_pos) rotate(jack_rot) audio_jack();
     
     translate([0,0,-2.8]) color("green") {
-        cylinder_between_points(cav_p1, cav_p2, radius=1.5, height=4.6);
-        cylinder_between_points(cav_p1, cav_p3, radius=1.5, height=4.6);
-        cylinder_between_points(cav_p3, cav_p4, radius=1.5, height=4.6);
-        cylinder_between_points(cav_p4, cav_p2, radius=1.5, height=4.6);
+        cylinder_between_points(cav_p1, cav_p2, radius=cav_radius, height=4.6);
+        cylinder_between_points(cav_p1, cav_p3, radius=cav_radius, height=4.6);
+        cylinder_between_points(cav_p3, cav_p4, radius=cav_radius, height=4.6);
+        cylinder_between_points(cav_p4, cav_p2, radius=cav_radius, height=4.6);
     }
 
     // Wiring channels using cylinder_between_points for dynamic placement

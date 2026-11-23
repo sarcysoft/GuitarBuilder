@@ -20,9 +20,9 @@ def log(message):
 # Clear log on fresh run (only if called directly, but hard to know)
 # We'll just append.
 
-def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0):
+def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0, cut_type='flat'):
     # 1. Validation and Setup
-    log(f"--- Starting Cut: {part_a_name} / {part_b_name} ---")
+    log(f"--- Starting Cut ({cut_type}): {part_a_name} / {part_b_name} ---")
     
     # Ensure mode is OBJECT
     if bpy.context.mode != 'OBJECT':
@@ -61,34 +61,37 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     # Apply Scale is crucial for correct displacement and boolean
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     
-    # Subdivide
-    # Initial subdivision in Edit Mode to provide base density
-    # For large planes, Subsurf level 6 on a single quad is not enough resolution.
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_all(action='SELECT')
-    bpy.ops.mesh.subdivide(number_cuts=15) # Increased to 15 for deeper detail
-    bpy.ops.object.mode_set(mode='OBJECT')
+    if cut_type == 'textured':
+        # Subdivide
+        # Initial subdivision in Edit Mode to provide base density
+        # For large planes, Subsurf level 6 on a single quad is not enough resolution.
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.subdivide(number_cuts=15) # Increased to 15 for deeper detail
+        bpy.ops.object.mode_set(mode='OBJECT')
 
-    # Simple subdivision or Subsurf modifier applied
-    mod_sub = tool_obj.modifiers.new(name="Subdivisions", type='SUBSURF')
-    mod_sub.subdivision_type = 'SIMPLE'
-    mod_sub.levels = 2 # Keep at 2 for stability
-    mod_sub.render_levels = 2
-    bpy.ops.object.modifier_apply(modifier=mod_sub.name)
-    
-    log(f"  Cutter subdivided: {len(tool_obj.data.vertices)} vertices")
-    
-    # Create Texture
-    tex = bpy.data.textures.new("CutTexture", 'CLOUDS')
-    tex.noise_scale = 1.0 # Scaled 10x (was 0.5)
-    tex.noise_depth = 3 # Increased from 2 to 3 for more complexity
-    
-    # Displace
-    mod_disp = tool_obj.modifiers.new(name="Displacement", type='DISPLACE')
-    mod_disp.texture = tex
-    mod_disp.strength = 2.0 # Increased to 2.0 for even deeper texture
-    # We apply it to bake the geometry
-    bpy.ops.object.modifier_apply(modifier=mod_disp.name)
+        # Simple subdivision or Subsurf modifier applied
+        mod_sub = tool_obj.modifiers.new(name="Subdivisions", type='SUBSURF')
+        mod_sub.subdivision_type = 'SIMPLE'
+        mod_sub.levels = 2 # Keep at 2 for stability
+        mod_sub.render_levels = 2
+        bpy.ops.object.modifier_apply(modifier=mod_sub.name)
+        
+        log(f"  Cutter subdivided: {len(tool_obj.data.vertices)} vertices")
+        
+        # Create Texture
+        tex = bpy.data.textures.new("CutTexture", 'CLOUDS')
+        tex.noise_scale = 1.0 # Scaled 10x (was 0.5)
+        tex.noise_depth = 3 # Increased from 2 to 3 for more complexity
+        
+        # Displace
+        mod_disp = tool_obj.modifiers.new(name="Displacement", type='DISPLACE')
+        mod_disp.texture = tex
+        mod_disp.strength = 2.0 # Increased to 2.0 for even deeper texture
+        # We apply it to bake the geometry
+        bpy.ops.object.modifier_apply(modifier=mod_disp.name)
+    else:
+        log("  Using FLAT cut (planar cut line for vertical printing).")
     
     # Extrude to create volume (Use Solidify for centered thickness)
     mod_solid = tool_obj.modifiers.new(name="SolidifyCutter", type='SOLIDIFY')
@@ -366,12 +369,12 @@ def create_textured_cut(part_a_name=None, part_b_name=None, solidify_offset=1.0)
     log("Cut operation complete.")
     return {'FINISHED'}
 
-def cut(target_name, location, rotation_deg, part1_name=None, part2_name=None, solidify_offset=1.0):
+def cut(target_name, location, rotation_deg, part1_name=None, part2_name=None, solidify_offset=1.0, cut_type='flat'):
     """
-    Performs a textured cut on a target object.
+    Performs a cut (flat or textured) on a target object.
     Returns True if successful, False if failed.
     """
-    log(f"=== CUT OPERATION START ===")
+    log(f"=== CUT OPERATION START ({cut_type}) ===")
     log(f"Target: {target_name} -> Part1: {part1_name}, Part2: {part2_name}")
     
     # Validate target object
@@ -424,7 +427,7 @@ def cut(target_name, location, rotation_deg, part1_name=None, part2_name=None, s
         target.select_set(True)
         bpy.context.view_layer.objects.active = cutter
         
-        result = create_textured_cut(part_a_name=part1_name, part_b_name=part2_name, solidify_offset=solidify_offset)
+        result = create_textured_cut(part_a_name=part1_name, part_b_name=part2_name, solidify_offset=solidify_offset, cut_type=cut_type)
         
         # Cleanup the auto-cutter
         try:
@@ -493,6 +496,212 @@ def cleanup_debris():
     
     if debris_count > 0:
         log(f"Cleaned up {debris_count} debris objects")
+
+
+def create_cylinder_cutter(name, location, axis, radius, half_depth, taper_cone=True):
+    """
+    Creates a cylinder mesh tool oriented along axis ('X', 'Y', or 'Z')
+    centered at location with total depth = 2 * half_depth.
+    When taper_cone is True (default), adds a 45-degree conical tip at each end
+    (height = radius) so blind holes print without support structures and provide
+    an integrated reservoir for excess epoxy, glue, and printing extrusion zits.
+    """
+    import math
+    import bmesh
+
+    mesh = bpy.data.meshes.new(name)
+    cyl = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(cyl)
+
+    bm = bmesh.new()
+    segments = 32
+    cone_height = radius if taper_cone else 0.0
+
+    z_top = half_depth
+    z_bot = -half_depth
+
+    top_verts = []
+    bot_verts = []
+    for i in range(segments):
+        theta = 2.0 * math.pi * i / segments
+        x = radius * math.cos(theta)
+        y = radius * math.sin(theta)
+        top_verts.append(bm.verts.new((x, y, z_top)))
+        bot_verts.append(bm.verts.new((x, y, z_bot)))
+
+    # Cylinder side quads
+    for i in range(segments):
+        next_i = (i + 1) % segments
+        bm.faces.new((bot_verts[i], top_verts[i], top_verts[next_i], bot_verts[next_i]))
+
+    if taper_cone:
+        # 45-degree conical caps for support-free 3D printing
+        top_apex = bm.verts.new((0, 0, z_top + cone_height))
+        bot_apex = bm.verts.new((0, 0, z_bot - cone_height))
+        for i in range(segments):
+            next_i = (i + 1) % segments
+            bm.faces.new((top_verts[i], top_apex, top_verts[next_i]))
+            bm.faces.new((bot_verts[next_i], bot_apex, bot_verts[i]))
+    else:
+        # Flat caps
+        bm.faces.new(top_verts)
+        bm.faces.new(list(reversed(bot_verts)))
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+
+    cyl.location = location
+    if axis.upper() == 'X':
+        cyl.rotation_euler = (0, math.radians(90), 0)
+    elif axis.upper() == 'Y':
+        cyl.rotation_euler = (math.radians(90), 0, 0)
+    elif axis.upper() == 'Z':
+        cyl.rotation_euler = (0, 0, 0)
+
+    bpy.context.view_layer.update()
+    bpy.context.view_layer.objects.active = cyl
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    return cyl
+
+
+def subtract_pin_holes_from_parts(part_pins_map, pin_diameter=6.0, pin_length=16.0, clearance=0.4):
+    """
+    Subtracts locator pin holes from each specified part object.
+    
+    Args:
+        part_pins_map: dict of { part_name: [ (location_tuple, axis_str), ... ] }
+        pin_diameter: nominal pin diameter in mm (default: 6.0)
+        pin_length: nominal total pin length in mm (default: 16.0)
+        clearance: diametral clearance in mm (default: 0.4)
+    """
+    # Convert mm to Blender units (1 Blender unit = 10mm)
+    hole_diameter_bu = (pin_diameter + clearance) / 10.0
+    hole_radius_bu = hole_diameter_bu / 2.0
+    
+    # Extra 1.0mm depth clearance in blind hole so pins never bottom out
+    hole_depth_bu = ((pin_length / 2.0) + 1.0) / 10.0
+    
+    log(f"Applying locator pin holes: diameter={pin_diameter+clearance:.2f}mm (r={hole_radius_bu:.3f}bu), depth={hole_depth_bu*10.0:.2f}mm")
+    
+    for part_name, pin_list in part_pins_map.items():
+        if not pin_list:
+            continue
+            
+        part_obj = bpy.data.objects.get(part_name)
+        if not part_obj or part_obj.type != 'MESH':
+            log(f"Warning: Part '{part_name}' not found for pin hole subtraction.")
+            continue
+            
+        cutters = []
+        for idx, (loc, axis) in enumerate(pin_list):
+            cyl_name = f"TempPinCutter_{part_name}_{idx}"
+            cyl = create_cylinder_cutter(cyl_name, loc, axis, hole_radius_bu, hole_depth_bu)
+            cutters.append(cyl)
+            
+        if not cutters:
+            continue
+            
+        # Join cutters into a single object if more than 1
+        bpy.ops.object.select_all(action='DESELECT')
+        for c in cutters:
+            c.select_set(True)
+        bpy.context.view_layer.objects.active = cutters[0]
+        if len(cutters) > 1:
+            bpy.ops.object.join()
+        union_cutter = bpy.context.active_object
+        union_cutter.name = f"Pin_Tool_{part_name}"
+        
+        # Subtract from part_obj
+        bpy.ops.object.select_all(action='DESELECT')
+        part_obj.select_set(True)
+        bpy.context.view_layer.objects.active = part_obj
+        
+        bool_mod = part_obj.modifiers.new(name="PinHoles", type='BOOLEAN')
+        bool_mod.operation = 'DIFFERENCE'
+        bool_mod.object = union_cutter
+        bool_mod.solver = 'EXACT'
+        
+        try:
+            bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+            log(f"  Successfully subtracted {len(pin_list)} pin holes from {part_name}")
+        except Exception as e:
+            log(f"  EXACT solver failed for {part_name} pin holes: {e}. Trying FLOAT solver...")
+            # Fallback
+            if bool_mod.name in part_obj.modifiers:
+                part_obj.modifiers.remove(bool_mod)
+            bool_mod_fast = part_obj.modifiers.new(name="PinHolesFast", type='BOOLEAN')
+            bool_mod_fast.operation = 'DIFFERENCE'
+            bool_mod_fast.object = union_cutter
+            bool_mod_fast.solver = 'FLOAT'
+            try:
+                bpy.ops.object.modifier_apply(modifier=bool_mod_fast.name)
+                log(f"  Success with FLOAT solver for {part_name} pin holes.")
+            except Exception as e2:
+                log(f"  Error applying pin holes to {part_name}: {e2}")
+                
+        # Clean up cutter
+        try:
+            bpy.data.objects.remove(union_cutter, do_unlink=True)
+        except:
+            pass
+
+
+def export_locator_pin_stl(output_dir, pin_diameter=6.0, pin_length=16.0):
+    """
+    Creates and exports a printable locator pin STL file (locator_pin.stl).
+    Pin has chamfered ends for easy insertion into holes.
+    """
+    # Radius and length in Blender units
+    radius_bu = (pin_diameter / 2.0) / 10.0
+    depth_bu = pin_length / 10.0
+    
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=32,
+        radius=radius_bu,
+        depth=depth_bu,
+        end_fill_type='NGON',
+        location=(0, 0, 0)
+    )
+    pin_obj = bpy.context.active_object
+    pin_obj.name = "Locator_Pin"
+    
+    # Add a small chamfer/bevel modifier for lead-in ends
+    mod_bev = pin_obj.modifiers.new(name="PinBevel", type='BEVEL')
+    mod_bev.width = 0.05  # 0.5mm chamfer
+    mod_bev.segments = 2
+    mod_bev.limit_method = 'ANGLE'
+    try:
+        bpy.ops.object.modifier_apply(modifier=mod_bev.name)
+    except:
+        pass
+        
+    stl_path = os.path.join(output_dir, "locator_pin.stl")
+    log(f"Exporting locator pin STL to: {stl_path}")
+    
+    bpy.ops.object.select_all(action='DESELECT')
+    pin_obj.select_set(True)
+    bpy.context.view_layer.objects.active = pin_obj
+    
+    try:
+        if hasattr(bpy.ops.wm, 'stl_export'):
+            bpy.ops.wm.stl_export(
+                filepath=stl_path,
+                export_selected_objects=True,
+                global_scale=10.0
+            )
+        else:
+            bpy.ops.export_mesh.stl(
+                filepath=stl_path,
+                use_selection=True,
+                global_scale=10.0
+            )
+        log(f"Exported locator pin: {stl_path}")
+    except Exception as e:
+        log(f"Error exporting locator pin STL: {e}")
+    finally:
+        bpy.data.objects.remove(pin_obj, do_unlink=True)
 
 
 # perform_cuts function removed as per user request to keep cut logic centralized in setup_scene.py
