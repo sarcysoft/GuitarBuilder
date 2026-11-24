@@ -26,12 +26,68 @@ if sys.platform == "win32":
         pass
 
 
+class ScrollableFrame(ttk.Frame):
+    """A clean scrollable frame container that automatically supports vertical scrolling with mousewheel."""
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0, bg="#f5f6f8")
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollable_content = ttk.Frame(self.canvas, padding=10)
+        
+        self.scrollable_content.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_content, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        
+        # Bind mousewheel when pointer is over this container
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel, add="+")
+        self.canvas.bind_all("<Button-4>", self._on_mousewheel, add="+")
+        self.canvas.bind_all("<Button-5>", self._on_mousewheel, add="+")
+
+    def _on_canvas_configure(self, event):
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+
+    def _on_mousewheel(self, event):
+        try:
+            x, y = self.canvas.winfo_pointerxy()
+            w = self.canvas.winfo_containing(x, y)
+            if w is not None and (w == self.canvas or str(w).startswith(str(self))):
+                if event.num == 4:
+                    self.canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    self.canvas.yview_scroll(1, "units")
+                elif event.delta:
+                    self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except Exception:
+            pass
+
+
 class GuitarBuilderGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("GuitarBuilder Studio")
-        self.root.geometry("1020x820")
-        self.root.minsize(860, 680)
+        
+        # Responsive initial window size based on screen resolution
+        try:
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+            target_w = min(1400, max(1160, int(screen_w * 0.88)))
+            target_h = min(1000, max(820, int(screen_h * 0.88)))
+            pos_x = max(0, (screen_w - target_w) // 2)
+            pos_y = max(0, (screen_h - target_h) // 2)
+            self.root.geometry(f"{target_w}x{target_h}+{pos_x}+{pos_y}")
+        except Exception:
+            self.root.geometry("1240x880")
+        self.root.minsize(980, 640)
 
         # Base directories
         self.repo_dir = os.path.dirname(os.path.abspath(__file__))
@@ -93,6 +149,7 @@ class GuitarBuilderGUI:
         self.var_no_cut = tk.BooleanVar(value=False)
         self.var_hardware = tk.StringVar(value="standard")
         self.var_electronics = tk.StringVar(value="auto")
+        self.var_neck = tk.StringVar(value="auto")
 
         # Rendering & Materials
         self.var_render_pipeline = tk.BooleanVar(value=False)
@@ -103,6 +160,9 @@ class GuitarBuilderGUI:
         self.var_engine = tk.StringVar(value="eevee")
         self.var_material = tk.StringVar(value="gloss")
         self.var_material_back = tk.StringVar(value="gloss:black")
+        self.var_neck_material = tk.StringVar(value="maple")
+        self.var_fretboard_material = tk.StringVar(value="rosewood")
+        self.var_tuner_finish = tk.StringVar(value="chrome")
         self.var_lighting = tk.StringVar(value="studio")
         self.var_pitch = tk.StringVar(value="")
         self.var_guitar_rot = tk.StringVar(value="")
@@ -189,15 +249,22 @@ class GuitarBuilderGUI:
         # Separator line
         ttk.Separator(self.root, orient="horizontal").pack(fill="x", padx=16, pady=4)
 
-        # Tabbed Notebook
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill="both", expand=True, padx=16, pady=(4, 8))
+        # Vertical PanedWindow: Top = Notebook, Bottom = Console & Preview
+        self.paned_window = ttk.PanedWindow(self.root, orient="vertical")
+        self.paned_window.pack(fill="both", expand=True, padx=16, pady=(4, 6))
+
+        # Top Pane: Tabbed Notebook
+        self.notebook_frame = ttk.Frame(self.paned_window)
+        self.paned_window.add(self.notebook_frame, weight=5)
+
+        self.notebook = ttk.Notebook(self.notebook_frame)
+        self.notebook.pack(fill="both", expand=True)
 
         # Build individual tabs
-        self.tab_slicing = ttk.Frame(self.notebook, padding=12)
-        self.tab_rendering = ttk.Frame(self.notebook, padding=12)
-        self.tab_config_editor = ttk.Frame(self.notebook, padding=12)
-        self.tab_gallery = ttk.Frame(self.notebook, padding=12)
+        self.tab_slicing = ttk.Frame(self.notebook)
+        self.tab_rendering = ttk.Frame(self.notebook)
+        self.tab_config_editor = ttk.Frame(self.notebook, padding=10)
+        self.tab_gallery = ttk.Frame(self.notebook, padding=10)
 
         self.notebook.add(self.tab_slicing, text="  ✂ Slicing & Manufacturing  ")
         self.notebook.add(self.tab_rendering, text="  🎨 Photo Studio (Render)  ")
@@ -209,8 +276,12 @@ class GuitarBuilderGUI:
         self._build_tab_config_editor()
         self._build_tab_gallery()
 
+        # Bottom Pane: Command Preview Bar + Live Console
+        self.bottom_frame = ttk.Frame(self.paned_window)
+        self.paned_window.add(self.bottom_frame, weight=2)
+
         # Command Preview Bar
-        preview_frame = ttk.Frame(self.root, padding=(16, 2, 16, 4))
+        preview_frame = ttk.Frame(self.bottom_frame, padding=(0, 2, 0, 4))
         preview_frame.pack(fill="x")
         ttk.Label(preview_frame, text="Command Preview:", font=("Segoe UI", 9, "bold"), foreground="#475569").pack(side="left", padx=(0, 6))
         ent_preview = ttk.Entry(preview_frame, textvariable=self.var_cmd_preview, state="readonly", font=("Consolas", 9))
@@ -218,22 +289,23 @@ class GuitarBuilderGUI:
         ttk.Button(preview_frame, text="Copy CLI", width=9, command=self._copy_command_preview).pack(side="left")
 
         # Bottom Area: Live Console
-        self._build_console_area()
+        self._build_console_area(parent=self.bottom_frame)
 
     # =========================================================================
     # TAB 1: Slicing & Manufacturing
     # =========================================================================
     def _build_tab_slicing(self):
-        container = ttk.Frame(self.tab_slicing)
-        container.pack(fill="both", expand=True)
+        scroll = ScrollableFrame(self.tab_slicing)
+        scroll.pack(fill="both", expand=True)
+        container = scroll.scrollable_content
 
         # Left Column: Cutting Strategy & Locator Pins
         left_col = ttk.Frame(container)
         left_col.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
         # Card 1: Cutting Strategy
-        card_cut = ttk.LabelFrame(left_col, text=" Cutting Mechanism (Printing Orientation) ", padding=12)
-        card_cut.pack(fill="x", pady=(0, 10))
+        card_cut = ttk.LabelFrame(left_col, text=" Cutting Mechanism (Printing Orientation) ", padding=10)
+        card_cut.pack(fill="x", pady=(0, 6))
 
         rb_flat = ttk.Radiobutton(
             card_cut, 
@@ -251,7 +323,7 @@ class GuitarBuilderGUI:
             font=("Segoe UI", 8),
             foreground="#475569"
         )
-        lbl_flat_desc.pack(anchor="w", padx=(20, 0), pady=(0, 8))
+        lbl_flat_desc.pack(anchor="w", padx=(20, 0), pady=(0, 6))
 
         rb_tex = ttk.Radiobutton(
             card_cut, 
@@ -260,7 +332,7 @@ class GuitarBuilderGUI:
             variable=self.var_cut_type,
             command=self._on_cut_type_changed
         )
-        rb_tex.pack(anchor="w", pady=(4, 2))
+        rb_tex.pack(anchor="w", pady=(2, 2))
         lbl_tex_desc = ttk.Label(
             card_cut, 
             text="  • Procedural noise-displaced interlocking puzzle joints for horizontal prints.\n"
@@ -271,8 +343,8 @@ class GuitarBuilderGUI:
         lbl_tex_desc.pack(anchor="w", padx=(20, 0))
 
         # Card 2: Locator Pin Parameters
-        self.card_pins = ttk.LabelFrame(left_col, text=" Alignment Locator Pins ", padding=12)
-        self.card_pins.pack(fill="x", pady=(0, 10))
+        self.card_pins = ttk.LabelFrame(left_col, text=" Alignment Locator Pins ", padding=10)
+        self.card_pins.pack(fill="x", pady=(0, 6))
 
         chk_pins = ttk.Checkbutton(
             self.card_pins, 
@@ -280,12 +352,12 @@ class GuitarBuilderGUI:
             variable=self.var_enable_pins,
             command=self._update_command_preview
         )
-        chk_pins.pack(anchor="w", pady=(0, 8))
+        chk_pins.pack(anchor="w", pady=(0, 6))
 
         params_grid = ttk.Frame(self.card_pins)
         params_grid.pack(fill="x", padx=16)
 
-        ttk.Label(params_grid, text="Pin Diameter:").grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Label(params_grid, text="Pin Diameter:").grid(row=0, column=0, sticky="w", pady=3)
         sp_diam = ttk.Spinbox(
             params_grid, 
             from_=3.0, 
@@ -295,10 +367,10 @@ class GuitarBuilderGUI:
             width=8,
             command=self._update_command_preview
         )
-        sp_diam.grid(row=0, column=1, sticky="w", padx=(6, 4), pady=4)
-        ttk.Label(params_grid, text="mm (Default: 6.0 mm)").grid(row=0, column=2, sticky="w", pady=4)
+        sp_diam.grid(row=0, column=1, sticky="w", padx=(6, 4), pady=3)
+        ttk.Label(params_grid, text="mm (Default: 6.0 mm)").grid(row=0, column=2, sticky="w", pady=3)
 
-        ttk.Label(params_grid, text="Pin Length:").grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Label(params_grid, text="Pin Length:").grid(row=1, column=0, sticky="w", pady=3)
         sp_len = ttk.Spinbox(
             params_grid, 
             from_=8.0, 
@@ -308,8 +380,8 @@ class GuitarBuilderGUI:
             width=8,
             command=self._update_command_preview
         )
-        sp_len.grid(row=1, column=1, sticky="w", padx=(6, 4), pady=4)
-        ttk.Label(params_grid, text="mm (Default: 16.0 mm, 8mm per side)").grid(row=1, column=2, sticky="w", pady=4)
+        sp_len.grid(row=1, column=1, sticky="w", padx=(6, 4), pady=3)
+        ttk.Label(params_grid, text="mm (Default: 16.0 mm, 8mm per side)").grid(row=1, column=2, sticky="w", pady=3)
 
         lbl_clearance = ttk.Label(
             self.card_pins,
@@ -319,40 +391,45 @@ class GuitarBuilderGUI:
             font=("Segoe UI", 8),
             foreground="#2563eb"
         )
-        lbl_clearance.pack(anchor="w", padx=4, pady=(8, 0))
+        lbl_clearance.pack(anchor="w", padx=4, pady=(6, 0))
 
         # Right Column: Execution & Export Options
         right_col = ttk.Frame(container)
         right_col.pack(side="right", fill="both", expand=True, padx=(8, 0))
 
         # Card: Hardware & Electronics Variants
-        card_variants = ttk.LabelFrame(right_col, text=" Hardware & Electronics Setup ", padding=12)
-        card_variants.pack(fill="x", pady=(0, 10))
+        card_variants = ttk.LabelFrame(right_col, text=" Hardware, Electronics & Neck Setup ", padding=10)
+        card_variants.pack(fill="x", pady=(0, 6))
 
         v_grid = ttk.Frame(card_variants)
         v_grid.pack(fill="x")
 
-        ttk.Label(v_grid, text="Hardware:").grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Label(v_grid, text="Hardware:").grid(row=0, column=0, sticky="w", pady=3)
         self.combo_hardware = ttk.Combobox(v_grid, textvariable=self.var_hardware, width=16, state="readonly")
-        self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=4)
+        self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=3)
         self.combo_hardware.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
-        ttk.Label(v_grid, text="Electronics:").grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Label(v_grid, text="Electronics:").grid(row=1, column=0, sticky="w", pady=3)
         self.combo_electronics = ttk.Combobox(v_grid, textvariable=self.var_electronics, width=16, state="readonly")
-        self.combo_electronics.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=4)
+        self.combo_electronics.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=3)
         self.combo_electronics.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(v_grid, text="Neck Style:").grid(row=2, column=0, sticky="w", pady=3)
+        self.combo_neck = ttk.Combobox(v_grid, textvariable=self.var_neck, values=["auto", "strat", "les_paul"], width=16, state="readonly")
+        self.combo_neck.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=3)
+        self.combo_neck.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
         lbl_var_note = ttk.Label(
             card_variants,
             text="ℹ Hardware 'piezo' omits backplate (self-contained cavity).\n"
-                 "ℹ Electronics 'auto' derives cavity layout from the active profile.",
+                 "ℹ Neck 'auto' resolves style from active profile (Strat / Les Paul).",
             font=("Segoe UI", 8),
             foreground="#475569"
         )
-        lbl_var_note.pack(anchor="w", pady=(6, 0))
+        lbl_var_note.pack(anchor="w", pady=(4, 0))
 
-        card_export = ttk.LabelFrame(right_col, text=" Slicing Scope & Export ", padding=12)
-        card_export.pack(fill="x", pady=(0, 10))
+        card_export = ttk.LabelFrame(right_col, text=" Slicing Scope & Export ", padding=10)
+        card_export.pack(fill="x", pady=(0, 6))
 
         chk_nocut = ttk.Checkbutton(
             card_export, 
@@ -360,7 +437,7 @@ class GuitarBuilderGUI:
             variable=self.var_no_cut,
             command=self._update_command_preview
         )
-        chk_nocut.pack(anchor="w", pady=(0, 6))
+        chk_nocut.pack(anchor="w", pady=(0, 4))
 
         lbl_export_info = ttk.Label(
             card_export,
@@ -372,11 +449,11 @@ class GuitarBuilderGUI:
             font=("Segoe UI", 8),
             foreground="#475569"
         )
-        lbl_export_info.pack(anchor="w", pady=(0, 8))
+        lbl_export_info.pack(anchor="w", pady=(0, 6))
 
         # Action Buttons Box
-        card_actions = ttk.LabelFrame(right_col, text=" Actions & Pipeline Execution ", padding=14)
-        card_actions.pack(fill="x", pady=(0, 10))
+        card_actions = ttk.LabelFrame(right_col, text=" Actions & Pipeline Execution ", padding=10)
+        card_actions.pack(fill="x", pady=(0, 6))
 
         btn_build_slice = ttk.Button(
             card_actions, 
@@ -384,25 +461,25 @@ class GuitarBuilderGUI:
             style="Success.TButton", 
             command=self._action_build_and_slice
         )
-        btn_build_slice.pack(fill="x", pady=(0, 8), ipady=4)
+        btn_build_slice.pack(fill="x", pady=(0, 5), ipady=3)
 
         btn_mesh_only = ttk.Button(
             card_actions, 
             text="⚡  Generate Base Mesh Only (--generate)", 
             command=self._action_generate_mesh_only
         )
-        btn_mesh_only.pack(fill="x", pady=(0, 8))
+        btn_mesh_only.pack(fill="x", pady=(0, 5))
 
         btn_open_out = ttk.Button(
             card_actions, 
             text="📁  Open Output Folder", 
             command=self._open_current_output_dir
         )
-        btn_open_out.pack(fill="x", pady=(0, 8))
+        btn_open_out.pack(fill="x", pady=(0, 5))
 
         btn_scad = ttk.Button(
             card_actions, 
-            text="🛠  Recompile OpenSCAD Hardware STLs", 
+            text="🛠  Recompile OpenSCAD STLs", 
             command=self._action_compile_scad
         )
         btn_scad.pack(fill="x")
@@ -422,15 +499,16 @@ class GuitarBuilderGUI:
     # TAB 2: Photo Studio (Rendering)
     # =========================================================================
     def _build_tab_rendering(self):
-        container = ttk.Frame(self.tab_rendering)
-        container.pack(fill="both", expand=True)
+        scroll = ScrollableFrame(self.tab_rendering)
+        scroll.pack(fill="both", expand=True)
+        container = scroll.scrollable_content
 
         left_col = ttk.Frame(container)
         left_col.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
         # Card 1: Assembly & Views
-        card_views = ttk.LabelFrame(left_col, text=" Assembly & Camera Views ", padding=12)
-        card_views.pack(fill="x", pady=(0, 10))
+        card_views = ttk.LabelFrame(left_col, text=" Assembly & Camera Views ", padding=10)
+        card_views.pack(fill="x", pady=(0, 6))
 
         chk_uncut_render = ttk.Checkbutton(
             card_views, 
@@ -529,8 +607,25 @@ class GuitarBuilderGUI:
         combo_bkmat.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=4)
         combo_bkmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
-        ttk.Label(mat_grid, text="Random Seed:").grid(row=4, column=0, sticky="w", pady=4)
-        ttk.Entry(mat_grid, textvariable=self.var_seed, width=12).grid(row=4, column=1, sticky="w", padx=(6, 0), pady=4)
+        wood_mats = ["maple", "rosewood", "ebony"]
+        ttk.Label(mat_grid, text="Main Neck Wood:").grid(row=4, column=0, sticky="w", pady=4)
+        combo_nmat = ttk.Combobox(mat_grid, textvariable=self.var_neck_material, values=wood_mats, width=18, state="readonly")
+        combo_nmat.grid(row=4, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_nmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(mat_grid, text="Fretboard Wood:").grid(row=5, column=0, sticky="w", pady=4)
+        combo_fbmat = ttk.Combobox(mat_grid, textvariable=self.var_fretboard_material, values=wood_mats, width=18, state="readonly")
+        combo_fbmat.grid(row=5, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_fbmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(mat_grid, text="Tuner Finish:").grid(row=6, column=0, sticky="w", pady=4)
+        tuner_finishes = ["chrome", "gold", "black"]
+        combo_tuner = ttk.Combobox(mat_grid, textvariable=self.var_tuner_finish, values=tuner_finishes, width=18, state="readonly")
+        combo_tuner.grid(row=6, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_tuner.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(mat_grid, text="Random Seed:").grid(row=7, column=0, sticky="w", pady=4)
+        ttk.Entry(mat_grid, textvariable=self.var_seed, width=12).grid(row=7, column=1, sticky="w", padx=(6, 0), pady=4)
 
         ttk.Checkbutton(
             card_mats, 
@@ -709,9 +804,10 @@ class GuitarBuilderGUI:
         ttk.Button(toolbar, text="↻ Refresh Previews", command=self._refresh_gallery).pack(side="right")
         ttk.Button(toolbar, text="📁 Open Renders Folder", command=self._open_renders_folder).pack(side="right", padx=(0, 6))
 
-        # Canvas / Frame for image previews
-        self.gallery_frame = ttk.Frame(container)
-        self.gallery_frame.pack(fill="both", expand=True)
+        # Scrollable Frame for image previews
+        scroll = ScrollableFrame(container)
+        scroll.pack(fill="both", expand=True)
+        self.gallery_frame = scroll.scrollable_content
         self.gallery_images = []  # Keep references to avoid garbage collection
 
         self.lbl_no_renders = ttk.Label(
@@ -778,28 +874,33 @@ class GuitarBuilderGUI:
     # =========================================================================
     # Bottom Console / Log Area
     # =========================================================================
-    def _build_console_area(self):
-        console_container = ttk.Frame(self.root, padding=(16, 4, 16, 12))
-        console_container.pack(fill="both", expand=False)
+    def _build_console_area(self, parent=None):
+        target_parent = parent if parent is not None else self.root
+        console_container = ttk.Frame(target_parent, padding=(0, 2, 0, 4))
+        console_container.pack(fill="both", expand=True)
 
         header_bar = ttk.Frame(console_container)
-        header_bar.pack(fill="x", pady=(0, 4))
+        header_bar.pack(fill="x", pady=(0, 3))
 
         self.lbl_status = ttk.Label(header_bar, text="Status: Ready", font=("Segoe UI", 9, "bold"), foreground="#0f172a")
         self.lbl_status.pack(side="left")
 
         self.btn_cancel = ttk.Button(header_bar, text="⏹ Stop Process", style="Danger.TButton", state="disabled", command=self._cancel_process)
-        self.btn_cancel.pack(side="right", padx=(6, 0))
+        self.btn_cancel.pack(side="right", padx=(4, 0))
 
-        ttk.Button(header_bar, text="Clear Log", command=self._clear_log).pack(side="right")
+        ttk.Button(header_bar, text="Clear Log", command=self._clear_log).pack(side="right", padx=(4, 0))
+
+        self.console_collapsed = False
+        self.btn_toggle_console = ttk.Button(header_bar, text="▾ Minimize", width=11, command=self._toggle_console)
+        self.btn_toggle_console.pack(side="right")
 
         # Text Console with Scrollbar
-        txt_frame = ttk.Frame(console_container)
-        txt_frame.pack(fill="both", expand=True)
+        self.console_body = ttk.Frame(console_container)
+        self.console_body.pack(fill="both", expand=True)
 
         self.txt_console = tk.Text(
-            txt_frame, 
-            height=9, 
+            self.console_body, 
+            height=6, 
             bg="#0f172a", 
             fg="#f8fafc", 
             insertbackground="#38bdf8",
@@ -807,13 +908,23 @@ class GuitarBuilderGUI:
             wrap="word",
             relief="flat",
             padx=8,
-            pady=6
+            pady=4
         )
-        scroll = ttk.Scrollbar(txt_frame, orient="vertical", command=self.txt_console.yview)
+        scroll = ttk.Scrollbar(self.console_body, orient="vertical", command=self.txt_console.yview)
         self.txt_console.configure(yscrollcommand=scroll.set)
 
         self.txt_console.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
+
+    def _toggle_console(self):
+        if self.console_collapsed:
+            self.console_body.pack(fill="both", expand=True)
+            self.btn_toggle_console.configure(text="▾ Minimize")
+            self.console_collapsed = False
+        else:
+            self.console_body.pack_forget()
+            self.btn_toggle_console.configure(text="▴ Expand Log")
+            self.console_collapsed = True
 
     # =========================================================================
     # Command Construction & Execution
@@ -854,6 +965,10 @@ class GuitarBuilderGUI:
         if elec and elec != "auto":
             cmd.extend(["--electronics", elec])
 
+        neck = self.var_neck.get().strip()
+        if neck and neck != "auto":
+            cmd.extend(["--neck", neck])
+
         # Rendering options
         if self.var_render_pipeline.get():
             cmd.append("--render")
@@ -863,6 +978,18 @@ class GuitarBuilderGUI:
                 cmd.append("--body-only")
             if self.var_exploded_body.get():
                 cmd.append("--exploded-body")
+
+            neck_mat = self.var_neck_material.get().strip()
+            if neck_mat and neck_mat != "maple":
+                cmd.extend(["--neck-material", neck_mat])
+
+            fb_mat = self.var_fretboard_material.get().strip()
+            if fb_mat and fb_mat != "rosewood":
+                cmd.extend(["--fretboard-material", fb_mat])
+
+            tuner_finish = self.var_tuner_finish.get().strip()
+            if tuner_finish and tuner_finish != "chrome":
+                cmd.extend(["--tuner-finish", tuner_finish])
 
             angle = self.var_angle.get().strip()
             if angle and angle != "all":
@@ -1053,6 +1180,15 @@ class GuitarBuilderGUI:
             elec_variants += ["sarcaster", "flying_v", "les_paul"]
         self.combo_electronics["values"] = elec_variants
 
+        # Scan neck variants from models/scad/neck/
+        neck_base = os.path.join(self.repo_dir, "models", "scad", "neck")
+        neck_variants = ["auto"]
+        if os.path.exists(neck_base):
+            neck_variants += [d for d in sorted(os.listdir(neck_base)) if os.path.isdir(os.path.join(neck_base, d))]
+        else:
+            neck_variants += ["strat", "les_paul"]
+        self.combo_neck["values"] = neck_variants
+
         self._load_current_config_into_editor()
         self._sync_variants_from_config()
         self._update_command_preview()
@@ -1071,6 +1207,10 @@ class GuitarBuilderGUI:
                     self.var_electronics.set(cdata["electronics"])
                 elif "electronics" not in cdata:
                     self.var_electronics.set("auto")
+                if "neck" in cdata:
+                    self.var_neck.set(cdata["neck"])
+                elif "neck" not in cdata:
+                    self.var_neck.set("auto")
             except Exception:
                 pass
 

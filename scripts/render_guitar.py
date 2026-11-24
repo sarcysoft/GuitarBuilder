@@ -221,6 +221,203 @@ def get_or_create_satin_maple():
     return mat
 
 
+def get_or_create_rosewood():
+    """Create a rich rosewood wood material with dark chocolate and amber streaks."""
+    name = "Rosewood"
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+        
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    
+    principled = get_principled_bsdf(nodes)
+    if not principled:
+        return mat
+        
+    rough_input = principled.inputs.get("Roughness")
+    if rough_input:
+        rough_input.default_value = 0.45
+        
+    tex_coord = nodes.new(type="ShaderNodeTexCoord")
+    mapping = nodes.new(type="ShaderNodeMapping")
+    mapping.inputs['Scale'].default_value = (14.0, 0.35, 14.0)
+    
+    noise = nodes.new(type="ShaderNodeTexNoise")
+    noise.inputs['Scale'].default_value = 8.0
+    noise.inputs['Detail'].default_value = 8.0
+    noise.inputs['Roughness'].default_value = 0.65
+    
+    color_ramp = nodes.new(type="ShaderNodeValToRGB")
+    color_ramp.color_ramp.interpolation = 'LINEAR'
+    
+    color_ramp.color_ramp.elements[0].position = 0.15
+    color_ramp.color_ramp.elements[0].color = (0.08, 0.035, 0.015, 1.0)
+    color_ramp.color_ramp.elements[1].position = 0.70
+    color_ramp.color_ramp.elements[1].color = (0.28, 0.12, 0.05, 1.0)
+    
+    elem = color_ramp.color_ramp.elements.new(0.45)
+    elem.color = (0.16, 0.07, 0.03, 1.0)
+    
+    bump = nodes.new(type="ShaderNodeBump")
+    bump.inputs['Strength'].default_value = 0.02
+    bump.inputs['Distance'].default_value = 0.04
+    
+    links.new(tex_coord.outputs['Object'], mapping.inputs['Vector'])
+    links.new(mapping.outputs['Vector'], noise.inputs['Vector'])
+    links.new(noise.outputs['Factor'], color_ramp.inputs['Factor'])
+    links.new(color_ramp.outputs['Color'], principled.inputs['Base Color'])
+    links.new(noise.outputs['Factor'], bump.inputs['Height'])
+    links.new(bump.outputs['Normal'], principled.inputs['Normal'])
+    
+    return mat
+
+
+def get_or_create_ebony():
+    """Create a deep ebony wood material with subtle fine grain."""
+    name = "Ebony"
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+        
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    
+    principled = get_principled_bsdf(nodes)
+    if not principled:
+        return mat
+        
+    rough_input = principled.inputs.get("Roughness")
+    if rough_input:
+        rough_input.default_value = 0.32
+        
+    tex_coord = nodes.new(type="ShaderNodeTexCoord")
+    mapping = nodes.new(type="ShaderNodeMapping")
+    mapping.inputs['Scale'].default_value = (16.0, 0.25, 16.0)
+    
+    noise = nodes.new(type="ShaderNodeTexNoise")
+    noise.inputs['Scale'].default_value = 10.0
+    noise.inputs['Detail'].default_value = 6.0
+    noise.inputs['Roughness'].default_value = 0.4
+    
+    color_ramp = nodes.new(type="ShaderNodeValToRGB")
+    color_ramp.color_ramp.interpolation = 'LINEAR'
+    
+    color_ramp.color_ramp.elements[0].position = 0.20
+    color_ramp.color_ramp.elements[0].color = (0.02, 0.02, 0.02, 1.0)
+    color_ramp.color_ramp.elements[1].position = 0.80
+    color_ramp.color_ramp.elements[1].color = (0.065, 0.06, 0.055, 1.0)
+    
+    bump = nodes.new(type="ShaderNodeBump")
+    bump.inputs['Strength'].default_value = 0.008
+    bump.inputs['Distance'].default_value = 0.03
+    
+    links.new(tex_coord.outputs['Object'], mapping.inputs['Vector'])
+    links.new(mapping.outputs['Vector'], noise.inputs['Vector'])
+    links.new(noise.outputs['Factor'], color_ramp.inputs['Factor'])
+    links.new(color_ramp.outputs['Color'], principled.inputs['Base Color'])
+    links.new(noise.outputs['Factor'], bump.inputs['Height'])
+    links.new(bump.outputs['Normal'], principled.inputs['Normal'])
+    
+    return mat
+
+
+def get_or_create_wood(wood_type="maple"):
+    """Select or create a wood shader by name."""
+    wt = (wood_type or "").lower().strip()
+    if wt in ["rosewood", "rose"]:
+        return get_or_create_rosewood()
+    elif wt in ["ebony", "black_wood"]:
+        return get_or_create_ebony()
+    else:
+        return get_or_create_satin_maple()
+
+
+def get_or_create_hardware_metal(finish="chrome"):
+    """Create metallic material for tuning pegs and hardware (chrome, gold, black)."""
+    finish = (finish or "").lower().strip()
+    if finish == "gold":
+        name = "Hardware Gold"
+        color = (1.0, 0.78, 0.35, 1.0)
+        roughness = 0.12
+    elif finish == "black":
+        name = "Hardware Black"
+        color = (0.04, 0.04, 0.04, 1.0)
+        roughness = 0.22
+    else:
+        name = "Hardware Chrome"
+        color = (0.95, 0.95, 0.95, 1.0)
+        roughness = 0.08
+
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    p = get_principled_bsdf(nodes)
+    if p:
+        p.inputs[0].default_value = color
+        if "Metallic" in p.inputs:
+            p.inputs["Metallic"].default_value = 1.0 if finish != "black" else 0.85
+        elif "Metallic Weight" in p.inputs:
+            p.inputs["Metallic Weight"].default_value = 1.0 if finish != "black" else 0.85
+        if "Roughness" in p.inputs:
+            p.inputs["Roughness"].default_value = roughness
+    return mat
+
+
+def get_or_create_bone_nut(tuner_finish="chrome"):
+    """Create bone or ivory nut material (or black TUSQ if black hardware)."""
+    if (tuner_finish or "").lower().strip() == "black":
+        name = "TUSQ Black Nut"
+        color = (0.05, 0.05, 0.05, 1.0)
+    else:
+        name = "Bone Nut"
+        color = (0.91, 0.89, 0.81, 1.0)
+
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    p = get_principled_bsdf(nodes)
+    if p:
+        p.inputs[0].default_value = color
+        if "Roughness" in p.inputs:
+            p.inputs["Roughness"].default_value = 0.35
+        if "Subsurface" in p.inputs:
+            p.inputs["Subsurface"].default_value = 0.05
+        elif "Subsurface Weight" in p.inputs:
+            p.inputs["Subsurface Weight"].default_value = 0.05
+    return mat
+
+
+def get_or_create_nickel_silver():
+    """Create nickel-silver fretwire material."""
+    name = "Nickel Silver Frets"
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
+
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    p = get_principled_bsdf(nodes)
+    if p:
+        p.inputs[0].default_value = (0.90, 0.88, 0.84, 1.0)
+        if "Metallic" in p.inputs:
+            p.inputs["Metallic"].default_value = 1.0
+        elif "Metallic Weight" in p.inputs:
+            p.inputs["Metallic Weight"].default_value = 1.0
+        if "Roughness" in p.inputs:
+            p.inputs["Roughness"].default_value = 0.15
+    return mat
+
+
+
 def create_glossy(name="Glossy Paint", color=(0.65, 0.01, 0.02, 1.0)):
     mat = bpy.data.materials.new(name=name)
     mat.use_nodes = True
@@ -716,6 +913,58 @@ def check_and_apply_neck_material(neck_obj):
         else:
             for i in range(len(neck_obj.material_slots)):
                 neck_obj.material_slots[i].material = maple_mat
+
+
+def import_modular_neck(models_dir, third_party_dir, neck_type="auto", config_name="", neck_wood="maple", fretboard_wood="rosewood", tuner_finish="chrome"):
+    """Imports the modular OpenSCAD neck components and applies individual materials.
+    
+    If modular STLs are found, each part (shaft, fretboard, frets, nut, tuners) is imported
+    and assigned its corresponding material. Falls back to 3rdParty OBJ if STLs are missing.
+    """
+    if not neck_type or neck_type == "auto":
+        c_name = config_name.lower().strip() if config_name else ""
+        if any(k in c_name for k in ["les_paul", "sg", "flying_v", "sarcy_v", "single_cut"]):
+            neck_type = "les_paul"
+        else:
+            neck_type = "strat"
+
+    stl_dir = os.path.join(models_dir, "stl")
+    parts = [
+        ("shaft", f"neck_shaft_{neck_type}.stl", get_or_create_wood(neck_wood)),
+        ("fretboard", f"fretboard_{neck_type}.stl", get_or_create_wood(fretboard_wood)),
+        ("frets", f"frets_{neck_type}.stl", get_or_create_nickel_silver()),
+        ("nut", f"nut_{neck_type}.stl", get_or_create_bone_nut(tuner_finish)),
+        ("tuners", f"tuners_{neck_type}.stl", get_or_create_hardware_metal(tuner_finish)),
+    ]
+
+    all_exist = all(os.path.exists(os.path.join(stl_dir, fname)) for _, fname, _ in parts)
+    if all_exist:
+        print(f"Importing modular OpenSCAD neck [{neck_type}] (Shaft: {neck_wood}, Fretboard: {fretboard_wood}, Tuners: {tuner_finish})...")
+        imported_objs = []
+        for part_key, fname, mat in parts:
+            fpath = os.path.join(stl_dir, fname)
+            obj = import_stl(fpath, f"Neck_{part_key}", mat)
+            if obj:
+                imported_objs.append(obj)
+        return imported_objs
+    else:
+        # Check for assembled neck STL
+        master_name = f"neck_{neck_type}.stl"
+        master_path = os.path.join(stl_dir, master_name)
+        if os.path.exists(master_path):
+            print(f"Importing assembled OpenSCAD neck: {master_path}...")
+            obj = import_stl(master_path, "Neck", get_or_create_wood(neck_wood))
+            return [obj] if obj else []
+
+        # Fallback to 3rdParty OBJ
+        print("Modular neck STLs not found; falling back to 3rdParty NeckAmericanStandard.obj...")
+        neck_path = os.path.join(third_party_dir, "NeckAmericanStandard.obj")
+        neck_obj = import_obj(neck_path, "Neck", rotation_x=-90, rotation_z=90, offset_z=-0.85)
+        if neck_obj:
+            check_and_apply_neck_material(neck_obj)
+            return [neck_obj]
+        return []
+
 
 
 def import_stl(filepath, name, material=None, scale_factor=1.0):
@@ -1596,6 +1845,10 @@ def run_rendering():
     parser.add_argument("--preview", action="store_true", help="Fast preview mode with lower resolution, lower sample counts, and simplified EEVEE settings")
     parser.add_argument("--dynamic-zoom", "--dynamic_zoom", action="store_true", help="Calculate optimal camera distance for each individual frame instead of using a constant zoom level")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for material colors")
+    parser.add_argument("--neck", default="auto", choices=["auto", "strat", "les_paul"], help="Neck model style")
+    parser.add_argument("--neck-material", "--neck_material", default="maple", choices=["maple", "rosewood", "ebony"], help="Wood material for main neck shaft")
+    parser.add_argument("--fretboard-material", "--fretboard_material", default="rosewood", choices=["rosewood", "maple", "ebony"], help="Wood material for fretboard")
+    parser.add_argument("--tuner-finish", "--tuner_finish", default="chrome", choices=["chrome", "gold", "black"], help="Hardware finish for tuning pegs")
     
     args = parser.parse_args(args_to_parse)
     if args.no_render_anim:
@@ -1876,14 +2129,19 @@ def run_rendering():
     # Import Neck and Hardware (unless body-only or exploded-body is requested)
     if not args.body_only and not args.exploded_body:
         print("Importing references (neck and backplates) for full guitar view...")
-        # Neck
-        neck_path = os.path.join(third_party_dir, "NeckAmericanStandard.obj")
-        neck_obj = import_obj(neck_path, "Neck", rotation_x=-90, rotation_z=90, offset_z=-0.85)
-        if neck_obj:
-            check_and_apply_neck_material(neck_obj)
+        config_name = os.path.basename(args.config_dir.strip(os.sep))
+        # Modular OpenSCAD Neck
+        import_modular_neck(
+            models_dir=models_dir,
+            third_party_dir=third_party_dir,
+            neck_type=args.neck,
+            config_name=config_name,
+            neck_wood=args.neck_material,
+            fretboard_wood=args.fretboard_material,
+            tuner_finish=args.tuner_finish
+        )
             
         # Resolve electronics layout type based on config profile name
-        config_name = os.path.basename(args.config_dir.strip(os.sep))
         layout = "sarcaster"
         if config_name:
             c_name = config_name.lower().strip()

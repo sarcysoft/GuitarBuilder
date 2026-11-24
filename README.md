@@ -118,7 +118,7 @@ Hardware and electronics are organized into modular variant packages under `mode
 
 ```
 models/scad/
-  common/                       # Shared utility modules (_rounded_poly.scad, etc.)
+  common/                       # Shared utility modules (_fret_calc.scad, _rounded_poly.scad, etc.)
   hardware/
     standard/                   # Standard tremolo + single-coil pickups
       hardware.scad
@@ -135,6 +135,11 @@ models/scad/
       elec_backplate_fixings.scad
     flying_v/
     les_paul/
+  neck/
+    strat/                      # 25.5" scale, 22 frets, flat stepped 6-in-line headstock
+      neck.scad
+    les_paul/                   # 24.75" scale, 22 frets, 14° tilted 3x3 open-book headstock
+      neck.scad
 ```
 
 - **Omitting Backplates:** If a hardware or electronics variant does not require a rear cover plate (e.g. `piezo`), simply omit `backplate.scad` from its folder. The compiler and scene setup will cleanly skip all backplate subtractions and covers.
@@ -206,5 +211,9 @@ python guitar_builder.py sarcaster --render --lighting warm --material sparkle:b
   - `glass:<color>` (e.g. `glass:blue`, `glass:red`, `glass:#00ff00`).
 - `--material_back <preset>` (default: `gloss:black`): Material preset for the backplate components (accepts the same formats as `--material`).
 - `--lighting <theme>` (default: `studio`): Studio lighting (`studio`), dramatic cyan/magenta (`dramatic`), amber/vintage (`warm`), orange/violet gradient (`sunset`).
+- `--neck <auto|strat|les_paul>` (default: `auto`): Modular OpenSCAD guitar neck model to import and display.
+- `--neck-material <maple|rosewood|ebony>` (default: `maple`): Wood material shader for the main neck shaft.
+- `--fretboard-material <rosewood|maple|ebony>` (default: `rosewood`): Wood material shader for the fretboard.
+- `--tuner-finish <chrome|gold|black>` (default: `chrome`): Hardware finish for the tuning pegs.
 
 Renders are saved in `output/<config_name>/renders/` (e.g., `front.png`, `back.png`, `angled.png`).

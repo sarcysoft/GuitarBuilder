@@ -272,8 +272,56 @@ def generate_obj(guitar_body, script_dir, filename="guitar.obj"):
         sys.exit(1)
 
 
+def print_wrapper_help():
+    help_text = """GuitarBuilder Studio CLI
+
+Usage:
+  python guitar_builder.py [options]
+
+Modes & General:
+  --gui                                Launch the graphical user interface frontend
+  -h, --help                           Show this help message and exit
+  --config <name>                      Preset configuration profile (e.g. 'sarcaster', 'les_paul', 'flying_v')
+  --generate                           Generate and export OBJ mesh from guitar.blend
+  --export-config [path]               Export current configuration to JSON
+  --import-config <path>               Import configuration parameters from JSON
+
+Slicing & Geometry:
+  --no-cut                             Skip body cutting step
+  --cut-type <flat|textured>           Slicing method: 'flat' or 'textured' (puzzle seam)
+  --pin-diameter <mm>                  Alignment pin hole diameter in mm (default: 6.0)
+  --pin-length <mm>                    Alignment pin length in mm (default: 16.0)
+  --no-pins                            Disable alignment pin holes
+  --hardware <variant>                 Hardware cavity and backplate variant (e.g. 'standard', 'piezo')
+  --electronics <variant>              Electronics cavity and backplate variant (e.g. 'sarcaster', 'les_paul')
+  --neck <style>                       Neck model: 'strat', 'les_paul', or 'auto'
+
+Rendering & Studio:
+  --render                             Execute background rendering studio
+  --body-only                          Render body only (exclude neck and backplates)
+  --exploded-body                      Render body segments separated along seams
+  --uncut                              Render uncut full body
+  --angle <all|front|back|angled>      Camera viewing angle
+  --engine <eevee|cycles>              Blender render engine (default: eevee)
+  --material <name>                    Body material (e.g. 'gloss', 'sunburst', 'gold', 'chrome')
+  --material-back <name>               Backplate material (default: 'gloss:black')
+  --neck-material <wood>               Main neck wood ('maple', 'rosewood', 'ebony')
+  --fretboard-material <wood>          Fretboard wood ('rosewood', 'maple', 'ebony')
+  --tuner-finish <finish>              Tuning pegs metal finish ('chrome', 'gold', 'black')
+  --lighting <theme>                   Lighting theme: 'studio', 'dramatic', 'warm', 'sunset'
+  --animate                            Render 360-degree turntable animation
+  --save-blend                         Keep saved .blend scene file
+  --dynamic-zoom                       Use tighter camera framing
+  --seed <int>                         Random seed for procedural materials
+"""
+    print(help_text)
+
+
 def parse_wrapper_args(argv):
     """Custom command-line argument parser for wrapper shell execution mode."""
+    if any(arg in ["-h", "--help"] for arg in argv):
+        print_wrapper_help()
+        sys.exit(0)
     # Pre-parse pass to find --cli-config
     cli_config_path = None
     i = 0
@@ -291,6 +339,10 @@ def parse_wrapper_args(argv):
     no_pins = False
     hardware = None
     electronics = None
+    neck = "auto"
+    neck_material = "maple"
+    fretboard_material = "rosewood"
+    tuner_finish = "chrome"
     config = None
     export_config = None
     export_config_flag = False
@@ -511,6 +563,42 @@ def parse_wrapper_args(argv):
                 i += 2
             else:
                 i += 1
+        elif arg.startswith("--neck="):
+            neck = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--neck", "--neck-style", "--neck_style"]:
+            if i + 1 < len(argv):
+                neck = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg.startswith("--neck-material="):
+            neck_material = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--neck-material", "--neck_material"]:
+            if i + 1 < len(argv):
+                neck_material = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg.startswith("--fretboard-material="):
+            fretboard_material = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--fretboard-material", "--fretboard_material", "--fretboard"]:
+            if i + 1 < len(argv):
+                fretboard_material = argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        elif arg.startswith("--tuner-finish="):
+            tuner_finish = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--tuner-finish", "--tuner_finish", "--tuners"]:
+            if i + 1 < len(argv):
+                tuner_finish = argv[i + 1]
+                i += 2
+            else:
+                i += 1
         elif arg == "--generate":
             generate = True
             i += 1
@@ -524,6 +612,7 @@ def parse_wrapper_args(argv):
             i += 1
             
     return (no_cut, cut_type, pin_diameter, pin_length, no_pins, hardware, electronics,
+            neck, neck_material, fretboard_material, tuner_finish,
             config, export_config_flag, export_config, import_config, generate,
             render, body_only, exploded_body, uncut, angle, engine,
             material, material_back, lighting, save_blend, pitch,
@@ -544,6 +633,7 @@ def run_wrapper_mode():
         
     # Parse command line args
     (no_cut, cut_type, pin_diameter, pin_length, no_pins, hardware, electronics,
+     neck, neck_material, fretboard_material, tuner_finish,
      config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
      render, body_only, exploded_body, uncut, angle, engine,
      material, material_back, lighting, save_blend, pitch,
@@ -571,6 +661,12 @@ def run_wrapper_mode():
         config_dict = {
             "no_cut": no_cut,
             "config": config,
+            "hardware": hardware,
+            "electronics": electronics,
+            "neck": neck,
+            "neck_material": neck_material,
+            "fretboard_material": fretboard_material,
+            "tuner_finish": tuner_finish,
             "render": render,
             "body_only": body_only,
             "exploded_body": exploded_body,
@@ -630,6 +726,14 @@ def run_wrapper_mode():
         render_args += ["--material", material]
         render_args += ["--material-back", material_back]
         render_args += ["--lighting", lighting]
+        if neck and neck != "auto":
+            render_args += ["--neck", neck]
+        if neck_material:
+            render_args += ["--neck-material", neck_material]
+        if fretboard_material:
+            render_args += ["--fretboard-material", fretboard_material]
+        if tuner_finish:
+            render_args += ["--tuner-finish", tuner_finish]
         
         cmd = [
             blender_exe,
@@ -786,6 +890,8 @@ def run_wrapper_mode():
             setup_args.extend(["--hardware", hardware])
         if electronics:
             setup_args.extend(["--electronics", electronics])
+        if neck:
+            setup_args.extend(["--neck", neck])
             
         cmd2 = [
             blender_exe,
@@ -814,6 +920,8 @@ def run_wrapper_mode():
             setup_args.extend(["--hardware", hardware])
         if electronics:
             setup_args.extend(["--electronics", electronics])
+        if neck:
+            setup_args.extend(["--neck", neck])
             
         cmd2 = [
             blender_exe,

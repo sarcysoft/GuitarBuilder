@@ -209,6 +209,50 @@ def main():
                         shutil.copyfile(out_fix, os.path.join(stl_dir, "elec_backplate_fixings.stl"))
             else:
                 print(f"  [Electronics: {variant}] No elec_backplate.scad found. Skipping electronics backplate.")
+
+    # 3. Compile Neck Variants (models/scad/neck/<variant>/)
+    neck_base_dir = os.path.join(scad_dir, "neck")
+    if os.path.exists(neck_base_dir):
+        neck_variants = [d for d in sorted(os.listdir(neck_base_dir)) if os.path.isdir(os.path.join(neck_base_dir, d))]
+        print(f"Found {len(neck_variants)} neck variants: {', '.join(neck_variants)}")
+        
+        components = [
+            ("all", ""),
+            ("shaft", "shaft_"),
+            ("fretboard", "fretboard_"),
+            ("frets", "frets_"),
+            ("nut", "nut_"),
+            ("tuners", "tuners_"),
+        ]
+        
+        for variant in neck_variants:
+            v_dir = os.path.join(neck_base_dir, variant)
+            neck_scad = os.path.join(v_dir, "neck.scad")
+            if not os.path.exists(neck_scad):
+                continue
+                
+            print(f"Compiling Neck Variant [{variant}] components...")
+            for part_name, prefix in components:
+                if part_name == "all":
+                    out_name = f"neck_{variant}.stl"
+                elif part_name == "shaft":
+                    out_name = f"neck_shaft_{variant}.stl"
+                else:
+                    out_name = f"{part_name}_{variant}.stl"
+                
+                out_stl = os.path.join(stl_dir, out_name)
+                cmd = openscad_exe + ["-o", out_stl, "-D", f'part="{part_name}"', neck_scad]
+                run_openscad(cmd, out_name)
+                
+                # Default fallback aliases for strat
+                if variant == "strat":
+                    import shutil
+                    if part_name == "all":
+                        shutil.copyfile(out_stl, os.path.join(stl_dir, "neck.stl"))
+                    elif part_name == "shaft":
+                        shutil.copyfile(out_stl, os.path.join(stl_dir, "neck_shaft.stl"))
+                    else:
+                        shutil.copyfile(out_stl, os.path.join(stl_dir, f"{part_name}.stl"))
             
     print("-" * 50)
     print(f"Compilation finished. Success: {success_count}, Failed: {fail_count}")

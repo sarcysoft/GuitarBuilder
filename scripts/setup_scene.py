@@ -290,7 +290,7 @@ SEAM_PINS = [
 ]
 
 
-def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None):
+def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None, neck = 'auto'):
     print("Starting Scene Setup...")
     
     # Initialize progress bar
@@ -528,13 +528,35 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
     progress = 45
     wm.progress_update(progress)
 
-    # Import Neck OBJ using the import_obj function (optional for display)
-    try:
-        neck = import_obj(neck_obj_filename, third_party_dir, rotation_x=-90, rotation_z=90, offset_z=-0.85)
-        if not neck:
-            print(f"Warning: Optional display neck '{neck_obj_filename}' not loaded from 3rdParty.")
-    except Exception as e:
-        print(f"Warning: Failed to import optional neck: {e}")
+    # Import Neck (OpenSCAD STL if available, else fallback to 3rdParty OBJ)
+    neck_type = neck
+    if not neck_type or neck_type == "auto":
+        c_name = config_name.lower().strip() if config_name else ""
+        if any(k in c_name for k in ["les_paul", "sg", "flying_v", "sarcy_v", "single_cut"]):
+            neck_type = "les_paul"
+        else:
+            neck_type = "strat"
+
+    neck_stl = os.path.join(models_dir, "stl", f"neck_{neck_type}.stl")
+    if os.path.exists(neck_stl):
+        try:
+            print(f"Importing OpenSCAD display neck: {neck_stl}...")
+            if hasattr(bpy.ops.wm, 'stl_import'):
+                bpy.ops.wm.stl_import(filepath=neck_stl)
+            else:
+                bpy.ops.import_mesh.stl(filepath=neck_stl)
+            neck_obj = bpy.context.active_object
+            if neck_obj:
+                neck_obj.name = f"Neck_{neck_type}"
+        except Exception as e:
+            print(f"Warning: Failed to import OpenSCAD neck: {e}")
+    else:
+        try:
+            neck_imported = import_obj(neck_obj_filename, third_party_dir, rotation_x=-90, rotation_z=90, offset_z=-0.85)
+            if not neck_imported:
+                print(f"Warning: Optional display neck '{neck_obj_filename}' not loaded from 3rdParty.")
+        except Exception as e:
+            print(f"Warning: Failed to import optional neck: {e}")
 
     # Resolve output directory
     if config_name and config_name != "default":
@@ -773,6 +795,7 @@ if __name__ == "__main__":
     no_pins_val = False
     hardware_val = None
     electronics_val = None
+    neck_val = "auto"
     
     args = []
     if "--" in sys.argv:
@@ -831,7 +854,13 @@ if __name__ == "__main__":
         elif arg in ["--electronics", "--electronics_variant", "--elec"] and i + 1 < len(args):
             electronics_val = args[i + 1]
             i += 2
+        elif arg.startswith("--neck="):
+            neck_val = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--neck", "--neck_style"] and i + 1 < len(args):
+            neck_val = args[i + 1]
+            i += 2
         else:
             i += 1
                 
-    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val)
+    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val, neck_val)
