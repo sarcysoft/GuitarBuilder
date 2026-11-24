@@ -105,7 +105,7 @@ module lp_headstock_2d() {
 // Helper module for transformed headstock
 module lp_headstock_transform() {
     translate([0, headstock_hinge_y, headstock_hinge_z])
-        rotate([headstock_angle, 0, 0])
+        rotate([-headstock_angle, 0, 0])
         children();
 }
 
@@ -144,31 +144,38 @@ module lp_shaft() {
                     }
 
                     // B. NECK SHAFT CARVE (rounded 50s/60s C-profile)
-                    // Heel transition (Y=38.5) down to 12th fret (Y=45.9)
-                    hull() {
-                        translate([0, 38.5, fretboard_z])
-                            scale([heel_w / 2, 1, 2.0])
-                            rotate([-90, 0, 0])
-                            cylinder(r = 1, h = 0.1, $fn = 28);
-                        translate([0, 45.9, fretboard_z])
-                            scale([fret_width(45.9, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.2])
-                            rotate([-90, 0, 0])
-                            cylinder(r = 1, h = 0.1, $fn = 28);
-                    }
-                    // 12th fret down to 1st fret (Y=73.8) and nut (Y=77.0)
-                    hull() {
-                        translate([0, 45.9, fretboard_z])
-                            scale([fret_width(45.9, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.2])
-                            rotate([-90, 0, 0])
-                            cylinder(r = 1, h = 0.1, $fn = 28);
-                        translate([0, 73.8, fretboard_z])
-                            scale([fret_width(73.8, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.05])
-                            rotate([-90, 0, 0])
-                            cylinder(r = 1, h = 0.1, $fn = 28);
-                        translate([0, 77.0, fretboard_z])
-                            scale([nut_w / 2, 1, 2.0])
-                            rotate([-90, 0, 0])
-                            cylinder(r = 1, h = 0.1, $fn = 28);
+                    difference() {
+                        union() {
+                            // Heel transition (Y=38.5) down to 12th fret (Y=45.9)
+                            hull() {
+                                translate([0, 38.5, fretboard_z])
+                                    scale([heel_w / 2, 1, 2.0])
+                                    rotate([-90, 0, 0])
+                                    cylinder(r = 1, h = 0.1, $fn = 28);
+                                translate([0, 45.9, fretboard_z])
+                                    scale([fret_width(45.9, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.2])
+                                    rotate([-90, 0, 0])
+                                    cylinder(r = 1, h = 0.1, $fn = 28);
+                            }
+                            // 12th fret down to 1st fret (Y=73.8) and nut (Y=77.0)
+                            hull() {
+                                translate([0, 45.9, fretboard_z])
+                                    scale([fret_width(45.9, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.2])
+                                    rotate([-90, 0, 0])
+                                    cylinder(r = 1, h = 0.1, $fn = 28);
+                                translate([0, 73.8, fretboard_z])
+                                    scale([fret_width(73.8, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.05])
+                                    rotate([-90, 0, 0])
+                                    cylinder(r = 1, h = 0.1, $fn = 28);
+                                translate([0, 77.0, fretboard_z])
+                                    scale([nut_w / 2, 1, 2.0])
+                                    rotate([-90, 0, 0])
+                                    cylinder(r = 1, h = 0.1, $fn = 28);
+                            }
+                        }
+                        // Remove upper half: neck carve must remain strictly UNDER fretboard (Z <= fretboard_z)
+                        translate([-15, 35, fretboard_z])
+                            cube([30, 45, 10]);
                     }
 
                     // C. VOLUTE / BLEND TRANSITION BEHIND NUT

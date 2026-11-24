@@ -126,34 +126,41 @@ module strat_shaft() {
 
                 // B. NECK SHAFT CARVE (C-profile half-ellipse along length)
                 // Transitioning from heel (Y=38.5) down to nut (Y=78.5)
-                hull() {
-                    // Heel transition cross section
-                    translate([0, 38.5, fretboard_z])
-                        scale([heel_w / 2, 1, 2.0])
-                        rotate([-90, 0, 0])
-                        cylinder(r = 1, h = 0.1, $fn = 28);
-                    // 12th fret cross section (thickness ~ 2.15cm)
-                    translate([0, 46.8, fretboard_z])
-                        scale([fret_width(46.8, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.1])
-                        rotate([-90, 0, 0])
-                        cylinder(r = 1, h = 0.1, $fn = 28);
-                }
-                hull() {
-                    // 12th fret cross section
-                    translate([0, 46.8, fretboard_z])
-                        scale([fret_width(46.8, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.1])
-                        rotate([-90, 0, 0])
-                        cylinder(r = 1, h = 0.1, $fn = 28);
-                    // 1st fret cross section (thickness ~ 1.95cm)
-                    translate([0, 75.5, fretboard_z])
-                        scale([fret_width(75.5, nut_y, heel_y, nut_w, heel_w) / 2, 1, 1.95])
-                        rotate([-90, 0, 0])
-                        cylinder(r = 1, h = 0.1, $fn = 28);
-                    // Nut transition
-                    translate([0, 78.8, fretboard_z])
-                        scale([nut_w / 2, 1, 1.90])
-                        rotate([-90, 0, 0])
-                        cylinder(r = 1, h = 0.1, $fn = 28);
+                difference() {
+                    union() {
+                        hull() {
+                            // Heel transition cross section
+                            translate([0, 38.5, fretboard_z])
+                                scale([heel_w / 2, 1, 2.0])
+                                rotate([-90, 0, 0])
+                                cylinder(r = 1, h = 0.1, $fn = 28);
+                            // 12th fret cross section (thickness ~ 2.15cm)
+                            translate([0, 46.8, fretboard_z])
+                                scale([fret_width(46.8, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.1])
+                                rotate([-90, 0, 0])
+                                cylinder(r = 1, h = 0.1, $fn = 28);
+                        }
+                        hull() {
+                            // 12th fret cross section
+                            translate([0, 46.8, fretboard_z])
+                                scale([fret_width(46.8, nut_y, heel_y, nut_w, heel_w) / 2, 1, 2.1])
+                                rotate([-90, 0, 0])
+                                cylinder(r = 1, h = 0.1, $fn = 28);
+                            // 1st fret cross section (thickness ~ 1.95cm)
+                            translate([0, 75.5, fretboard_z])
+                                scale([fret_width(75.5, nut_y, heel_y, nut_w, heel_w) / 2, 1, 1.95])
+                                rotate([-90, 0, 0])
+                                cylinder(r = 1, h = 0.1, $fn = 28);
+                            // Nut transition
+                            translate([0, 78.8, fretboard_z])
+                                scale([nut_w / 2, 1, 1.90])
+                                rotate([-90, 0, 0])
+                                cylinder(r = 1, h = 0.1, $fn = 28);
+                        }
+                    }
+                    // Remove upper half: neck shaft carve must sit strictly UNDER fretboard (Z <= fretboard_z)
+                    translate([-15, 35, fretboard_z])
+                        cube([30, 48, 10]);
                 }
 
                 // C. HEADSTOCK BASE & TRANSITION SCOOP
