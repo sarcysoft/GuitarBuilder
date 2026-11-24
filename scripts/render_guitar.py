@@ -1012,12 +1012,12 @@ def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
         nut_back_y = 77.64
         nut_z = 4.88
         tuner_posts = [
-            (-1.95, 82.09, 4.80),  # E (low) - Row 1 bass
-            (-1.95, 85.97, 3.84),  # A       - Row 2 bass
-            (-1.95, 89.85, 2.87),  # D       - Row 3 bass
-            ( 1.95, 89.85, 2.87),  # G       - Row 3 treble
-            ( 1.95, 85.97, 3.84),  # B       - Row 2 treble
-            ( 1.95, 82.09, 4.80)   # E (high)- Row 1 treble
+            (-1.95, 81.47, 5.40),  # E (low) - Row 1 bass
+            (-1.95, 85.35, 4.53),  # A       - Row 2 bass
+            (-1.95, 89.23, 3.56),  # D       - Row 3 bass
+            ( 1.95, 89.23, 3.56),  # G       - Row 3 treble
+            ( 1.95, 85.35, 4.53),  # B       - Row 2 treble
+            ( 1.95, 81.47, 5.40)   # E (high)- Row 1 treble
         ]
     else:
         is_les_paul = False

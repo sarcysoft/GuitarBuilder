@@ -40,7 +40,7 @@ module guitar_nut(nut_w, nut_thick = 0.35, nut_h = 0.85, string_spacing = 3.5) {
 
 // Tuning machine assembly: post, collar/bushing, shaft, and button
 // type = "modern" (Strat kidney button) or "vintage" (LP keystone tulip button)
-module tuner_peg(type = "modern", post_h = 2.4, post_r = 0.3, button_dir = -1) {
+module tuner_peg(type = "modern", post_h = 2.4, post_r = 0.3, button_dir = -1, headstock_thick = 1.45) {
     // 1. Collar / Bushing on headstock face
     translate([0, 0, 0]) {
         cylinder(r = 0.52, h = 0.22, $fn = 24); // washer flange
@@ -60,23 +60,23 @@ module tuner_peg(type = "modern", post_h = 2.4, post_r = 0.3, button_dir = -1) {
     }
 
     // 3. Gear housing on back of headstock (underneath headstock)
-    translate([0, 0, -1.5]) {
-        // Housing box
+    translate([0, 0, -headstock_thick]) {
+        // Housing box extending in -Z away from back of headstock
         hull() {
-            translate([-0.55, -0.65, 0]) cube([1.1, 1.3, 0.9]);
-            translate([0, 0.45, 0.45]) rotate([0, 90, 0]) cylinder(r = 0.45, h = 1.1, center = true, $fn = 20);
+            translate([-0.55, -0.65, -0.9]) cube([1.1, 1.3, 0.9]);
+            translate([0, 0.45, -0.45]) rotate([0, 90, 0]) cylinder(r = 0.45, h = 1.1, center = true, $fn = 20);
         }
 
         // Horizontal tuner shaft out towards button
         // button_dir is +1 (points +X) or -1 (points -X)
-        translate([0, 0, 0.45])
+        translate([0, 0, -0.45])
             rotate([0, button_dir * 90, 0])
             cylinder(r = 0.18, h = 1.6, $fn = 20);
 
         // Tuning Button / Key
         if (type == "vintage") {
             // Keystone / Tulip button (Les Paul style)
-            translate([button_dir * 2.1, 0, 0.45])
+            translate([button_dir * 2.1, 0, -0.45])
                 rotate([0, 0, 90])
                 scale([1.0, 0.35, 1.4])
                 hull() {
@@ -85,7 +85,7 @@ module tuner_peg(type = "modern", post_h = 2.4, post_r = 0.3, button_dir = -1) {
                 }
         } else {
             // Modern Kidney / Oval button (Strat style)
-            translate([button_dir * 2.0, 0, 0.45])
+            translate([button_dir * 2.0, 0, -0.45])
                 rotate([0, 0, 90])
                 scale([1.1, 0.4, 0.8])
                 sphere(r = 0.85, $fn = 24);

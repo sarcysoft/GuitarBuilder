@@ -77,7 +77,7 @@ module strat_tuners() {
     color("Silver") {
         for (ty = tuner_ys) {
             translate([tuner_x, ty, headstock_face_z])
-                tuner_peg(type = "modern", post_h = 2.4, post_r = 0.30, button_dir = -1);
+                tuner_peg(type = "modern", post_h = 2.4, post_r = 0.30, button_dir = -1, headstock_thick = headstock_face_z - 1.80);
         }
     }
 }

@@ -17,8 +17,8 @@ num_frets   = 22;
 
 // Headstock geometry
 headstock_angle = 14; // degrees tilted back
-headstock_hinge_y = 78.50;
-headstock_hinge_z = 4.00;
+headstock_hinge_y = 77.64;
+headstock_hinge_z = 4.60;
 headstock_thick = 1.45;
 
 // Tuner positions on headstock (relative to headstock local coords)
@@ -118,11 +118,11 @@ module lp_tuners() {
             for (ly = tuner_local_ys) {
                 // Bass side (left, -X, button points -X)
                 translate([-tuner_local_x, ly, 0])
-                    tuner_peg(type = "vintage", post_h = 2.4, post_r = 0.30, button_dir = -1);
+                    tuner_peg(type = "vintage", post_h = 2.4, post_r = 0.30, button_dir = -1, headstock_thick = headstock_thick);
 
                 // Treble side (right, +X, button points +X)
                 translate([tuner_local_x, ly, 0])
-                    tuner_peg(type = "vintage", post_h = 2.4, post_r = 0.30, button_dir = 1);
+                    tuner_peg(type = "vintage", post_h = 2.4, post_r = 0.30, button_dir = 1, headstock_thick = headstock_thick);
             }
         }
     }
@@ -178,11 +178,15 @@ module lp_shaft() {
                             cube([30, 45, 10]);
                     }
 
-                    // C. VOLUTE / BLEND TRANSITION BEHIND NUT
+                    // Shelf supporting the nut from nut_y to headstock_hinge_y
+                    translate([-nut_w / 2, nut_y, fretboard_z])
+                        cube([nut_w, headstock_hinge_y - nut_y + 0.01, fretboard_h - 0.25]);
+
+                    // C. VOLUTE / BLEND TRANSITION BEHIND NUT (Bottom / back blend)
                     hull() {
                         translate([-nut_w / 2, 76.5, 2.0]) cube([nut_w, 0.5, 2.0]);
                         lp_headstock_transform()
-                            translate([-nut_w / 2, 0.5, -headstock_thick]) cube([nut_w, 0.5, headstock_thick]);
+                            translate([-nut_w / 2, 0.5, -headstock_thick]) cube([nut_w, 0.5, 0.5]);
                     }
 
                     // D. ANGLED HEADSTOCK SLAB
