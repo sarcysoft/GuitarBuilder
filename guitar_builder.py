@@ -279,6 +279,7 @@ Usage:
   python guitar_builder.py [options]
 
 Modes & General:
+  --project <name_or_path>             Load settings and save outputs to specific project folder
   --gui                                Launch the graphical user interface frontend
   -h, --help                           Show this help message and exit
   --config <name>                      Preset configuration profile (e.g. 'sarcaster', 'les_paul', 'flying_v')
@@ -322,13 +323,17 @@ def parse_wrapper_args(argv):
     if any(arg in ["-h", "--help"] for arg in argv):
         print_wrapper_help()
         sys.exit(0)
-    # Pre-parse pass to find --cli-config
+
+    # Pre-parse pass to find --project or --cli-config
+    project_path = None
+    project_dir = None
     cli_config_path = None
     i = 0
     while i < len(argv):
-        if argv[i] == "--cli-config" and i + 1 < len(argv):
+        if argv[i] == "--project" and i + 1 < len(argv):
+            project_path = argv[i + 1]
+        elif argv[i] == "--cli-config" and i + 1 < len(argv):
             cli_config_path = argv[i + 1]
-            break
         i += 1
 
     # Default variables
@@ -367,6 +372,40 @@ def parse_wrapper_args(argv):
     preview = False
     dynamic_zoom = False
     seed = None
+
+    # Load settings from project if provided
+    if project_path:
+        try:
+            from scripts.project_manager import ProjectManager
+            pm = ProjectManager()
+            project_dir = pm.resolve_project_dir(project_path)
+            pdata = pm.load_project(project_dir)
+            config = pdata.get("body_model", config)
+            sl = pdata.get("slicing", {})
+            cut_type = sl.get("cut_type", cut_type)
+            pin_diameter = float(sl.get("pin_diameter", pin_diameter))
+            pin_length = float(sl.get("pin_length", pin_length))
+            no_pins = sl.get("no_pins", no_pins)
+            no_cut = sl.get("no_cut", no_cut)
+            nk = pdata.get("neck", {})
+            neck = nk.get("style", neck)
+            neck_material = nk.get("shaft_material", neck_material)
+            fretboard_material = nk.get("fretboard_material", fretboard_material)
+            tuner_finish = nk.get("tuner_finish", tuner_finish)
+            hw = pdata.get("hardware", {})
+            hardware = hw.get("variant", hardware)
+            electronics = hw.get("electronics", electronics)
+            vis = pdata.get("visuals", {})
+            material = vis.get("body_material", material)
+            material_back = vis.get("backplate_material", material_back)
+            lighting = vis.get("lighting", lighting)
+            engine = vis.get("engine", engine)
+            angle = vis.get("angle", angle)
+            animate = vis.get("animate", animate)
+            dynamic_zoom = vis.get("dynamic_zoom", dynamic_zoom)
+            seed = vis.get("seed", seed)
+        except Exception as e:
+            print(f"Warning: Failed to load project settings from '{project_path}': {e}")
 
     # Load settings from cli-config if provided
     if cli_config_path and os.path.exists(cli_config_path):
@@ -481,7 +520,7 @@ def parse_wrapper_args(argv):
         elif arg in ["--save-blend", "--save_blend"]:
             save_blend = True
             i += 1
-        elif arg == "--seed":
+        elif arg in ["--seed"]:
             if i + 1 < len(argv):
                 try:
                     seed = int(argv[i + 1])
@@ -490,6 +529,9 @@ def parse_wrapper_args(argv):
                 i += 2
             else:
                 i += 1
+        elif arg == "--project":
+            # Already handled in pre-parse
+            i += 2
         elif arg == "--cli-config":
             # Already handled in pre-parse, just skip
             i += 2
@@ -616,7 +658,7 @@ def parse_wrapper_args(argv):
             config, export_config_flag, export_config, import_config, generate,
             render, body_only, exploded_body, uncut, angle, engine,
             material, material_back, lighting, save_blend, pitch,
-            guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed)
+            guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir)
 
 
 def run_wrapper_mode():
@@ -637,12 +679,14 @@ def run_wrapper_mode():
      config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
      render, body_only, exploded_body, uncut, angle, engine,
      material, material_back, lighting, save_blend, pitch,
-     guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed) = parse_wrapper_args(sys.argv[1:])
+     guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
-    if render or animate or no_render_anim:
+    if render or animate or no_render_anim or preview:
         print("Launching background rendering pipeline...")
-        if config and config != "default":
+        if project_dir:
+            config_dir = project_dir
+        elif config and config != "default":
             config_dir = os.path.join(script_dir, "output", config)
         else:
             config_dir = os.path.join(script_dir, "output")
@@ -892,6 +936,8 @@ def run_wrapper_mode():
             setup_args.extend(["--electronics", electronics])
         if neck:
             setup_args.extend(["--neck", neck])
+        if project_dir:
+            setup_args.extend(["--output-dir", os.path.join(project_dir, "stl")])
             
         cmd2 = [
             blender_exe,
@@ -922,6 +968,8 @@ def run_wrapper_mode():
             setup_args.extend(["--electronics", electronics])
         if neck:
             setup_args.extend(["--neck", neck])
+        if project_dir:
+            setup_args.extend(["--output-dir", os.path.join(project_dir, "stl")])
             
         cmd2 = [
             blender_exe,

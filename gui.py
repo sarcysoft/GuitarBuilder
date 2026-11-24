@@ -1,29 +1,22 @@
-"""
-GuitarBuilder Studio - Python GUI Frontend
-A modern, intuitive graphical interface for configuring, slicing, and rendering
-parametric guitar bodies in Blender.
-"""
-
 import os
 import sys
 import json
-import subprocess
-import threading
-import queue
 import time
+import queue
+import threading
+import subprocess
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 
-# Try enabling DPI awareness on Windows for crisp high-res rendering
+# Windows DPI Awareness
 if sys.platform == "win32":
     try:
         import ctypes
-        try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except Exception:
-            ctypes.windll.user32.SetProcessDPIAware()
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
+
+from scripts.project_manager import ProjectManager
 
 
 class ScrollableFrame(ttk.Frame):
@@ -89,16 +82,24 @@ class GuitarBuilderGUI:
             self.root.geometry("1240x880")
         self.root.minsize(980, 640)
 
-        # Base directories
+        # Base directories & Project Manager
         self.repo_dir = os.path.dirname(os.path.abspath(__file__))
-        self.config_dir = os.path.join(self.repo_dir, "config")
-        self.output_dir = os.path.join(self.repo_dir, "output")
         self.scripts_dir = os.path.join(self.repo_dir, "scripts")
+        self.project_manager = ProjectManager(self.repo_dir)
+
+        # Active project state
+        self.active_project_name = tk.StringVar()
+        self.active_project_dir = ""
+        self.active_project_data = {}
 
         # Process management
         self.current_process = None
         self.log_queue = queue.Queue()
         self.is_running = False
+
+        # Image references to prevent garbage collection
+        self._cached_preview_img = None
+        self.gallery_images = []
 
         # Find blender executable
         self.blender_exe = self._locate_blender()
@@ -113,9 +114,8 @@ class GuitarBuilderGUI:
         # Start periodic log pump
         self.root.after(100, self._process_log_queue)
 
-        # Initial config scan and command preview update
-        self._refresh_config_list()
-        self._update_command_preview()
+        # Initial project loading
+        self._init_projects()
 
     def _locate_blender(self):
         """Find Blender executable using guitar_builder logic."""
@@ -123,7 +123,6 @@ class GuitarBuilderGUI:
             import guitar_builder
             return guitar_builder.find_blender()
         except Exception:
-            # Fallback search
             if sys.platform == "win32":
                 pf = os.environ.get("ProgramFiles", "C:\\Program Files")
                 bf = os.path.join(pf, "Blender Foundation")
@@ -138,38 +137,33 @@ class GuitarBuilderGUI:
 
     def _init_variables(self):
         """Initialize all reactive Tkinter variables."""
-        # Config profile
-        self.var_config = tk.StringVar(value="sarcaster")
+        # 1. Design & Spec
+        self.var_body_model = tk.StringVar(value="sarcaster")
+        self.var_neck = tk.StringVar(value="strat")
+        self.var_neck_material = tk.StringVar(value="maple")
+        self.var_fretboard_material = tk.StringVar(value="rosewood")
+        self.var_tuner_finish = tk.StringVar(value="chrome")
+        self.var_hardware = tk.StringVar(value="standard")
+        self.var_electronics = tk.StringVar(value="auto")
 
-        # Slicing & Manufacturing
-        self.var_cut_type = tk.StringVar(value="flat")
+        # 2. Visuals & Finish
+        self.var_material = tk.StringVar(value="sunburst")
+        self.var_material_back = tk.StringVar(value="gloss:black")
+        self.var_lighting = tk.StringVar(value="studio")
+        self.var_engine = tk.StringVar(value="eevee")
+        self.var_preview_angle = tk.StringVar(value="angled")
+        self.var_angle = tk.StringVar(value="all")
+        self.var_dynamic_zoom = tk.BooleanVar(value=True)
+        self.var_animate = tk.BooleanVar(value=False)
+        self.var_save_blend = tk.BooleanVar(value=False)
+        self.var_seed = tk.StringVar(value="")
+
+        # 3. Slicing & 3D Print
+        self.var_cut_type = tk.StringVar(value="textured")
         self.var_enable_pins = tk.BooleanVar(value=True)
         self.var_pin_diameter = tk.DoubleVar(value=6.0)
         self.var_pin_length = tk.DoubleVar(value=16.0)
         self.var_no_cut = tk.BooleanVar(value=False)
-        self.var_hardware = tk.StringVar(value="standard")
-        self.var_electronics = tk.StringVar(value="auto")
-        self.var_neck = tk.StringVar(value="auto")
-
-        # Rendering & Materials
-        self.var_render_pipeline = tk.BooleanVar(value=False)
-        self.var_render_uncut = tk.BooleanVar(value=False)
-        self.var_body_only = tk.BooleanVar(value=False)
-        self.var_exploded_body = tk.BooleanVar(value=False)
-        self.var_angle = tk.StringVar(value="all")
-        self.var_engine = tk.StringVar(value="eevee")
-        self.var_material = tk.StringVar(value="gloss")
-        self.var_material_back = tk.StringVar(value="gloss:black")
-        self.var_neck_material = tk.StringVar(value="maple")
-        self.var_fretboard_material = tk.StringVar(value="rosewood")
-        self.var_tuner_finish = tk.StringVar(value="chrome")
-        self.var_lighting = tk.StringVar(value="studio")
-        self.var_pitch = tk.StringVar(value="")
-        self.var_guitar_rot = tk.StringVar(value="")
-        self.var_dynamic_zoom = tk.BooleanVar(value=False)
-        self.var_animate = tk.BooleanVar(value=False)
-        self.var_save_blend = tk.BooleanVar(value=False)
-        self.var_seed = tk.StringVar(value="")
 
         # Realtime command preview
         self.var_cmd_preview = tk.StringVar()
@@ -182,101 +176,98 @@ class GuitarBuilderGUI:
         except Exception:
             pass
 
-        # General colors
-        self.bg_color = "#f5f6f8"
-        self.accent_color = "#2563eb"  # Royal blue
-        self.success_color = "#16a34a" # Forest green
-        self.dark_bg = "#1e293b"
+        self.bg_color = "#f8fafc"
+        self.card_bg = "#ffffff"
+        self.primary_color = "#2563eb"
+        self.primary_hover = "#1d4ed8"
 
         self.root.configure(bg=self.bg_color)
-        self.style.configure(".", background=self.bg_color, font=("Segoe UI", 10))
+
+        self.style.configure(".", background=self.bg_color, font=("Segoe UI", 9))
         self.style.configure("TFrame", background=self.bg_color)
-        self.style.configure("TLabel", background=self.bg_color)
-        self.style.configure("Header.TLabel", font=("Segoe UI", 13, "bold"), foreground="#0f172a")
-        self.style.configure("SubHeader.TLabel", font=("Segoe UI", 10, "italic"), foreground="#64748b")
-        self.style.configure("Card.TFrame", background="#ffffff", relief="solid", borderwidth=1)
-        self.style.configure("CardHeader.TLabel", background="#ffffff", font=("Segoe UI", 11, "bold"), foreground="#1e293b")
-        self.style.configure("CardDesc.TLabel", background="#ffffff", font=("Segoe UI", 9), foreground="#64748b")
+        self.style.configure("TLabel", background=self.bg_color, foreground="#1e293b")
+        
+        self.style.configure("TLabelframe", background=self.bg_color, relief="groove")
+        self.style.configure("TLabelframe.Label", font=("Segoe UI", 9, "bold"), foreground="#0f172a", background=self.bg_color)
 
-        # Custom Buttons
-        self.style.configure("Primary.TButton", font=("Segoe UI", 10, "bold"), foreground="#ffffff", background="#2563eb")
-        self.style.map("Primary.TButton", background=[("active", "#1d4ed8"), ("disabled", "#94a3b8")])
+        self.style.configure("TNotebook", background=self.bg_color, tabmargins=[2, 5, 2, 0])
+        self.style.configure("TNotebook.Tab", padding=[14, 6], font=("Segoe UI", 9, "bold"), background="#e2e8f0", foreground="#475569")
+        self.style.map("TNotebook.Tab", background=[("selected", "#ffffff")], foreground=[("selected", "#0f172a")])
 
-        self.style.configure("Success.TButton", font=("Segoe UI", 10, "bold"), foreground="#ffffff", background="#16a34a")
-        self.style.map("Success.TButton", background=[("active", "#15803d"), ("disabled", "#94a3b8")])
+        self.style.configure("Primary.TButton", font=("Segoe UI", 9, "bold"), background=self.primary_color, foreground="#ffffff", borderwidth=0, padding=6)
+        self.style.map("Primary.TButton", background=[("active", self.primary_hover), ("pressed", "#1e40af")])
 
-        self.style.configure("Danger.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#dc2626")
-        self.style.map("Danger.TButton", background=[("active", "#b91c1c")])
+        self.style.configure("Action.TButton", font=("Segoe UI", 10, "bold"), background="#059669", foreground="#ffffff", padding=8)
+        self.style.map("Action.TButton", background=[("active", "#047857")])
 
-        # Notebook tabs
-        self.style.configure("TNotebook", background=self.bg_color)
-        self.style.configure("TNotebook.Tab", font=("Segoe UI", 10, "bold"), padding=[14, 6])
-        self.style.map("TNotebook.Tab", background=[("selected", "#ffffff"), ("active", "#e2e8f0")])
+        self.style.configure("Danger.TButton", font=("Segoe UI", 9, "bold"), background="#ef4444", foreground="#ffffff")
+        self.style.map("Danger.TButton", background=[("active", "#dc2626")])
 
+    # =========================================================================
+    # UI Construction
+    # =========================================================================
     def _build_ui(self):
-        """Construct the main GUI window layout."""
-        # Top Header Bar
-        header_frame = ttk.Frame(self.root, padding=(16, 12, 16, 8))
+        # Header Frame: Project management bar
+        header_frame = ttk.Frame(self.root, padding=(16, 10, 16, 6))
         header_frame.pack(fill="x")
 
-        # Title + status
+        # Title & Blender status
         title_box = ttk.Frame(header_frame)
-        title_box.pack(side="left", fill="y")
-        
-        lbl_title = ttk.Label(title_box, text="🎸 GuitarBuilder Studio", font=("Segoe UI", 16, "bold"), foreground="#0f172a")
+        title_box.pack(side="left")
+
+        lbl_title = tk.Label(title_box, text="🎸 GuitarBuilder Studio", font=("Segoe UI", 14, "bold"), fg="#0f172a", bg=self.bg_color)
         lbl_title.pack(anchor="w")
-        
-        blender_text = f"Blender: {os.path.basename(os.path.dirname(self.blender_exe))}" if self.blender_exe else "Blender: NOT FOUND"
+
+        blender_text = f"Blender: {os.path.basename(os.path.dirname(self.blender_exe))}" if self.blender_exe else "Blender: Not Found"
         blender_color = "#16a34a" if self.blender_exe else "#dc2626"
         lbl_blender = tk.Label(title_box, text=f"● {blender_text}", font=("Segoe UI", 9, "bold"), fg=blender_color, bg=self.bg_color)
-        lbl_blender.pack(anchor="w", pady=(2, 0))
+        lbl_blender.pack(anchor="w", pady=(1, 0))
 
-        # Profile selection box in header
-        profile_box = ttk.Frame(header_frame)
-        profile_box.pack(side="right", fill="y")
+        # Project Bar in Header
+        proj_bar = ttk.Frame(header_frame)
+        proj_bar.pack(side="right", fill="y")
 
-        ttk.Label(profile_box, text="Active Profile:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 6))
-        self.combo_config = ttk.Combobox(profile_box, textvariable=self.var_config, width=22, state="readonly")
-        self.combo_config.pack(side="left", padx=(0, 6))
-        self.combo_config.bind("<<ComboboxSelected>>", self._on_config_selected)
+        ttk.Label(proj_bar, text="Project:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 6))
+        self.combo_project = ttk.Combobox(proj_bar, textvariable=self.active_project_name, width=22, state="readonly")
+        self.combo_project.pack(side="left", padx=(0, 6))
+        self.combo_project.bind("<<ComboboxSelected>>", self._on_project_selected)
 
-        btn_refresh = ttk.Button(profile_box, text="↻ Refresh", width=9, command=self._refresh_config_list)
-        btn_refresh.pack(side="left", padx=(0, 4))
-
-        btn_open_configs = ttk.Button(profile_box, text="📁 Configs", width=9, command=lambda: self._open_folder(self.config_dir))
-        btn_open_configs.pack(side="left")
+        ttk.Button(proj_bar, text="＋ New", width=7, command=self._action_new_project).pack(side="left", padx=(0, 4))
+        ttk.Button(proj_bar, text="💾 Save", width=7, style="Primary.TButton", command=self._action_save_project).pack(side="left", padx=(0, 4))
+        ttk.Button(proj_bar, text="Save As...", width=9, command=self._action_save_project_as).pack(side="left", padx=(0, 4))
+        ttk.Button(proj_bar, text="📁 Folder", width=8, command=self._open_project_folder).pack(side="left")
 
         # Separator line
         ttk.Separator(self.root, orient="horizontal").pack(fill="x", padx=16, pady=4)
 
-        # Vertical PanedWindow: Top = Notebook, Bottom = Console & Preview
+        # Vertical PanedWindow: Top = Notebook (weight 9), Bottom = Console & Preview (weight 1)
         self.paned_window = ttk.PanedWindow(self.root, orient="vertical")
         self.paned_window.pack(fill="both", expand=True, padx=16, pady=(4, 6))
 
-        # Top Pane: Tabbed Notebook (high weight so top gets maximum vertical space)
+        # Top Pane: Tabbed Notebook
         self.notebook_frame = ttk.Frame(self.paned_window)
         self.paned_window.add(self.notebook_frame, weight=9)
 
         self.notebook = ttk.Notebook(self.notebook_frame)
         self.notebook.pack(fill="both", expand=True)
 
-        # Build individual tabs
+        # Build 3-Step Journey Tabs + Gallery
+        self.tab_spec = ttk.Frame(self.notebook)
+        self.tab_finish = ttk.Frame(self.notebook)
         self.tab_slicing = ttk.Frame(self.notebook)
-        self.tab_rendering = ttk.Frame(self.notebook)
-        self.tab_config_editor = ttk.Frame(self.notebook, padding=10)
         self.tab_gallery = ttk.Frame(self.notebook, padding=10)
 
-        self.notebook.add(self.tab_slicing, text="  ✂ Slicing & Manufacturing  ")
-        self.notebook.add(self.tab_rendering, text="  🎨 Photo Studio (Render)  ")
-        self.notebook.add(self.tab_config_editor, text="  ⚙ Parameters Editor  ")
-        self.notebook.add(self.tab_gallery, text="  🖼 Render Gallery  ")
+        self.notebook.add(self.tab_spec, text="  🎸 1. Design & Spec  ")
+        self.notebook.add(self.tab_finish, text="  🎨 2. Visuals & Finish  ")
+        self.notebook.add(self.tab_slicing, text="  ✂ 3. Slicing & 3D Print  ")
+        self.notebook.add(self.tab_gallery, text="  🖼 Project Gallery  ")
 
+        self._build_tab_spec()
+        self._build_tab_finish()
         self._build_tab_slicing()
-        self._build_tab_rendering()
-        self._build_tab_config_editor()
         self._build_tab_gallery()
 
-        # Bottom Pane: Command Preview Bar + Live Console (compact weight)
+        # Bottom Pane: Command Preview Bar + Live Console
         self.bottom_frame = ttk.Frame(self.paned_window)
         self.paned_window.add(self.bottom_frame, weight=1)
 
@@ -286,562 +277,520 @@ class GuitarBuilderGUI:
         ttk.Label(preview_frame, text="Command Preview:", font=("Segoe UI", 9, "bold"), foreground="#475569").pack(side="left", padx=(0, 6))
         ent_preview = ttk.Entry(preview_frame, textvariable=self.var_cmd_preview, state="readonly", font=("Consolas", 9))
         ent_preview.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        ttk.Button(preview_frame, text="Copy CLI", width=9, command=self._copy_command_preview).pack(side="left")
+        ttk.Button(preview_frame, text="Copy CLI", command=self._copy_command_preview).pack(side="right")
 
-        # Bottom Area: Live Console
-        self._build_console_area(parent=self.bottom_frame)
+        # Console Area
+        self._build_console_area(self.bottom_frame)
 
     # =========================================================================
-    # TAB 1: Slicing & Manufacturing
+    # TAB 1: Design & Specification
+    # =========================================================================
+    def _build_tab_spec(self):
+        scroll = ScrollableFrame(self.tab_spec)
+        scroll.pack(fill="both", expand=True)
+        container = scroll.scrollable_content
+
+        # Card 1: Body Model Selection
+        card_body = ttk.LabelFrame(container, text=" 1. Guitar Body Model & Geometry ", padding=10)
+        card_body.pack(fill="x", pady=(0, 8))
+
+        row_b = ttk.Frame(card_body)
+        row_b.pack(fill="x", pady=(0, 6))
+
+        ttk.Label(row_b, text="Base Body Model:", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
+        self.combo_body_model = ttk.Combobox(row_b, textvariable=self.var_body_model, width=22, state="readonly")
+        self.combo_body_model.pack(side="left", padx=(0, 12))
+        self.combo_body_model.bind("<<ComboboxSelected>>", self._on_body_model_selected)
+
+        self.btn_toggle_dims = ttk.Button(row_b, text="▸ Fine-Tune Dimensions (36 Parameters)", command=self._toggle_dimensions_drawer)
+        self.btn_toggle_dims.pack(side="left")
+
+        # Dimensions Drawer (Initially hidden)
+        self.dims_drawer_visible = False
+        self.dims_frame = ttk.Frame(card_body, padding=(0, 8, 0, 0))
+
+        tbl_frame = ttk.Frame(self.dims_frame)
+        tbl_frame.pack(fill="x", expand=True)
+
+        self.param_tree = ttk.Treeview(tbl_frame, columns=("key", "value"), show="headings", height=8)
+        self.param_tree.heading("key", text="Geometry Node Dimension")
+        self.param_tree.heading("value", text="Value (cm)")
+        self.param_tree.column("key", width=260, anchor="w")
+        self.param_tree.column("value", width=120, anchor="w")
+
+        p_scroll = ttk.Scrollbar(tbl_frame, orient="vertical", command=self.param_tree.yview)
+        self.param_tree.configure(yscrollcommand=p_scroll.set)
+        self.param_tree.pack(side="left", fill="x", expand=True)
+        p_scroll.pack(side="right", fill="y")
+
+        edit_bar = ttk.Frame(self.dims_frame, padding=(0, 4, 0, 0))
+        edit_bar.pack(fill="x")
+        ttk.Label(edit_bar, text="Selected:").pack(side="left", padx=(0, 4))
+        self.ent_dim_name = ttk.Entry(edit_bar, width=22, state="readonly")
+        self.ent_dim_name.pack(side="left", padx=(0, 8))
+        ttk.Label(edit_bar, text="Value:").pack(side="left", padx=(0, 4))
+        self.ent_dim_val = ttk.Entry(edit_bar, width=12)
+        self.ent_dim_val.pack(side="left", padx=(0, 8))
+        ttk.Button(edit_bar, text="Apply Edit", command=self._apply_dim_edit).pack(side="left")
+        ttk.Button(edit_bar, text="Reset to Model Defaults", command=self._reset_dims_to_model).pack(side="right")
+        self.param_tree.bind("<<TreeviewSelect>>", self._on_dim_selected)
+
+        # Card 2: Neck & Headstock Specification
+        card_neck = ttk.LabelFrame(container, text=" 2. Neck, Fretboard & Headstock Specification ", padding=10)
+        card_neck.pack(fill="x", pady=(0, 8))
+
+        grid_neck = ttk.Frame(card_neck)
+        grid_neck.pack(fill="x")
+
+        ttk.Label(grid_neck, text="Neck Style:").grid(row=0, column=0, sticky="w", pady=4)
+        self.combo_neck = ttk.Combobox(
+            grid_neck,
+            textvariable=self.var_neck,
+            values=["strat", "les_paul", "auto"],
+            width=18,
+            state="readonly"
+        )
+        self.combo_neck.grid(row=0, column=1, sticky="w", padx=(6, 20), pady=4)
+        self.combo_neck.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_neck, text="Neck Shaft Wood:").grid(row=0, column=2, sticky="w", pady=4)
+        combo_nwood = ttk.Combobox(
+            grid_neck,
+            textvariable=self.var_neck_material,
+            values=["maple", "rosewood", "ebony"],
+            width=18,
+            state="readonly"
+        )
+        combo_nwood.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        combo_nwood.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_neck, text="Fretboard Wood:").grid(row=1, column=0, sticky="w", pady=4)
+        combo_fbwood = ttk.Combobox(
+            grid_neck,
+            textvariable=self.var_fretboard_material,
+            values=["rosewood", "maple", "ebony"],
+            width=18,
+            state="readonly"
+        )
+        combo_fbwood.grid(row=1, column=1, sticky="w", padx=(6, 20), pady=4)
+        combo_fbwood.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_neck, text="Tuner Finish:").grid(row=1, column=2, sticky="w", pady=4)
+        combo_tuner = ttk.Combobox(
+            grid_neck,
+            textvariable=self.var_tuner_finish,
+            values=["chrome", "gold", "black"],
+            width=18,
+            state="readonly"
+        )
+        combo_tuner.grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+        combo_tuner.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        lbl_neck_specs = ttk.Label(
+            card_neck, 
+            text="ℹ Features: 22 medium jumbo nickel-silver crowned frets (mathematically exact 12th-root-of-two spacing), slotted bone nut, and sealed tuning machine pegs.",
+            foreground="#64748b"
+        )
+        lbl_neck_specs.pack(anchor="w", pady=(6, 0))
+
+        # Card 3: Hardware & Cavities
+        card_hw = ttk.LabelFrame(container, text=" 3. Hardware Cavities & Electronics Layout ", padding=10)
+        card_hw.pack(fill="x", pady=(0, 6))
+
+        grid_hw = ttk.Frame(card_hw)
+        grid_hw.pack(fill="x")
+
+        ttk.Label(grid_hw, text="Hardware Cavity:").grid(row=0, column=0, sticky="w", pady=4)
+        self.combo_hardware = ttk.Combobox(grid_hw, textvariable=self.var_hardware, width=18, state="readonly")
+        self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 20), pady=4)
+        self.combo_hardware.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_hw, text="Electronics Layout:").grid(row=0, column=2, sticky="w", pady=4)
+        self.combo_electronics = ttk.Combobox(grid_hw, textvariable=self.var_electronics, width=18, state="readonly")
+        self.combo_electronics.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        self.combo_electronics.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        lbl_hw_note = ttk.Label(
+            card_hw,
+            text="ℹ Backplate cavities and flush screw fixings are subtracted automatically based on selected variants.",
+            foreground="#64748b"
+        )
+        lbl_hw_note.pack(anchor="w", pady=(6, 0))
+
+    def _toggle_dimensions_drawer(self):
+        if self.dims_drawer_visible:
+            self.dims_frame.pack_forget()
+            self.btn_toggle_dims.configure(text="▸ Fine-Tune Dimensions (36 Parameters)")
+            self.dims_drawer_visible = False
+        else:
+            self.dims_frame.pack(fill="x", pady=(8, 0))
+            self.btn_toggle_dims.configure(text="▾ Close Dimensions Editor")
+            self.dims_drawer_visible = True
+
+    def _on_dim_selected(self, event):
+        selected = self.param_tree.selection()
+        if selected:
+            key, val = self.param_tree.item(selected[0])["values"]
+            self.ent_dim_name.configure(state="normal")
+            self.ent_dim_name.delete(0, tk.END)
+            self.ent_dim_name.insert(0, str(key))
+            self.ent_dim_name.configure(state="readonly")
+
+            self.ent_dim_val.delete(0, tk.END)
+            self.ent_dim_val.insert(0, str(val))
+
+    def _apply_dim_edit(self):
+        selected = self.param_tree.selection()
+        if not selected:
+            return
+        key = self.ent_dim_name.get().strip()
+        val_str = self.ent_dim_val.get().strip()
+        try:
+            val = float(val_str) if "." in val_str else int(val_str)
+        except ValueError:
+            val = val_str
+
+        self.param_tree.item(selected[0], values=(key, val))
+        if "body_dimensions" not in self.active_project_data:
+            self.active_project_data["body_dimensions"] = {}
+        self.active_project_data["body_dimensions"][key] = val
+
+    def _reset_dims_to_model(self):
+        model = self.var_body_model.get().strip()
+        dims = self.project_manager.get_default_body_dimensions(model)
+        self.active_project_data["body_dimensions"] = dims
+        self._populate_dims_table(dims)
+
+    # =========================================================================
+    # TAB 2: Visuals & Finish (with Quick Preview)
+    # =========================================================================
+    def _build_tab_finish(self):
+        scroll = ScrollableFrame(self.tab_finish)
+        scroll.pack(fill="both", expand=True)
+        container = scroll.scrollable_content
+
+        # Two-Column Layout
+        left_col = ttk.Frame(container)
+        left_col.pack(side="left", fill="both", expand=True, padx=(0, 10))
+
+        right_col = ttk.Frame(container)
+        right_col.pack(side="right", fill="both", expand=True, padx=(10, 0))
+
+        # Left Column: Material & Lighting Controls
+        card_mats = ttk.LabelFrame(left_col, text=" Paint, Materials & Studio Lighting ", padding=10)
+        card_mats.pack(fill="x", pady=(0, 8))
+
+        grid_m = ttk.Frame(card_mats)
+        grid_m.pack(fill="x")
+
+        ttk.Label(grid_m, text="Body Paint / Finish:").grid(row=0, column=0, sticky="w", pady=4)
+        body_mats = [
+            "sunburst", "gloss:candy_red", "gloss:blue", "gloss:black", "gloss:white",
+            "gold", "chrome", "silver", "glass", "glass:blue",
+            "sparkle:blue:silver", "striped", "random"
+        ]
+        combo_bmat = ttk.Combobox(grid_m, textvariable=self.var_material, values=body_mats, width=20)
+        combo_bmat.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_bmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+        combo_bmat.bind("<KeyRelease>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_m, text="Backplate Material:").grid(row=1, column=0, sticky="w", pady=4)
+        back_mats = ["gloss:black", "gloss:white", "chrome", "gold", "gloss:red"]
+        combo_bkmat = ttk.Combobox(grid_m, textvariable=self.var_material_back, values=back_mats, width=20)
+        combo_bkmat.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_bkmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_m, text="Studio Lighting:").grid(row=2, column=0, sticky="w", pady=4)
+        combo_light = ttk.Combobox(
+            grid_m,
+            textvariable=self.var_lighting,
+            values=["studio", "dramatic", "warm", "sunset"],
+            width=20,
+            state="readonly"
+        )
+        combo_light.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_light.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_m, text="Render Engine:").grid(row=3, column=0, sticky="w", pady=4)
+        combo_eng = ttk.Combobox(
+            grid_m,
+            textvariable=self.var_engine,
+            values=["eevee", "cycles"],
+            width=20,
+            state="readonly"
+        )
+        combo_eng.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_eng.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+
+        ttk.Label(grid_m, text="Preview Angle:").grid(row=4, column=0, sticky="w", pady=4)
+        combo_pangle = ttk.Combobox(
+            grid_m,
+            textvariable=self.var_preview_angle,
+            values=["angled", "front", "back"],
+            width=20,
+            state="readonly"
+        )
+        combo_pangle.grid(row=4, column=1, sticky="w", padx=(6, 0), pady=4)
+
+        ttk.Label(grid_m, text="Random Seed:").grid(row=5, column=0, sticky="w", pady=4)
+        ttk.Entry(grid_m, textvariable=self.var_seed, width=14).grid(row=5, column=1, sticky="w", padx=(6, 0), pady=4)
+
+        ttk.Checkbutton(
+            card_mats,
+            text="Generate 360° Turntable Video (--animate)",
+            variable=self.var_animate,
+            command=self._update_command_preview
+        ).pack(anchor="w", pady=(8, 2))
+
+        ttk.Checkbutton(
+            card_mats,
+            text="Save .blend Scene in Project (--save-blend)",
+            variable=self.var_save_blend,
+            command=self._update_command_preview
+        ).pack(anchor="w", pady=(0, 4))
+
+        # Right Column: Visual Preview Canvas & Actions
+        card_prev = ttk.LabelFrame(right_col, text=" Project Visual Preview ", padding=10)
+        card_prev.pack(fill="both", expand=True)
+
+        self.lbl_preview_canvas = tk.Label(
+            card_prev,
+            text="No preview rendered yet.\nClick '⚡ Quick Preview' to render.",
+            bg="#0f172a",
+            fg="#94a3b8",
+            font=("Segoe UI", 10),
+            width=48,
+            height=13
+        )
+        self.lbl_preview_canvas.pack(fill="both", expand=True, pady=(0, 8))
+
+        btn_row = ttk.Frame(card_prev)
+        btn_row.pack(fill="x", pady=(0, 4))
+
+        btn_quick = ttk.Button(
+            btn_row,
+            text="⚡  Quick Preview (2s)",
+            style="Primary.TButton",
+            command=self._action_quick_preview
+        )
+        btn_quick.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        btn_full = ttk.Button(
+            btn_row,
+            text="🎨  Render Full Studio Set",
+            command=self._action_full_render
+        )
+        btn_full.pack(side="right", fill="x", expand=True, padx=(4, 0))
+
+        self.lbl_prev_info = ttk.Label(
+            card_prev,
+            text="Fast Preview: EEVEE (50% Res, 16 samples) | Full Set: 100% Res Multi-Angle",
+            foreground="#64748b"
+        )
+        self.lbl_prev_info.pack(anchor="center")
+
+    def _action_quick_preview(self):
+        """Runs fast background preview render and updates live image on completion."""
+        self._action_save_project()
+        angle = self.var_preview_angle.get().strip() or "angled"
+        cmd = [
+            sys.executable,
+            "guitar_builder.py",
+            "--project", self.active_project_dir,
+            "--preview",
+            "--angle", angle
+        ]
+        self._start_subprocess(cmd, f"Rendering Quick Preview ({angle} view)...", on_success=self._load_project_preview_image)
+
+    def _action_full_render(self):
+        """Runs full production studio render for active project."""
+        self._action_save_project()
+        cmd = [
+            sys.executable,
+            "guitar_builder.py",
+            "--project", self.active_project_dir,
+            "--render",
+            "--angle", "all"
+        ]
+        if self.var_animate.get():
+            cmd.append("--animate")
+        if self.var_save_blend.get():
+            cmd.append("--save-blend")
+
+        self._start_subprocess(cmd, "Rendering Production Studio Set...", on_success=self._load_project_preview_image)
+
+    def _load_project_preview_image(self):
+        """Loads and scales preview.png into the preview canvas."""
+        if not self.active_project_dir:
+            return
+        renders_dir = os.path.join(self.active_project_dir, "renders")
+        preview_path = os.path.join(renders_dir, "preview.png")
+
+        # Fallback to any png if preview.png doesn't exist
+        if not os.path.exists(preview_path):
+            candidates = [os.path.join(renders_dir, f) for f in os.listdir(renders_dir) if f.lower().endswith(".png")] if os.path.exists(renders_dir) else []
+            preview_path = candidates[0] if candidates else None
+
+        if preview_path and os.path.exists(preview_path):
+            try:
+                raw_img = tk.PhotoImage(file=preview_path)
+                # Scale down for preview widget (around 460px width)
+                sub_factor = max(1, raw_img.width() // 460)
+                sub_img = raw_img.subsample(sub_factor, sub_factor)
+                self._cached_preview_img = sub_img
+                self.lbl_preview_canvas.configure(image=sub_img, text="", width=sub_img.width(), height=sub_img.height())
+                self.lbl_prev_info.configure(text=f"Loaded preview: {os.path.basename(preview_path)} ({raw_img.width()}x{raw_img.height()})")
+            except Exception as e:
+                print(f"Error loading preview image: {e}")
+
+    # =========================================================================
+    # TAB 3: Slicing & 3D Print
     # =========================================================================
     def _build_tab_slicing(self):
         scroll = ScrollableFrame(self.tab_slicing)
         scroll.pack(fill="both", expand=True)
         container = scroll.scrollable_content
 
-        # Left Column: Cutting Strategy & Locator Pins
-        left_col = ttk.Frame(container)
-        left_col.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        # Card 1: Slicing Seam & Pins
+        card_cut = ttk.LabelFrame(container, text=" Slicing Joint & Alignment Pins ", padding=10)
+        card_cut.pack(fill="x", pady=(0, 8))
 
-        # Card 1: Cutting Strategy
-        card_cut = ttk.LabelFrame(left_col, text=" Cutting Mechanism (Printing Orientation) ", padding=10)
-        card_cut.pack(fill="x", pady=(0, 6))
+        grid_cut = ttk.Frame(card_cut)
+        grid_cut.pack(fill="x")
 
-        rb_flat = ttk.Radiobutton(
-            card_cut, 
-            text="Flat Cuts (Vertical 3D Printing - Default & Recommended)", 
-            value="flat", 
-            variable=self.var_cut_type,
-            command=self._on_cut_type_changed
+        ttk.Label(grid_cut, text="Joint Slicing Method:").grid(row=0, column=0, sticky="w", pady=4)
+        combo_cut = ttk.Combobox(
+            grid_cut,
+            textvariable=self.var_cut_type,
+            values=["textured", "flat"],
+            width=18,
+            state="readonly"
         )
-        rb_flat.pack(anchor="w", pady=(0, 2))
-        lbl_flat_desc = ttk.Label(
-            card_cut, 
-            text="  • Cut surfaces are perfectly flat to sit directly on the print bed with no supports.\n"
-                 "  • Maximizes layer adhesion and tensile strength under string tension.\n"
-                 "  • Uses 6mm coaxial locator pins to align sections during epoxy glue-up.",
-            font=("Segoe UI", 8),
-            foreground="#475569"
-        )
-        lbl_flat_desc.pack(anchor="w", padx=(20, 0), pady=(0, 6))
+        combo_cut.grid(row=0, column=1, sticky="w", padx=(6, 20), pady=4)
+        combo_cut.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
-        rb_tex = ttk.Radiobutton(
-            card_cut, 
-            text="Textured Cuts (Horizontal 3D Printing - Legacy)", 
-            value="textured", 
-            variable=self.var_cut_type,
-            command=self._on_cut_type_changed
-        )
-        rb_tex.pack(anchor="w", pady=(2, 2))
-        lbl_tex_desc = ttk.Label(
-            card_cut, 
-            text="  • Procedural noise-displaced interlocking puzzle joints for horizontal prints.\n"
-                 "  • Mating faces are textured and cannot be placed flat on the print bed.",
-            font=("Segoe UI", 8),
-            foreground="#475569"
-        )
-        lbl_tex_desc.pack(anchor="w", padx=(20, 0))
-
-        # Card 2: Locator Pin Parameters
-        self.card_pins = ttk.LabelFrame(left_col, text=" Alignment Locator Pins ", padding=10)
-        self.card_pins.pack(fill="x", pady=(0, 6))
-
-        chk_pins = ttk.Checkbutton(
-            self.card_pins, 
-            text="Generate Locator Pin Holes across Seams", 
+        ttk.Checkbutton(
+            grid_cut,
+            text="Enable Locator Pins",
             variable=self.var_enable_pins,
             command=self._update_command_preview
+        ).grid(row=0, column=2, sticky="w", padx=(0, 20), pady=4)
+
+        ttk.Label(grid_cut, text="Pin Diameter (mm):").grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Combobox(
+            grid_cut,
+            textvariable=self.var_pin_diameter,
+            values=[6.0, 5.0, 4.0, 8.0],
+            width=18,
+            state="readonly"
+        ).grid(row=1, column=1, sticky="w", padx=(6, 20), pady=4)
+
+        ttk.Label(grid_cut, text="Pin Length (mm):").grid(row=1, column=2, sticky="w", pady=4)
+        ttk.Combobox(
+            grid_cut,
+            textvariable=self.var_pin_length,
+            values=[16.0, 12.0, 20.0, 24.0],
+            width=14,
+            state="readonly"
+        ).grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+
+        lbl_pin_info = ttk.Label(
+            card_cut,
+            text="ℹ Pin holes feature tapered end chamfers and fractional depth clearance for tight seamless mating.",
+            foreground="#64748b"
         )
-        chk_pins.pack(anchor="w", pady=(0, 6))
+        lbl_pin_info.pack(anchor="w", pady=(6, 0))
 
-        params_grid = ttk.Frame(self.card_pins)
-        params_grid.pack(fill="x", padx=16)
+        # Card 2: Print Manifest & Generate Action
+        card_act = ttk.LabelFrame(container, text=" 3D Print Manifest & STL Generation ", padding=12)
+        card_act.pack(fill="x")
 
-        ttk.Label(params_grid, text="Pin Diameter:").grid(row=0, column=0, sticky="w", pady=3)
-        sp_diam = ttk.Spinbox(
-            params_grid, 
-            from_=3.0, 
-            to=12.0, 
-            increment=0.5, 
-            textvariable=self.var_pin_diameter, 
-            width=8,
-            command=self._update_command_preview
+        box_manifest = ttk.Frame(card_act, relief="solid", borderwidth=1, padding=8)
+        box_manifest.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(box_manifest, text="Output Directory: projects/<project>/stl/", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        ttk.Label(box_manifest, text="• Body Parts: Guitar_Top.stl & Guitar_Bottom.stl (ready for slicer build plate)").pack(anchor="w", padx=(8, 0))
+        ttk.Label(box_manifest, text="• Hardware & Electronics: Backplate.stl & Elec_Backplate.stl").pack(anchor="w", padx=(8, 0))
+        ttk.Label(box_manifest, text="• Locator Pins: 4x 6mm tapered alignment pins").pack(anchor="w", padx=(8, 0))
+        ttk.Label(box_manifest, text="• Neck Components: Modular neck shaft, fretboard, frets, nut, and tuners").pack(anchor="w", padx=(8, 0))
+
+        btn_gen = ttk.Button(
+            card_act,
+            text="⚡  Generate All 3D Print STLs",
+            style="Action.TButton",
+            command=self._action_generate_stls
         )
-        sp_diam.grid(row=0, column=1, sticky="w", padx=(6, 4), pady=3)
-        ttk.Label(params_grid, text="mm (Default: 6.0 mm)").grid(row=0, column=2, sticky="w", pady=3)
+        btn_gen.pack(fill="x", ipady=4, pady=(0, 6))
 
-        ttk.Label(params_grid, text="Pin Length:").grid(row=1, column=0, sticky="w", pady=3)
-        sp_len = ttk.Spinbox(
-            params_grid, 
-            from_=8.0, 
-            to=35.0, 
-            increment=1.0, 
-            textvariable=self.var_pin_length, 
-            width=8,
-            command=self._update_command_preview
+        btn_open_stl = ttk.Button(
+            card_act,
+            text="📁  Open STLs Folder in Explorer",
+            command=self._open_stl_folder
         )
-        sp_len.grid(row=1, column=1, sticky="w", padx=(6, 4), pady=3)
-        ttk.Label(params_grid, text="mm (Default: 16.0 mm, 8mm per side)").grid(row=1, column=2, sticky="w", pady=3)
+        btn_open_stl.pack(fill="x")
 
-        lbl_clearance = ttk.Label(
-            self.card_pins,
-            text="ℹ Holes are subtracted with +0.4mm diametral clearance and +1mm depth relief\n"
-                 "   to allow epoxy flow and ensure joint faces sit completely flush.\n"
-                 "ℹ Automatically generates and exports matching 'locator_pin.stl'.",
-            font=("Segoe UI", 8),
-            foreground="#2563eb"
-        )
-        lbl_clearance.pack(anchor="w", padx=4, pady=(6, 0))
+    def _action_generate_stls(self):
+        """Runs complete STL generation pipeline for active project."""
+        self._action_save_project()
+        cmd = [
+            sys.executable,
+            "guitar_builder.py",
+            "--project", self.active_project_dir,
+            "--generate"
+        ]
+        if self.var_no_cut.get():
+            cmd.append("--no-cut")
+        else:
+            cmd.extend(["--cut-type", self.var_cut_type.get()])
+            if not self.var_enable_pins.get():
+                cmd.append("--no-pins")
+            else:
+                cmd.extend(["--pin-diameter", str(self.var_pin_diameter.get()), "--pin-length", str(self.var_pin_length.get())])
 
-        # Right Column: Execution & Export Options
-        right_col = ttk.Frame(container)
-        right_col.pack(side="right", fill="both", expand=True, padx=(8, 0))
+        self._start_subprocess(cmd, "Generating All 3D Printable STLs for Project...")
 
-        # Card: Hardware & Electronics Variants
-        card_variants = ttk.LabelFrame(right_col, text=" Hardware, Electronics & Neck Setup ", padding=10)
-        card_variants.pack(fill="x", pady=(0, 6))
-
-        v_grid = ttk.Frame(card_variants)
-        v_grid.pack(fill="x")
-
-        ttk.Label(v_grid, text="Hardware:").grid(row=0, column=0, sticky="w", pady=3)
-        self.combo_hardware = ttk.Combobox(v_grid, textvariable=self.var_hardware, width=16, state="readonly")
-        self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=3)
-        self.combo_hardware.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(v_grid, text="Electronics:").grid(row=1, column=0, sticky="w", pady=3)
-        self.combo_electronics = ttk.Combobox(v_grid, textvariable=self.var_electronics, width=16, state="readonly")
-        self.combo_electronics.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=3)
-        self.combo_electronics.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(v_grid, text="Neck Style:").grid(row=2, column=0, sticky="w", pady=3)
-        self.combo_neck = ttk.Combobox(v_grid, textvariable=self.var_neck, values=["auto", "strat", "les_paul"], width=16, state="readonly")
-        self.combo_neck.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=3)
-        self.combo_neck.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        lbl_var_note = ttk.Label(
-            card_variants,
-            text="ℹ Hardware 'piezo' omits backplate (self-contained cavity).\n"
-                 "ℹ Neck 'auto' resolves style from active profile (Strat / Les Paul).",
-            font=("Segoe UI", 8),
-            foreground="#475569"
-        )
-        lbl_var_note.pack(anchor="w", pady=(4, 0))
-
-        card_export = ttk.LabelFrame(right_col, text=" Slicing Scope & Export ", padding=10)
-        card_export.pack(fill="x", pady=(0, 6))
-
-        chk_nocut = ttk.Checkbutton(
-            card_export, 
-            text="Export Uncut Full Body Only (--no-cut)", 
-            variable=self.var_no_cut,
-            command=self._update_command_preview
-        )
-        chk_nocut.pack(anchor="w", pady=(0, 4))
-
-        lbl_export_info = ttk.Label(
-            card_export,
-            text="When slicing is enabled, the model is split into 8 printable components:\n"
-                 "  • Guitar_Bot_Left, Guitar_Bot_Right\n"
-                 "  • Guitar_Mid_Left, Guitar_Mid, Guitar_Mid_Right\n"
-                 "  • Guitar_Top_Left, Guitar_Top_Mid, Guitar_Top_Right\n"
-                 "  • locator_pin.stl (printable registration pin)",
-            font=("Segoe UI", 8),
-            foreground="#475569"
-        )
-        lbl_export_info.pack(anchor="w", pady=(0, 6))
-
-        # Action Buttons Box
-        card_actions = ttk.LabelFrame(right_col, text=" Actions & Pipeline Execution ", padding=10)
-        card_actions.pack(fill="x", pady=(0, 6))
-
-        btn_build_slice = ttk.Button(
-            card_actions, 
-            text="▶  Build & Slice Guitar Body", 
-            style="Success.TButton", 
-            command=self._action_build_and_slice
-        )
-        btn_build_slice.pack(fill="x", pady=(0, 5), ipady=3)
-
-        btn_mesh_only = ttk.Button(
-            card_actions, 
-            text="⚡  Generate Base Mesh Only (--generate)", 
-            command=self._action_generate_mesh_only
-        )
-        btn_mesh_only.pack(fill="x", pady=(0, 5))
-
-        btn_open_out = ttk.Button(
-            card_actions, 
-            text="📁  Open Output Folder", 
-            command=self._open_current_output_dir
-        )
-        btn_open_out.pack(fill="x", pady=(0, 5))
-
-        btn_scad = ttk.Button(
-            card_actions, 
-            text="🛠  Recompile OpenSCAD STLs", 
-            command=self._action_compile_scad
-        )
-        btn_scad.pack(fill="x")
-
-    def _on_cut_type_changed(self):
-        """Update pin card availability when cut type switches."""
-        is_flat = (self.var_cut_type.get() == "flat")
-        state = "normal" if is_flat else "disabled"
-        for child in self.card_pins.winfo_children():
-            try:
-                child.configure(state=state)
-            except Exception:
-                pass
-        self._update_command_preview()
+    def _open_stl_folder(self):
+        if self.active_project_dir:
+            stl_dir = os.path.join(self.active_project_dir, "stl")
+            self._open_folder(stl_dir)
 
     # =========================================================================
-    # TAB 2: Photo Studio (Rendering)
+    # TAB 4: Project Gallery
     # =========================================================================
-    def _build_tab_rendering(self):
-        scroll = ScrollableFrame(self.tab_rendering)
+    def _build_tab_gallery(self):
+        scroll = ScrollableFrame(self.tab_gallery)
         scroll.pack(fill="both", expand=True)
         container = scroll.scrollable_content
 
-        left_col = ttk.Frame(container)
-        left_col.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        bar = ttk.Frame(container)
+        bar.pack(fill="x", pady=(0, 8))
 
-        # Card 1: Assembly & Views
-        card_views = ttk.LabelFrame(left_col, text=" Assembly & Camera Views ", padding=10)
-        card_views.pack(fill="x", pady=(0, 6))
+        ttk.Button(bar, text="↻ Refresh Gallery", command=self._refresh_gallery).pack(side="left", padx=(0, 6))
+        ttk.Button(bar, text="📁 Open Renders Folder", command=self._open_project_renders_folder).pack(side="left")
 
-        chk_uncut_render = ttk.Checkbutton(
-            card_views, 
-            text="Render Uncut Body (Guitar_Full_Body.stl) (--uncut)", 
-            variable=self.var_render_uncut,
-            command=self._update_command_preview
-        )
-        chk_uncut_render.pack(anchor="w", pady=(0, 4))
-
-        chk_body_only = ttk.Checkbutton(
-            card_views, 
-            text="Body Only (Exclude Neck & Backplates) (--body-only)", 
-            variable=self.var_body_only,
-            command=self._update_command_preview
-        )
-        chk_body_only.pack(anchor="w", pady=(0, 4))
-
-        chk_explode = ttk.Checkbutton(
-            card_views, 
-            text="Exploded View (Spaced along X/Y seams) (--exploded-body)", 
-            variable=self.var_exploded_body,
-            command=self._update_command_preview
-        )
-        chk_explode.pack(anchor="w", pady=(0, 8))
-
-        view_grid = ttk.Frame(card_views)
-        view_grid.pack(fill="x", pady=(0, 4))
-
-        ttk.Label(view_grid, text="Camera Angle:").grid(row=0, column=0, sticky="w", pady=4)
-        combo_angle = ttk.Combobox(
-            view_grid, 
-            textvariable=self.var_angle, 
-            values=["all", "front", "back", "angled"], 
-            width=14, 
-            state="readonly"
-        )
-        combo_angle.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_angle.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(view_grid, text="Dynamic Zoom:").grid(row=1, column=0, sticky="w", pady=4)
-        ttk.Checkbutton(view_grid, text="Tight Framing", variable=self.var_dynamic_zoom, command=self._update_command_preview).grid(row=1, column=1, sticky="w", padx=(6, 0), pady=4)
-
-        ttk.Label(view_grid, text="Custom Pitch (°):").grid(row=2, column=0, sticky="w", pady=4)
-        ttk.Entry(view_grid, textvariable=self.var_pitch, width=15).grid(row=2, column=1, sticky="w", padx=(6, 0), pady=4)
-
-        ttk.Label(view_grid, text="Guitar Rot (X,Y,Z):").grid(row=3, column=0, sticky="w", pady=4)
-        ttk.Entry(view_grid, textvariable=self.var_guitar_rot, width=15).grid(row=3, column=1, sticky="w", padx=(6, 0), pady=4)
-
-        # Right Column: Materials & Lighting
-        right_col = ttk.Frame(container)
-        right_col.pack(side="right", fill="both", expand=True, padx=(8, 0))
-
-        card_mats = ttk.LabelFrame(right_col, text=" Materials & Lighting Theme ", padding=12)
-        card_mats.pack(fill="x", pady=(0, 10))
-
-        mat_grid = ttk.Frame(card_mats)
-        mat_grid.pack(fill="x")
-
-        ttk.Label(mat_grid, text="Render Engine:").grid(row=0, column=0, sticky="w", pady=4)
-        combo_engine = ttk.Combobox(
-            mat_grid, 
-            textvariable=self.var_engine, 
-            values=["eevee", "cycles"], 
-            width=18, 
-            state="readonly"
-        )
-        combo_engine.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_engine.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(mat_grid, text="Lighting Theme:").grid(row=1, column=0, sticky="w", pady=4)
-        combo_light = ttk.Combobox(
-            mat_grid, 
-            textvariable=self.var_lighting, 
-            values=["studio", "dramatic", "warm", "sunset"], 
-            width=18, 
-            state="readonly"
-        )
-        combo_light.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_light.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(mat_grid, text="Body Material:").grid(row=2, column=0, sticky="w", pady=4)
-        body_mats = [
-            "gloss", "gloss:candy_red", "gloss:blue", "gloss:black", "gloss:white",
-            "gold", "chrome", "silver", "glass", "glass:blue",
-            "sunburst", "sunburst:yellow:red:black", "sparkle:blue:silver",
-            "striped", "random"
-        ]
-        combo_bmat = ttk.Combobox(mat_grid, textvariable=self.var_material, values=body_mats, width=18)
-        combo_bmat.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_bmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-        combo_bmat.bind("<KeyRelease>", lambda e: self._update_command_preview())
-
-        ttk.Label(mat_grid, text="Backplate Material:").grid(row=3, column=0, sticky="w", pady=4)
-        back_mats = ["gloss:black", "gloss:white", "chrome", "gold", "gloss:red"]
-        combo_bkmat = ttk.Combobox(mat_grid, textvariable=self.var_material_back, values=back_mats, width=18)
-        combo_bkmat.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_bkmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        wood_mats = ["maple", "rosewood", "ebony"]
-        ttk.Label(mat_grid, text="Main Neck Wood:").grid(row=4, column=0, sticky="w", pady=4)
-        combo_nmat = ttk.Combobox(mat_grid, textvariable=self.var_neck_material, values=wood_mats, width=18, state="readonly")
-        combo_nmat.grid(row=4, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_nmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(mat_grid, text="Fretboard Wood:").grid(row=5, column=0, sticky="w", pady=4)
-        combo_fbmat = ttk.Combobox(mat_grid, textvariable=self.var_fretboard_material, values=wood_mats, width=18, state="readonly")
-        combo_fbmat.grid(row=5, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_fbmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(mat_grid, text="Tuner Finish:").grid(row=6, column=0, sticky="w", pady=4)
-        tuner_finishes = ["chrome", "gold", "black"]
-        combo_tuner = ttk.Combobox(mat_grid, textvariable=self.var_tuner_finish, values=tuner_finishes, width=18, state="readonly")
-        combo_tuner.grid(row=6, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_tuner.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-
-        ttk.Label(mat_grid, text="Random Seed:").grid(row=7, column=0, sticky="w", pady=4)
-        ttk.Entry(mat_grid, textvariable=self.var_seed, width=12).grid(row=7, column=1, sticky="w", padx=(6, 0), pady=4)
-
-        ttk.Checkbutton(
-            card_mats, 
-            text="Generate Turntable Animation (--animate)", 
-            variable=self.var_animate, 
-            command=self._update_command_preview
-        ).pack(anchor="w", pady=(8, 4))
-
-        ttk.Checkbutton(
-            card_mats, 
-            text="Save Completed .blend Scene (--save-blend)", 
-            variable=self.var_save_blend, 
-            command=self._update_command_preview
-        ).pack(anchor="w", pady=(0, 4))
-
-        # Render Button Card
-        card_render_act = ttk.LabelFrame(right_col, text=" Launch Studio ", padding=12)
-        card_render_act.pack(fill="x")
-
-        btn_run_render = ttk.Button(
-            card_render_act, 
-            text="🎨  Render Images in Background", 
-            style="Primary.TButton", 
-            command=self._action_render
-        )
-        btn_run_render.pack(fill="x", ipady=4, pady=(0, 6))
-
-        btn_view_renders = ttk.Button(
-            card_render_act, 
-            text="🖼  Open Renders Folder", 
-            command=self._open_renders_folder
-        )
-        btn_view_renders.pack(fill="x")
-
-    # =========================================================================
-    # TAB 3: Configuration Parameters Editor
-    # =========================================================================
-    def _build_tab_config_editor(self):
-        container = ttk.Frame(self.tab_config_editor)
-        container.pack(fill="both", expand=True)
-
-        toolbar = ttk.Frame(container)
-        toolbar.pack(fill="x", pady=(0, 8))
-
-        ttk.Label(toolbar, text="Profile Parameters:", font=("Segoe UI", 10, "bold")).pack(side="left")
-        ttk.Button(toolbar, text="💾 Save Changes", command=self._save_current_config).pack(side="right", padx=(4, 0))
-        ttk.Button(toolbar, text="Save As New...", command=self._save_config_as).pack(side="right", padx=(4, 0))
-        ttk.Button(toolbar, text="⟲ Reload Profile", command=self._load_current_config_into_editor).pack(side="right")
-
-        # Treeview / Table for JSON parameters
-        table_frame = ttk.Frame(container)
-        table_frame.pack(fill="both", expand=True)
-
-        columns = ("key", "value")
-        self.param_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
-        self.param_tree.heading("key", text="Parameter Name")
-        self.param_tree.heading("value", text="Value")
-        self.param_tree.column("key", width=300, anchor="w")
-        self.param_tree.column("value", width=180, anchor="w")
-
-        tree_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.param_tree.yview)
-        self.param_tree.configure(yscrollcommand=tree_scroll.set)
-
-        self.param_tree.pack(side="left", fill="both", expand=True)
-        tree_scroll.pack(side="right", fill="y")
-
-        # Edit box beneath table
-        edit_box = ttk.Frame(container, padding=(0, 8, 0, 0))
-        edit_box.pack(fill="x")
-        ttk.Label(edit_box, text="Selected Param:").pack(side="left", padx=(0, 6))
-        self.ent_param_name = ttk.Entry(edit_box, width=28, state="readonly")
-        self.ent_param_name.pack(side="left", padx=(0, 8))
-        ttk.Label(edit_box, text="New Value:").pack(side="left", padx=(0, 6))
-        self.ent_param_val = ttk.Entry(edit_box, width=16)
-        self.ent_param_val.pack(side="left", padx=(0, 8))
-        ttk.Button(edit_box, text="Apply Edit", command=self._apply_param_edit).pack(side="left")
-
-        self.param_tree.bind("<<TreeviewSelect>>", self._on_param_row_selected)
-
-    def _on_param_row_selected(self, event):
-        selected = self.param_tree.selection()
-        if selected:
-            item = self.param_tree.item(selected[0])
-            key, val = item["values"]
-            self.ent_param_name.configure(state="normal")
-            self.ent_param_name.delete(0, tk.END)
-            self.ent_param_name.insert(0, str(key))
-            self.ent_param_name.configure(state="readonly")
-
-            self.ent_param_val.delete(0, tk.END)
-            self.ent_param_val.insert(0, str(val))
-
-    def _apply_param_edit(self):
-        selected = self.param_tree.selection()
-        if not selected:
-            return
-        key = self.ent_param_name.get().strip()
-        new_val_str = self.ent_param_val.get().strip()
-        try:
-            # Try parsing as float or int or bool
-            if new_val_str.lower() in ["true", "false"]:
-                new_val = (new_val_str.lower() == "true")
-            elif "." in new_val_str:
-                new_val = float(new_val_str)
-            else:
-                new_val = int(new_val_str)
-        except ValueError:
-            new_val = new_val_str
-
-        self.param_tree.item(selected[0], values=(key, new_val))
-
-    def _load_current_config_into_editor(self):
-        config_name = self.var_config.get().strip()
-        config_path = os.path.join(self.config_dir, f"{config_name}.json")
-        if not os.path.exists(config_path):
-            return
-
-        for item in self.param_tree.get_children():
-            self.param_tree.delete(item)
-
-        try:
-            with open(config_path, "r") as f:
-                data = json.load(f)
-            for k, v in data.items():
-                self.param_tree.insert("", "end", values=(k, v))
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load config file: {e}")
-
-    def _save_current_config(self):
-        config_name = self.var_config.get().strip()
-        config_path = os.path.join(self.config_dir, f"{config_name}.json")
-        self._write_tree_to_json(config_path)
-        messagebox.showinfo("Saved", f"Profile '{config_name}.json' saved successfully!")
-
-    def _save_config_as(self):
-        new_name = filedialog.asksaveasfilename(
-            initialdir=self.config_dir,
-            title="Save Profile As",
-            filetypes=[("JSON Files", "*.json")],
-            defaultextension=".json"
-        )
-        if new_name:
-            self._write_tree_to_json(new_name)
-            self._refresh_config_list()
-            base_name = os.path.splitext(os.path.basename(new_name))[0]
-            self.var_config.set(base_name)
-            messagebox.showinfo("Saved", f"Profile '{base_name}' created successfully!")
-
-    def _write_tree_to_json(self, filepath):
-        data = {}
-        for child in self.param_tree.get_children():
-            k, v = self.param_tree.item(child)["values"]
-            try:
-                if str(v).lower() in ["true", "false"]:
-                    data[k] = (str(v).lower() == "true")
-                elif "." in str(v):
-                    data[k] = float(v)
-                else:
-                    data[k] = int(v)
-            except ValueError:
-                data[k] = v
-        with open(filepath, "w") as f:
-            json.dump(data, f, indent=4)
-
-    # =========================================================================
-    # TAB 4: Render Gallery
-    # =========================================================================
-    def _build_tab_gallery(self):
-        container = ttk.Frame(self.tab_gallery)
-        container.pack(fill="both", expand=True)
-
-        toolbar = ttk.Frame(container)
-        toolbar.pack(fill="x", pady=(0, 8))
-
-        ttk.Label(toolbar, text="Render Output Previews:", font=("Segoe UI", 10, "bold")).pack(side="left")
-        ttk.Button(toolbar, text="↻ Refresh Previews", command=self._refresh_gallery).pack(side="right")
-        ttk.Button(toolbar, text="📁 Open Renders Folder", command=self._open_renders_folder).pack(side="right", padx=(0, 6))
-
-        # Scrollable Frame for image previews
-        scroll = ScrollableFrame(container)
-        scroll.pack(fill="both", expand=True)
-        self.gallery_frame = scroll.scrollable_content
-        self.gallery_images = []  # Keep references to avoid garbage collection
-
-        self.lbl_no_renders = ttk.Label(
-            self.gallery_frame, 
-            text="No renders found for active profile.\nLaunch a render from the Photo Studio tab to view images here.",
-            font=("Segoe UI", 11),
-            foreground="#64748b",
-            justify="center"
-        )
-        self.lbl_no_renders.pack(expand=True)
+        self.gallery_frame = ttk.Frame(container)
+        self.gallery_frame.pack(fill="both", expand=True)
 
     def _refresh_gallery(self):
-        # Clear existing images
         for widget in self.gallery_frame.winfo_children():
             widget.destroy()
         self.gallery_images.clear()
 
-        config_name = self.var_config.get().strip()
-        renders_dir = os.path.join(self.output_dir, config_name, "renders")
+        if not self.active_project_dir:
+            return
 
+        renders_dir = os.path.join(self.active_project_dir, "renders")
         if not os.path.exists(renders_dir):
-            lbl = ttk.Label(self.gallery_frame, text=f"No renders folder found at:\n{renders_dir}", justify="center", foreground="#64748b")
-            lbl.pack(expand=True)
+            ttk.Label(self.gallery_frame, text=f"No renders folder found for this project.", foreground="#64748b").pack(pady=20)
             return
 
-        png_files = [f for f in os.listdir(renders_dir) if f.lower().endswith(".png")]
+        png_files = [f for f in sorted(os.listdir(renders_dir)) if f.lower().endswith(".png")]
         if not png_files:
-            lbl = ttk.Label(self.gallery_frame, text=f"No PNG render images found in:\n{renders_dir}", justify="center", foreground="#64748b")
-            lbl.pack(expand=True)
+            ttk.Label(self.gallery_frame, text="No render images generated yet.\nUse Step 2 (Visuals & Finish) to render.", foreground="#64748b").pack(pady=20)
             return
 
-        # Display images in a grid
-        row_frame = ttk.Frame(self.gallery_frame)
-        row_frame.pack(fill="both", expand=True)
+        grid_box = ttk.Frame(self.gallery_frame)
+        grid_box.pack(fill="both", expand=True)
 
         col = 0
         row = 0
@@ -849,12 +798,11 @@ class GuitarBuilderGUI:
             full_path = os.path.join(renders_dir, png)
             try:
                 raw_img = tk.PhotoImage(file=full_path)
-                # Subsample for thumbnail (around 4x to 5x downscale)
                 sub_factor = max(1, raw_img.width() // 320)
                 thumb = raw_img.subsample(sub_factor, sub_factor)
                 self.gallery_images.append(thumb)
 
-                card = ttk.Frame(row_frame, relief="solid", borderwidth=1, padding=6)
+                card = ttk.Frame(grid_box, relief="solid", borderwidth=1, padding=6)
                 card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
 
                 lbl_img = tk.Label(card, image=thumb, bg="#ffffff", cursor="hand2")
@@ -869,10 +817,10 @@ class GuitarBuilderGUI:
                     col = 0
                     row += 1
             except Exception as e:
-                print(f"Error loading thumbnail for {png}: {e}")
+                print(f"Error loading gallery thumbnail: {e}")
 
     # =========================================================================
-    # Bottom Console / Log Area
+    # Console / Log Area
     # =========================================================================
     def _build_console_area(self, parent=None):
         target_parent = parent if parent is not None else self.root
@@ -894,15 +842,14 @@ class GuitarBuilderGUI:
         self.btn_toggle_console = ttk.Button(header_bar, text="▾ Minimize", width=11, command=self._toggle_console)
         self.btn_toggle_console.pack(side="right")
 
-        # Text Console with Scrollbar (compact height so top section expands)
         self.console_body = ttk.Frame(console_container)
         self.console_body.pack(fill="both", expand=True)
 
         self.txt_console = tk.Text(
-            self.console_body, 
-            height=4, 
-            bg="#0f172a", 
-            fg="#f8fafc", 
+            self.console_body,
+            height=4,
+            bg="#0f172a",
+            fg="#f8fafc",
             insertbackground="#38bdf8",
             font=("Consolas", 9),
             wrap="word",
@@ -927,111 +874,257 @@ class GuitarBuilderGUI:
             self.console_collapsed = True
 
     # =========================================================================
-    # Command Construction & Execution
+    # Project Management Methods
+    # =========================================================================
+    def _init_projects(self):
+        """Discovers existing projects or creates a default project."""
+        models = self.project_manager.get_body_models()
+        self.combo_body_model["values"] = models
+
+        # Scan hardware variants
+        hw_base = os.path.join(self.repo_dir, "models", "scad", "hardware")
+        hw_variants = [d for d in sorted(os.listdir(hw_base)) if os.path.isdir(os.path.join(hw_base, d))] if os.path.exists(hw_base) else ["standard", "piezo"]
+        self.combo_hardware["values"] = hw_variants
+
+        # Scan electronics variants
+        elec_base = os.path.join(self.repo_dir, "models", "scad", "electronics")
+        elec_variants = ["auto"]
+        if os.path.exists(elec_base):
+            elec_variants += [d for d in sorted(os.listdir(elec_base)) if os.path.isdir(os.path.join(elec_base, d))]
+        else:
+            elec_variants += ["sarcaster", "flying_v", "les_paul"]
+        self.combo_electronics["values"] = elec_variants
+
+        projects = self.project_manager.list_projects()
+        if not projects:
+            pdir, pdata = self.project_manager.create_project("Default_Sarcaster", "sarcaster")
+            projects = [os.path.basename(pdir)]
+
+        self.combo_project["values"] = projects
+        self.combo_project.set(projects[0])
+        self._load_project(projects[0])
+
+    def _on_project_selected(self, event=None):
+        name = self.active_project_name.get().strip()
+        if name:
+            self._load_project(name)
+
+    def _load_project(self, name_or_path):
+        """Loads a project and updates all GUI fields."""
+        try:
+            self.active_project_dir = self.project_manager.resolve_project_dir(name_or_path)
+            self.active_project_data = self.project_manager.load_project(self.active_project_dir)
+            self.active_project_name.set(os.path.basename(self.active_project_dir))
+
+            # 1. Spec
+            body_model = self.active_project_data.get("body_model", "sarcaster")
+            self.var_body_model.set(body_model)
+            dims = self.active_project_data.get("body_dimensions", {})
+            self._populate_dims_table(dims)
+
+            neck = self.active_project_data.get("neck", {})
+            self.var_neck.set(neck.get("style", "auto"))
+            self.var_neck_material.set(neck.get("shaft_material", "maple"))
+            self.var_fretboard_material.set(neck.get("fretboard_material", "rosewood"))
+            self.var_tuner_finish.set(neck.get("tuner_finish", "chrome"))
+
+            hw = self.active_project_data.get("hardware", {})
+            self.var_hardware.set(hw.get("variant", "standard"))
+            self.var_electronics.set(hw.get("electronics", "auto"))
+
+            # 2. Visuals
+            vis = self.active_project_data.get("visuals", {})
+            self.var_material.set(vis.get("body_material", "sunburst"))
+            self.var_material_back.set(vis.get("backplate_material", "gloss:black"))
+            self.var_lighting.set(vis.get("lighting", "studio"))
+            self.var_engine.set(vis.get("engine", "eevee"))
+            self.var_preview_angle.set(vis.get("angle", "angled"))
+            self.var_animate.set(vis.get("animate", False))
+            self.var_dynamic_zoom.set(vis.get("dynamic_zoom", True))
+            seed = vis.get("seed", "")
+            self.var_seed.set(str(seed) if seed is not None else "")
+
+            # 3. Slicing
+            sl = self.active_project_data.get("slicing", {})
+            self.var_cut_type.set(sl.get("cut_type", "textured"))
+            self.var_enable_pins.set(not sl.get("no_pins", False))
+            self.var_pin_diameter.set(float(sl.get("pin_diameter", 6.0)))
+            self.var_pin_length.set(float(sl.get("pin_length", 16.0)))
+            self.var_no_cut.set(sl.get("no_cut", False))
+
+            self._update_command_preview()
+            self._load_project_preview_image()
+            self._refresh_gallery()
+            self.lbl_status.configure(text=f"Loaded Project: {self.active_project_name.get()}", foreground="#0f172a")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load project: {e}")
+
+    def _populate_dims_table(self, dims):
+        for item in self.param_tree.get_children():
+            self.param_tree.delete(item)
+        for k, v in dims.items():
+            self.param_tree.insert("", "end", values=(k, v))
+
+    def _action_save_project(self):
+        """Pulls current GUI variables into active_project_data and saves project.json."""
+        if not self.active_project_dir:
+            return
+
+        self.active_project_data["body_model"] = self.var_body_model.get().strip()
+
+        # Neck
+        self.active_project_data["neck"] = {
+            "style": self.var_neck.get().strip(),
+            "shaft_material": self.var_neck_material.get().strip(),
+            "fretboard_material": self.var_fretboard_material.get().strip(),
+            "tuner_finish": self.var_tuner_finish.get().strip()
+        }
+
+        # Hardware
+        self.active_project_data["hardware"] = {
+            "variant": self.var_hardware.get().strip(),
+            "electronics": self.var_electronics.get().strip()
+        }
+
+        # Visuals
+        seed_str = self.var_seed.get().strip()
+        try:
+            seed_val = int(seed_str) if seed_str else None
+        except ValueError:
+            seed_val = None
+
+        self.active_project_data["visuals"] = {
+            "body_material": self.var_material.get().strip(),
+            "backplate_material": self.var_material_back.get().strip(),
+            "lighting": self.var_lighting.get().strip(),
+            "engine": self.var_engine.get().strip(),
+            "angle": self.var_preview_angle.get().strip(),
+            "animate": self.var_animate.get(),
+            "dynamic_zoom": self.var_dynamic_zoom.get(),
+            "seed": seed_val
+        }
+
+        # Slicing
+        self.active_project_data["slicing"] = {
+            "cut_type": self.var_cut_type.get().strip(),
+            "pin_diameter": self.var_pin_diameter.get(),
+            "pin_length": self.var_pin_length.get(),
+            "no_pins": not self.var_enable_pins.get(),
+            "no_cut": self.var_no_cut.get()
+        }
+
+        try:
+            self.project_manager.save_project(self.active_project_dir, self.active_project_data)
+            self.lbl_status.configure(text=f"Project Saved: {self.active_project_name.get()}", foreground="#16a34a")
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Failed to save project: {e}")
+
+    def _action_new_project(self):
+        """Opens modal dialog to create a new project."""
+        dlg = tk.Toplevel(self.root)
+        dlg.title("New Guitar Project")
+        dlg.geometry("380x200")
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        ttk.Label(dlg, text="Create New Guitar Project", font=("Segoe UI", 11, "bold")).pack(pady=(14, 12))
+
+        f = ttk.Frame(dlg, padding=12)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text="Project Name:").grid(row=0, column=0, sticky="w", pady=6)
+        ent_name = ttk.Entry(f, width=22)
+        ent_name.insert(0, "My_Guitar")
+        ent_name.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=6)
+        ent_name.focus()
+
+        ttk.Label(f, text="Base Body Style:").grid(row=1, column=0, sticky="w", pady=6)
+        combo_b = ttk.Combobox(f, values=self.project_manager.get_body_models(), width=20, state="readonly")
+        combo_b.set("sarcaster")
+        combo_b.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=6)
+
+        def on_create():
+            name = ent_name.get().strip()
+            if not name:
+                messagebox.showwarning("Name Required", "Please enter a valid project name.")
+                return
+            body_model = combo_b.get().strip()
+            pdir, pdata = self.project_manager.create_project(name, body_model)
+            dlg.destroy()
+
+            # Refresh list
+            projects = self.project_manager.list_projects()
+            self.combo_project["values"] = projects
+            safe_name = os.path.basename(pdir)
+            self.combo_project.set(safe_name)
+            self._load_project(safe_name)
+
+        btn_box = ttk.Frame(dlg, padding=10)
+        btn_box.pack(fill="x")
+        ttk.Button(btn_box, text="Create Project", style="Primary.TButton", command=on_create).pack(side="right", padx=(4, 0))
+        ttk.Button(btn_box, text="Cancel", command=dlg.destroy).pack(side="right")
+
+    def _action_save_project_as(self):
+        """Duplicates current project with a new name."""
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Save Project As")
+        dlg.geometry("360x160")
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        ttk.Label(dlg, text="Duplicate Project As New Variant", font=("Segoe UI", 10, "bold")).pack(pady=(14, 10))
+        f = ttk.Frame(dlg, padding=12)
+        f.pack(fill="x")
+
+        ttk.Label(f, text="New Project Name:").pack(side="left", padx=(0, 6))
+        ent = ttk.Entry(f, width=22)
+        ent.insert(0, f"{self.active_project_name.get()}_copy")
+        ent.pack(side="left")
+        ent.focus()
+
+        def on_duplicate():
+            new_name = ent.get().strip()
+            if not new_name:
+                return
+            new_dir, new_data = self.project_manager.duplicate_project(self.active_project_dir, new_name)
+            dlg.destroy()
+            projects = self.project_manager.list_projects()
+            self.combo_project["values"] = projects
+            safe_name = os.path.basename(new_dir)
+            self.combo_project.set(safe_name)
+            self._load_project(safe_name)
+
+        btn_box = ttk.Frame(dlg, padding=10)
+        btn_box.pack(fill="x")
+        ttk.Button(btn_box, text="Duplicate", style="Primary.TButton", command=on_duplicate).pack(side="right", padx=(4, 0))
+        ttk.Button(btn_box, text="Cancel", command=dlg.destroy).pack(side="right")
+
+    def _on_body_model_selected(self, event=None):
+        model = self.var_body_model.get().strip()
+        dims = self.project_manager.get_default_body_dimensions(model)
+        self.active_project_data["body_model"] = model
+        self.active_project_data["body_dimensions"] = dims
+        self._populate_dims_table(dims)
+
+        # Auto-recommend neck style
+        if "strat" in model or "sarcaster" in model:
+            self.var_neck.set("strat")
+            self.var_electronics.set("sarcaster")
+        elif "les_paul" in model or "sg" in model or "single_cut" in model:
+            self.var_neck.set("les_paul")
+            self.var_electronics.set("les_paul")
+        elif "flying_v" in model or "sarcy_v" in model:
+            self.var_electronics.set("flying_v")
+
+        self._update_command_preview()
+
+    # =========================================================================
+    # Subprocess Execution & Command Preview
     # =========================================================================
     def _update_command_preview(self):
         """Construct the exact CLI argument string based on active options."""
-        cmd = [sys.executable, "guitar_builder.py"]
-
-        config_name = self.var_config.get().strip()
-        if config_name and config_name != "default":
-            cmd.append(config_name)
-
-        # Slicing options
-        if self.var_no_cut.get():
-            cmd.append("--no-cut")
-        else:
-            cut_type = self.var_cut_type.get()
-            if cut_type != "flat":
-                cmd.extend(["--cut-type", cut_type])
-
-            if cut_type == "flat":
-                if not self.var_enable_pins.get():
-                    cmd.append("--no-pins")
-                else:
-                    diam = self.var_pin_diameter.get()
-                    length = self.var_pin_length.get()
-                    if diam != 6.0:
-                        cmd.extend(["--pin-diameter", str(diam)])
-                    if length != 16.0:
-                        cmd.extend(["--pin-length", str(length)])
-
-        # Hardware & Electronics variants
-        hw = self.var_hardware.get().strip()
-        if hw and hw != "standard":
-            cmd.extend(["--hardware", hw])
-
-        elec = self.var_electronics.get().strip()
-        if elec and elec != "auto":
-            cmd.extend(["--electronics", elec])
-
-        neck = self.var_neck.get().strip()
-        if neck and neck != "auto":
-            cmd.extend(["--neck", neck])
-
-        # Rendering options
-        if self.var_render_pipeline.get():
-            cmd.append("--render")
-            if self.var_render_uncut.get():
-                cmd.append("--uncut")
-            if self.var_body_only.get():
-                cmd.append("--body-only")
-            if self.var_exploded_body.get():
-                cmd.append("--exploded-body")
-
-            neck_mat = self.var_neck_material.get().strip()
-            if neck_mat and neck_mat != "maple":
-                cmd.extend(["--neck-material", neck_mat])
-
-            fb_mat = self.var_fretboard_material.get().strip()
-            if fb_mat and fb_mat != "rosewood":
-                cmd.extend(["--fretboard-material", fb_mat])
-
-            tuner_finish = self.var_tuner_finish.get().strip()
-            if tuner_finish and tuner_finish != "chrome":
-                cmd.extend(["--tuner-finish", tuner_finish])
-
-            angle = self.var_angle.get().strip()
-            if angle and angle != "all":
-                cmd.extend(["--angle", angle])
-
-            engine = self.var_engine.get().strip()
-            if engine != "eevee":
-                cmd.extend(["--engine", engine])
-
-            material = self.var_material.get().strip()
-            if material and material != "gloss":
-                cmd.extend(["--material", material])
-
-            material_back = self.var_material_back.get().strip()
-            if material_back and material_back != "gloss:black":
-                cmd.extend(["--material-back", material_back])
-
-            lighting = self.var_lighting.get().strip()
-            if lighting and lighting != "studio":
-                cmd.extend(["--lighting", lighting])
-
-            pitch = self.var_pitch.get().strip()
-            if pitch:
-                cmd.extend(["--pitch", pitch])
-
-            guitar_rot = self.var_guitar_rot.get().strip()
-            if guitar_rot:
-                cmd.extend(["--guitar-rot", guitar_rot])
-
-            if self.var_dynamic_zoom.get():
-                cmd.append("--dynamic-zoom")
-
-            if self.var_animate.get():
-                cmd.append("--animate")
-
-            if self.var_save_blend.get():
-                cmd.append("--save-blend")
-
-            seed = self.var_seed.get().strip()
-            if seed:
-                cmd.extend(["--seed", seed])
-
+        cmd = [sys.executable, "guitar_builder.py", "--project", self.active_project_dir or self.active_project_name.get()]
         self.var_cmd_preview.set(" ".join(cmd))
         return cmd
 
@@ -1040,32 +1133,7 @@ class GuitarBuilderGUI:
         self.root.clipboard_append(self.var_cmd_preview.get())
         messagebox.showinfo("Copied", "Command line copied to clipboard!")
 
-    def _action_build_and_slice(self):
-        """Run standard build and cut pipeline."""
-        self.var_render_pipeline.set(False)
-        cmd = self._update_command_preview()
-        self._start_subprocess(cmd, "Building and Slicing Guitar Body...")
-
-    def _action_generate_mesh_only(self):
-        """Run Stage 1 generate mesh only."""
-        config_name = self.var_config.get().strip()
-        cmd = [sys.executable, "guitar_builder.py", "--config", config_name, "--generate"]
-        self._start_subprocess(cmd, "Generating Base 3D Mesh Only...")
-
-    def _action_render(self):
-        """Run background render pipeline."""
-        self.var_render_pipeline.set(True)
-        cmd = self._update_command_preview()
-        self._start_subprocess(cmd, "Running Photo Studio Rendering...")
-
-    def _action_compile_scad(self):
-        """Run OpenSCAD STL compilation."""
-        compile_script = os.path.join(self.scripts_dir, "compile_scad.py")
-        cmd = [sys.executable, compile_script]
-        self._start_subprocess(cmd, "Compiling OpenSCAD Hardware STLs...")
-
-    def _start_subprocess(self, cmd, description):
-        """Execute a command line in a background worker thread."""
+    def _start_subprocess(self, cmd, description, on_success=None):
         if self.is_running:
             messagebox.showwarning("Busy", "A process is already running. Please wait or cancel it first.")
             return
@@ -1100,14 +1168,14 @@ class GuitarBuilderGUI:
 
                 if returncode == 0:
                     self.log_queue.put(f"\n[SUCCESS] Completed in {elapsed:.1f}s with return code 0.\n")
-                    self.root.after(0, lambda: self._on_process_complete(True))
+                    self.root.after(0, lambda: self._on_process_complete(True, on_success))
                 else:
                     self.log_queue.put(f"\n[ERROR] Process finished with error code {returncode} (in {elapsed:.1f}s).\n")
-                    self.root.after(0, lambda: self._on_process_complete(False))
+                    self.root.after(0, lambda: self._on_process_complete(False, None))
 
             except Exception as e:
                 self.log_queue.put(f"\n[CRITICAL ERROR] Failed to launch process: {e}\n")
-                self.root.after(0, lambda: self._on_process_complete(False))
+                self.root.after(0, lambda: self._on_process_complete(False, None))
             finally:
                 self.current_process = None
 
@@ -1122,12 +1190,14 @@ class GuitarBuilderGUI:
             except Exception as e:
                 self._log(f"Failed to terminate process: {e}\n")
 
-    def _on_process_complete(self, success):
+    def _on_process_complete(self, success, callback=None):
         self.is_running = False
         self.btn_cancel.configure(state="disabled")
         status_text = "Status: Completed Successfully" if success else "Status: Failed / Finished with errors"
         status_color = "#16a34a" if success else "#dc2626"
         self.lbl_status.configure(text=status_text, foreground=status_color)
+        if success and callback:
+            callback()
         self._refresh_gallery()
 
     def _process_log_queue(self):
@@ -1144,95 +1214,15 @@ class GuitarBuilderGUI:
         self.txt_console.delete("1.0", tk.END)
 
     # =========================================================================
-    # Helpers & File Operations
+    # Folder & File Helpers
     # =========================================================================
-    def _refresh_config_list(self):
-        configs = []
-        if os.path.exists(self.config_dir):
-            for f in sorted(os.listdir(self.config_dir)):
-                if f.endswith(".json") and not f.startswith("last_"):
-                    configs.append(os.path.splitext(f)[0])
+    def _open_project_folder(self):
+        if self.active_project_dir:
+            self._open_folder(self.active_project_dir)
 
-        current = self.var_config.get()
-        self.combo_config["values"] = configs
-        if current in configs:
-            self.combo_config.set(current)
-        elif configs:
-            self.combo_config.set(configs[0])
-
-        # Scan hardware variants from models/scad/hardware/
-        hw_base = os.path.join(self.repo_dir, "models", "scad", "hardware")
-        hw_variants = []
-        if os.path.exists(hw_base):
-            hw_variants = [d for d in sorted(os.listdir(hw_base)) if os.path.isdir(os.path.join(hw_base, d))]
-        if not hw_variants:
-            hw_variants = ["standard", "piezo"]
-        self.combo_hardware["values"] = hw_variants
-        if self.var_hardware.get() not in hw_variants:
-            self.var_hardware.set(hw_variants[0] if hw_variants else "standard")
-
-        # Scan electronics variants from models/scad/electronics/
-        elec_base = os.path.join(self.repo_dir, "models", "scad", "electronics")
-        elec_variants = ["auto"]
-        if os.path.exists(elec_base):
-            elec_variants += [d for d in sorted(os.listdir(elec_base)) if os.path.isdir(os.path.join(elec_base, d))]
-        else:
-            elec_variants += ["sarcaster", "flying_v", "les_paul"]
-        self.combo_electronics["values"] = elec_variants
-
-        # Scan neck variants from models/scad/neck/
-        neck_base = os.path.join(self.repo_dir, "models", "scad", "neck")
-        neck_variants = ["auto"]
-        if os.path.exists(neck_base):
-            neck_variants += [d for d in sorted(os.listdir(neck_base)) if os.path.isdir(os.path.join(neck_base, d))]
-        else:
-            neck_variants += ["strat", "les_paul"]
-        self.combo_neck["values"] = neck_variants
-
-        self._load_current_config_into_editor()
-        self._sync_variants_from_config()
-        self._update_command_preview()
-
-    def _sync_variants_from_config(self):
-        """Read default hardware and electronics variants from the active config JSON if present."""
-        cfg_name = self.var_config.get().strip()
-        cfg_path = os.path.join(self.config_dir, f"{cfg_name}.json")
-        if os.path.exists(cfg_path):
-            try:
-                with open(cfg_path, "r") as f:
-                    cdata = json.load(f)
-                if "hardware" in cdata:
-                    self.var_hardware.set(cdata["hardware"])
-                if "electronics" in cdata:
-                    self.var_electronics.set(cdata["electronics"])
-                elif "electronics" not in cdata:
-                    self.var_electronics.set("auto")
-                if "neck" in cdata:
-                    self.var_neck.set(cdata["neck"])
-                elif "neck" not in cdata:
-                    self.var_neck.set("auto")
-            except Exception:
-                pass
-
-    def _on_config_selected(self, event=None):
-        self._load_current_config_into_editor()
-        self._sync_variants_from_config()
-        self._refresh_gallery()
-        self._update_command_preview()
-
-    def _open_current_output_dir(self):
-        config_name = self.var_config.get().strip()
-        path = os.path.join(self.output_dir, config_name)
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
-        self._open_folder(path)
-
-    def _open_renders_folder(self):
-        config_name = self.var_config.get().strip()
-        path = os.path.join(self.output_dir, config_name, "renders")
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
-        self._open_folder(path)
+    def _open_project_renders_folder(self):
+        if self.active_project_dir:
+            self._open_folder(os.path.join(self.active_project_dir, "renders"))
 
     def _open_folder(self, path):
         if not os.path.exists(path):

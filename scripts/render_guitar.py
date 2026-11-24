@@ -4,6 +4,7 @@ import random
 import colorsys
 import argparse
 import math
+import shutil
 
 try:
     import bpy
@@ -1821,6 +1822,7 @@ def find_ffmpeg():
 
 def run_rendering():
     """Main rendering execution block inside Blender."""
+    import shutil
     if '--' in sys.argv:
         args_start = sys.argv.index('--') + 1
         args_to_parse = sys.argv[args_start:]
@@ -2313,6 +2315,14 @@ def run_rendering():
             
             scene.render.filepath = output_filepath
             bpy.ops.render.render(write_still=True)
+
+            if args.preview:
+                preview_filepath = os.path.join(renders_dir, "preview.png")
+                try:
+                    shutil.copyfile(output_filepath, preview_filepath)
+                    print(f"Updated live preview image at: {preview_filepath}")
+                except Exception as e:
+                    print(f"Warning: Failed to update preview.png: {e}")
             
             # Clean up the rig, restoring the meshes to their clean centered state
             cleanup_guitar_rig(rig_obj, guitar_objs)

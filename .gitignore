@@ -6,3 +6,6 @@
 debug/
 output/
 scratch/
+projects/*/renders/
+projects/*/stl/
+

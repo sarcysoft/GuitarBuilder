@@ -290,7 +290,7 @@ SEAM_PINS = [
 ]
 
 
-def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None, neck = 'auto'):
+def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None, neck = 'auto', custom_output_dir = None):
     print("Starting Scene Setup...")
     
     # Initialize progress bar
@@ -559,7 +559,9 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
             print(f"Warning: Failed to import optional neck: {e}")
 
     # Resolve output directory
-    if config_name and config_name != "default":
+    if custom_output_dir:
+        output_dir = os.path.abspath(custom_output_dir)
+    elif config_name and config_name != "default":
         output_dir = os.path.join(root_dir, "output", config_name)
     else:
         output_dir = os.path.join(root_dir, "output")
@@ -796,6 +798,7 @@ if __name__ == "__main__":
     hardware_val = None
     electronics_val = None
     neck_val = "auto"
+    custom_output_dir_val = None
     
     args = []
     if "--" in sys.argv:
@@ -809,6 +812,12 @@ if __name__ == "__main__":
         if arg in ["--no-cut", "--no_cut", "no_cut"]:
             no_cut_val = True
             i += 1
+        elif arg.startswith("--output-dir=") or arg.startswith("--output_dir="):
+            custom_output_dir_val = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--output-dir", "--output_dir"] and i + 1 < len(args):
+            custom_output_dir_val = args[i + 1]
+            i += 2
         elif arg.startswith("--config="):
             config_name_val = arg.split("=", 1)[1]
             i += 1
@@ -863,4 +872,4 @@ if __name__ == "__main__":
         else:
             i += 1
                 
-    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val, neck_val)
+    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val, neck_val, custom_output_dir_val)
