@@ -706,7 +706,7 @@ def run_wrapper_mode():
             config_dir = os.path.join(script_dir, "output")
             
         # Seed generation for random material strings if not provided
-        if "random" in material.lower() and material.lower().strip() != "random":
+        if "random" in material.lower():
             if seed is None:
                 import random
                 seed = random.randint(1, 1000000)
@@ -742,12 +742,8 @@ def run_wrapper_mode():
             "preview": preview,
             "dynamic_zoom": dynamic_zoom
         }
-        if "random" in material.lower():
-            if seed is not None:
-                config_dict["//seed"] = seed
-        else:
-            if seed is not None:
-                config_dict["seed"] = seed
+        if seed is not None:
+            config_dict["seed"] = seed
                 
         try:
             with open(last_config_path, "w") as f:

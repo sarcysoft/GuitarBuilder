@@ -514,34 +514,47 @@ def create_transparent_glass(name="Transparent Glass", color=(1.0, 1.0, 1.0, 1.0
     return mat
 
 
-def create_random_material(name="Random Material"):
-    """Generate a highly diverse, vibrant, and premium random material (glossy, sparkle, chrome, or glass)."""
-    # Material types:
-    # - "glossy" (Glossy paint)
-    # - "sparkle" (Glitter paint)
-    # - "chrome" (Polished metal tint)
-    # - "glass" (Tinted transparent glass)
-    mat_type = random.choice(["glossy", "sparkle", "chrome", "glass"])
+def create_matte(name="Matte Satin", color=(0.65, 0.01, 0.02, 1.0)):
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    p = get_principled_bsdf(nodes)
+    if p:
+        p.inputs[0].default_value = color
+        p.inputs.get("Roughness").default_value = 0.55
+        if "Metallic" in p.inputs:
+            p.inputs["Metallic"].default_value = 0.0
+        elif "Metallic Weight" in p.inputs:
+            p.inputs["Metallic Weight"].default_value = 0.0
+    return mat
+
+
+def create_random_material(name="Random Material", seed=None):
+    """Generate a highly diverse, vibrant, and premium random material (glossy, matte, sparkle, chrome, or glass)."""
+    rng = random.Random(seed) if seed is not None else random
+    mat_type = rng.choice(["glossy", "matte", "sparkle", "chrome", "glass"])
     
     # Use HSL/HSV color space for vibrant and diverse colors
-    h = random.random()
-    s = random.uniform(0.55, 0.95)
-    v = random.uniform(0.5, 0.95)
+    h = rng.random()
+    s = rng.uniform(0.55, 0.95)
+    v = rng.uniform(0.5, 0.95)
     r, g, b = colorsys.hsv_to_rgb(h, s, v)
     color = (r, g, b, 1.0)
     
     if mat_type == "glossy":
         return create_glossy(name=name, color=color)
+    elif mat_type == "matte":
+        return create_matte(name=name, color=color)
     elif mat_type == "sparkle":
-        h_flake = (h + random.uniform(0.1, 0.5)) % 1.0
-        s_flake = random.uniform(0.6, 1.0)
-        v_flake = random.uniform(0.7, 1.0)
+        h_flake = (h + rng.uniform(0.1, 0.5)) % 1.0
+        s_flake = rng.uniform(0.6, 1.0)
+        v_flake = rng.uniform(0.7, 1.0)
         r2, g2, b2 = colorsys.hsv_to_rgb(h_flake, s_flake, v_flake)
         return create_sparkle(name=name, main_color_rgb=color, sparkle_color_rgb=(r2, g2, b2, 1.0))
     elif mat_type == "chrome":
         return create_polished_chrome(name=name, color=color)
     elif mat_type == "glass":
-        glass_r, glass_g, glass_b = colorsys.hsv_to_rgb(h, random.uniform(0.2, 0.5), random.uniform(0.8, 1.0))
+        glass_r, glass_g, glass_b = colorsys.hsv_to_rgb(h, rng.uniform(0.2, 0.5), rng.uniform(0.8, 1.0))
         return create_transparent_glass(name=name, color=(glass_r, glass_g, glass_b, 1.0))
         
     return create_glossy(name=name, color=color)
@@ -832,6 +845,15 @@ def get_material_by_name(mat_name):
             color = parse_color(parts[1])
             name = f"Glossy {parts[1]}"
         return create_glossy(name, color)
+    elif mat_name.startswith("matte") or mat_name.startswith("satin"):
+        # Format: matte or matte:color
+        parts = mat_name.split(":")
+        color = (0.65, 0.01, 0.02, 1.0)
+        name = "Matte Satin"
+        if len(parts) >= 2:
+            color = parse_color(parts[1])
+            name = f"Matte {parts[1]}"
+        return create_matte(name, color)
     elif mat_name == "red":
         return create_glossy("Glossy Red", (0.65, 0.01, 0.02, 1.0))
     elif mat_name == "blue":
@@ -1856,6 +1878,8 @@ def run_rendering():
     parser.add_argument("--tuner-finish", "--tuner_finish", default="chrome", choices=["chrome", "gold", "black"], help="Hardware finish for tuning pegs")
     
     args = parser.parse_args(args_to_parse)
+    if args.seed is not None:
+        random.seed(args.seed)
     if args.no_render_anim:
         args.save_blend = True
     
@@ -2231,7 +2255,8 @@ def run_rendering():
                     
                 # Determine part material
                 if material_mode == "random":
-                    part_mat = create_random_material(f"Random_{part_name}_{idx}")
+                    part_seed = (args.seed * 7919 + idx * 1013) if args.seed is not None else None
+                    part_mat = create_random_material(f"Random_{part_name}_{idx}", seed=part_seed)
                 elif has_random_element:
                     part_mat_str = get_concrete_material_string(args.material, idx, distinct_colors, num_random_per_part)
                     part_mat = get_material_by_name(part_mat_str)

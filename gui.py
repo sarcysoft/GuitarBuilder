@@ -578,8 +578,10 @@ class GuitarBuilderGUI:
         ttk.Label(row_u, text="Body Paint / Finish:").pack(side="left", padx=(0, 8))
         body_mats = [
             "sunburst", "gloss:candy_red", "gloss:blue", "gloss:black", "gloss:white",
-            "gold", "chrome", "silver", "glass", "glass:blue",
-            "sparkle:blue:silver", "striped"
+            "matte:black", "matte:white", "matte:red", "matte:blue",
+            "gold", "chrome", "chrome:red", "chrome:blue", "silver",
+            "glass", "glass:blue", "glass:red", "glass:amber",
+            "sparkle:blue:silver", "sparkle:red:gold", "striped"
         ]
         self.combo_bmat = ttk.Combobox(row_u, textvariable=self.var_material, values=body_mats, width=22)
         self.combo_bmat.pack(side="left", padx=(0, 8))
@@ -592,7 +594,14 @@ class GuitarBuilderGUI:
         row_r = ttk.Frame(self.frame_random_finish)
         row_r.pack(fill="x", pady=2)
         ttk.Label(row_r, text="Finish Style:").pack(side="left", padx=(0, 8))
-        rand_styles = ["gloss:random", "matte:random", "sparkle:random", "random"]
+        rand_styles = [
+            "gloss:random",
+            "matte:random",
+            "sparkle:random",
+            "chrome:random",
+            "glass:random",
+            "random"
+        ]
         combo_rstyle = ttk.Combobox(row_r, textvariable=self.var_random_style, values=rand_styles, width=16, state="readonly")
         combo_rstyle.pack(side="left", padx=(0, 10))
         combo_rstyle.bind("<<ComboboxSelected>>", lambda e: self._on_random_style_selected())
@@ -738,6 +747,14 @@ class GuitarBuilderGUI:
             else:
                 cmd.append("--sliced")
 
+            mat = self.var_material.get().strip()
+            if mat:
+                cmd.extend(["--material", mat])
+
+            seed_str = self.var_seed.get().strip()
+            if seed_str:
+                cmd.extend(["--seed", seed_str])
+
             self._start_subprocess(cmd, f"Rendering Quick Preview ({angle} view)...", on_success=self._load_project_preview_image)
 
         self._check_and_prompt_slicing(do_render, is_preview=True)
@@ -765,6 +782,14 @@ class GuitarBuilderGUI:
                 cmd.append("--animate")
             if self.var_save_blend.get():
                 cmd.append("--save-blend")
+
+            mat = self.var_material.get().strip()
+            if mat:
+                cmd.extend(["--material", mat])
+
+            seed_str = self.var_seed.get().strip()
+            if seed_str:
+                cmd.extend(["--seed", seed_str])
 
             self._start_subprocess(cmd, "Rendering Production Studio Set...", on_success=self._load_project_preview_image)
 
@@ -862,6 +887,9 @@ class GuitarBuilderGUI:
             style = self.var_random_style.get() or "gloss:random"
             self.var_material.set(style)
             self.var_presentation_mode.set("sliced")
+            if not self.var_seed.get().strip():
+                import random
+                self.var_seed.set(str(random.randint(1000, 999999)))
             if hasattr(self, "frame_uniform_finish"):
                 self.frame_uniform_finish.pack_forget()
             if hasattr(self, "frame_random_finish"):
@@ -1271,7 +1299,7 @@ class GuitarBuilderGUI:
             self.var_presentation_mode.set(vis.get("presentation_mode", "sliced"))
             if "random" in bmat.lower():
                 self.var_finish_mode.set("random_parts")
-                if bmat.lower() in ["gloss:random", "matte:random", "sparkle:random", "random"]:
+                if bmat.lower() in ["gloss:random", "matte:random", "sparkle:random", "chrome:random", "glass:random", "random"]:
                     self.var_random_style.set(bmat.lower())
                 else:
                     self.var_random_style.set("gloss:random")
