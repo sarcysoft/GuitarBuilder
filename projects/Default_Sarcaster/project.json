@@ -2,7 +2,7 @@
     "name": "Default_Sarcaster",
     "version": "1.0",
     "created_at": "2026-11-24T10:57:32.338833",
-    "updated_at": "2026-11-24T11:14:33.394720",
+    "updated_at": "2026-11-24T11:20:12.904357",
     "body_model": "sarcaster",
     "body_dimensions": {
         "Offset Scale": 4.0,
@@ -62,7 +62,7 @@
         "backplate_material": "gloss:black",
         "lighting": "studio",
         "engine": "eevee",
-        "angle": "angled",
+        "angle": "front",
         "animate": false,
         "dynamic_zoom": true,
         "seed": null

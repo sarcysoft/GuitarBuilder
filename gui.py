@@ -559,10 +559,10 @@ class GuitarBuilderGUI:
             bg="#0f172a",
             fg="#94a3b8",
             font=("Segoe UI", 10),
-            width=48,
-            height=13
+            cursor="hand2"
         )
         self.lbl_preview_canvas.pack(fill="both", expand=True, pady=(0, 8))
+        self.lbl_preview_canvas.bind("<Button-1>", lambda e: self._open_popout_preview())
 
         btn_row = ttk.Frame(card_prev)
         btn_row.pack(fill="x", pady=(0, 4))
@@ -573,18 +573,25 @@ class GuitarBuilderGUI:
             style="Primary.TButton",
             command=self._action_quick_preview
         )
-        btn_quick.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        btn_quick.pack(side="left", fill="x", expand=True, padx=(0, 3))
+
+        btn_popout = ttk.Button(
+            btn_row,
+            text="🔍  Pop-Out (100% Size)",
+            command=self._open_popout_preview
+        )
+        btn_popout.pack(side="left", fill="x", expand=True, padx=3)
 
         btn_full = ttk.Button(
             btn_row,
-            text="🎨  Render Full Studio Set",
+            text="🎨  Full Studio Set",
             command=self._action_full_render
         )
-        btn_full.pack(side="right", fill="x", expand=True, padx=(4, 0))
+        btn_full.pack(side="right", fill="x", expand=True, padx=(3, 0))
 
         self.lbl_prev_info = ttk.Label(
             card_prev,
-            text="Fast Preview: EEVEE (50% Res, 16 samples) | Full Set: 100% Res Multi-Angle",
+            text="Fast Preview: EEVEE (50% Res, 16 samples) | Click preview image to pop out",
             foreground="#64748b"
         )
         self.lbl_prev_info.pack(anchor="center")
@@ -631,17 +638,76 @@ class GuitarBuilderGUI:
             candidates = [os.path.join(renders_dir, f) for f in os.listdir(renders_dir) if f.lower().endswith(".png")] if os.path.exists(renders_dir) else []
             preview_path = candidates[0] if candidates else None
 
+        self.active_preview_path = preview_path
+
         if preview_path and os.path.exists(preview_path):
             try:
                 raw_img = tk.PhotoImage(file=preview_path)
-                # Scale down for preview widget (around 460px width)
-                sub_factor = max(1, raw_img.width() // 460)
+                # Generous width (~640px) so the preview fills the right pane
+                sub_factor = max(1, raw_img.width() // 640)
                 sub_img = raw_img.subsample(sub_factor, sub_factor)
                 self._cached_preview_img = sub_img
                 self.lbl_preview_canvas.configure(image=sub_img, text="", width=sub_img.width(), height=sub_img.height())
-                self.lbl_prev_info.configure(text=f"Loaded preview: {os.path.basename(preview_path)} ({raw_img.width()}x{raw_img.height()})")
+                self.lbl_prev_info.configure(text=f"Preview: {os.path.basename(preview_path)} ({raw_img.width()}×{raw_img.height()}) • Click to pop out")
             except Exception as e:
                 print(f"Error loading preview image: {e}")
+
+    def _open_popout_preview(self):
+        """Opens a pop-out window showing the render at full 100% actual size with scrollbars."""
+        preview_path = getattr(self, "active_preview_path", None)
+        if not preview_path or not os.path.exists(preview_path):
+            if self.active_project_dir:
+                p = os.path.join(self.active_project_dir, "renders", "preview.png")
+                if os.path.exists(p):
+                    preview_path = p
+                    self.active_preview_path = p
+
+        if not preview_path or not os.path.exists(preview_path):
+            messagebox.showinfo("No Preview", "No preview image has been rendered yet. Click '⚡ Quick Preview' first.")
+            return
+
+        pop = tk.Toplevel(self.root)
+        pop.title(f"Preview - {self.active_project_name.get()} (Actual Size)")
+
+        try:
+            full_img = tk.PhotoImage(file=preview_path)
+            w = full_img.width()
+            h = full_img.height()
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+
+            win_w = min(w + 30, int(screen_w * 0.9))
+            win_h = min(h + 80, int(screen_h * 0.9))
+            pop.geometry(f"{win_w}x{win_h}")
+
+            # Top toolbar
+            bar = ttk.Frame(pop, padding=6)
+            bar.pack(fill="x")
+            ttk.Label(bar, text=f"File: {os.path.basename(preview_path)} | Native: {w} × {h} px", font=("Segoe UI", 9, "bold")).pack(side="left", padx=6)
+            ttk.Button(bar, text="📁 Open in System Viewer", command=lambda: self._open_file(preview_path)).pack(side="right", padx=4)
+            ttk.Button(bar, text="Close", command=pop.destroy).pack(side="right")
+
+            # Scrollable canvas for full image
+            canvas_frame = ttk.Frame(pop)
+            canvas_frame.pack(fill="both", expand=True)
+
+            canvas = tk.Canvas(canvas_frame, bg="#0f172a", scrollregion=(0, 0, w, h))
+            v_scroll = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
+            h_scroll = ttk.Scrollbar(canvas_frame, orient="horizontal", command=canvas.xview)
+            canvas.configure(xscrollcommand=h_scroll.set, yscrollcommand=v_scroll.set)
+
+            canvas.grid(row=0, column=0, sticky="nsew")
+            v_scroll.grid(row=0, column=1, sticky="ns")
+            h_scroll.grid(row=1, column=0, sticky="ew")
+
+            canvas_frame.rowconfigure(0, weight=1)
+            canvas_frame.columnconfigure(0, weight=1)
+
+            canvas.create_image(w // 2, h // 2, image=full_img)
+            pop._img_ref = full_img
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load image in pop-out: {e}")
 
     # =========================================================================
     # TAB 3: Slicing & 3D Print

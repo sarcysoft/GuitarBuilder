@@ -2026,6 +2026,47 @@ def run_rendering():
                 return cp
         return None
 
+    def load_uncut_body_obj(body_path, mat):
+        """Loads base body OBJ and transforms it to exact setup_scene alignment."""
+        bpy.ops.object.select_all(action='DESELECT')
+        try:
+            if hasattr(bpy.ops.wm, 'obj_import'):
+                bpy.ops.wm.obj_import(filepath=body_path)
+            else:
+                bpy.ops.import_scene.obj(filepath=body_path)
+            body_obj = bpy.context.active_object
+            if not body_obj:
+                return None
+            body_obj.name = "Guitar_Body"
+
+            # Apply 90 rotation around X (Z-up thickness, Y-up length)
+            body_obj.rotation_euler = (math.radians(90), 0, 0)
+            bpy.context.view_layer.update()
+            bpy.ops.object.transform_apply(rotation=True)
+
+            # Set origin to bounding box center
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+
+            # Normalize Position: Set Min Y to 0, align centerline X to 0, align bottom Z to 0
+            min_y = min(v[1] for v in body_obj.bound_box)
+            min_z = min(v[2] for v in body_obj.bound_box)
+            body_obj.location.x = 0.0
+            body_obj.location.y = -min_y
+            body_obj.location.z = -min_z
+            bpy.context.view_layer.update()
+            bpy.ops.object.transform_apply(location=True)
+
+            # Clear imported default materials and assign the chosen material to slot 0
+            body_obj.data.materials.clear()
+            body_obj.data.materials.append(mat)
+            for poly in body_obj.data.polygons:
+                poly.material_index = 0
+
+            return body_obj
+        except Exception as e:
+            print(f"Error loading body OBJ {body_path}: {e}")
+            return None
+
     # Import Body Meshes
     body_objects = []
     
@@ -2039,9 +2080,8 @@ def run_rendering():
             if body_obj:
                 body_objects.append(body_obj)
         else:
-            body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
+            body_obj = load_uncut_body_obj(body_path, body_mat)
             if body_obj:
-                body_obj.data.materials.append(body_mat)
                 body_objects.append(body_obj)
     else:
         # Load sliced cut parts
@@ -2073,9 +2113,8 @@ def run_rendering():
                 if body_obj:
                     body_objects.append(body_obj)
             else:
-                body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
+                body_obj = load_uncut_body_obj(body_path, body_mat)
                 if body_obj:
-                    body_obj.data.materials.append(body_mat)
                     body_objects.append(body_obj)
         else:
             # Parse material scheme for sliced parts
