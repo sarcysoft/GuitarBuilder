@@ -2,7 +2,7 @@
     "name": "Default_Sarcaster",
     "version": "1.0",
     "created_at": "2026-11-24T10:57:32.338833",
-    "updated_at": "2026-11-24T11:20:12.904357",
+    "updated_at": "2026-11-24T11:46:48.927247",
     "body_model": "sarcaster",
     "body_dimensions": {
         "Offset Scale": 4.0,
@@ -41,7 +41,7 @@
         "Right Neck Curve": 7.4
     },
     "neck": {
-        "style": "les_paul",
+        "style": "strat",
         "shaft_material": "ebony",
         "fretboard_material": "ebony",
         "tuner_finish": "black"
@@ -62,7 +62,7 @@
         "backplate_material": "gloss:black",
         "lighting": "studio",
         "engine": "eevee",
-        "angle": "front",
+        "angle": "back",
         "animate": false,
         "dynamic_zoom": true,
         "seed": null

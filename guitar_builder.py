@@ -789,6 +789,10 @@ def run_wrapper_mode():
         render_args += ["--material", material]
         render_args += ["--material-back", material_back]
         render_args += ["--lighting", lighting]
+        if hardware:
+            render_args += ["--hardware", hardware]
+        if electronics:
+            render_args += ["--electronics", electronics]
         if neck and neck != "auto":
             render_args += ["--neck", neck]
         if neck_material:

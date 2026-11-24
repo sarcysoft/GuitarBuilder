@@ -1848,6 +1848,8 @@ def run_rendering():
     parser.add_argument("--dynamic-zoom", "--dynamic_zoom", action="store_true", help="Calculate optimal camera distance for each individual frame instead of using a constant zoom level")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for material colors")
     parser.add_argument("--config", "--body-model", default=None, help="Name of the body model preset (e.g. sarcaster, les_paul)")
+    parser.add_argument("--hardware", default=None, help="Hardware cavity layout variant (e.g. standard, piezo)")
+    parser.add_argument("--electronics", default=None, help="Electronics cavity layout variant (e.g. sarcaster, les_paul, flying_v)")
     parser.add_argument("--neck", default="auto", choices=["auto", "strat", "les_paul"], help="Neck model style")
     parser.add_argument("--neck-material", "--neck_material", default="maple", choices=["maple", "rosewood", "ebony"], help="Wood material for main neck shaft")
     parser.add_argument("--fretboard-material", "--fretboard_material", default="rosewood", choices=["rosewood", "maple", "ebony"], help="Wood material for fretboard")
@@ -1997,22 +1999,117 @@ def run_rendering():
     chrome_mat = create_polished_chrome()
     backplate_mat = get_material_by_name(args.material_back)
     
-    # Resolve body model name
+    # Resolve body model name, hardware, and electronics
     body_model_name = getattr(args, 'config', None)
-    if not body_model_name:
+    hw_variant = getattr(args, 'hardware', None)
+    elec_variant = getattr(args, 'electronics', None)
+    if not body_model_name or not hw_variant or not elec_variant:
         proj_json = os.path.join(args.config_dir, "project.json")
         if os.path.exists(proj_json):
             try:
                 import json
                 with open(proj_json, "r") as f:
                     pdata = json.load(f)
-                    body_model_name = pdata.get("body_model")
+                    if not body_model_name:
+                        body_model_name = pdata.get("body_model")
+                    hw_data = pdata.get("hardware", {})
+                    if not hw_variant:
+                        hw_variant = hw_data.get("variant")
+                    if not elec_variant:
+                        elec_variant = hw_data.get("electronics")
             except Exception:
                 pass
     if not body_model_name:
         body_model_name = os.path.basename(args.config_dir.strip(os.sep))
+    if not hw_variant:
+        hw_variant = "standard"
+    if not elec_variant:
+        c_name = (body_model_name or "").lower().strip()
+        if "flying_v" in c_name or "sarcy_v" in c_name:
+            elec_variant = "flying_v"
+        elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
+            elec_variant = "les_paul"
+        else:
+            elec_variant = "sarcaster"
+
+    def apply_body_cutouts(body_obj, models_dir, hw, elec):
+        """Subtracts hardware and electronics cavity STL masks from the body using boolean difference."""
+        stl_dir = os.path.join(models_dir, "stl")
+        if not os.path.exists(stl_dir) or not body_obj:
+            return
+
+        hw = hw or "standard"
+        elec = elec or "sarcaster"
+        print(f"Applying cavity cutouts to body: Hardware={hw}, Electronics={elec}...")
+
+        def subtract_stl(stl_name, rot_z=0, off_x=0, off_y=0, off_z=0):
+            stl_path = os.path.join(stl_dir, stl_name)
+            if not os.path.exists(stl_path):
+                return False
+            bpy.ops.object.select_all(action='DESELECT')
+            try:
+                if hasattr(bpy.ops.wm, 'stl_import'):
+                    bpy.ops.wm.stl_import(filepath=stl_path)
+                else:
+                    bpy.ops.import_mesh.stl(filepath=stl_path)
+                cutter = bpy.context.active_object
+                if not cutter:
+                    return False
+                if rot_z:
+                    cutter.rotation_euler[2] = math.radians(rot_z)
+                cutter.location.x += off_x
+                cutter.location.y += off_y
+                cutter.location.z += off_z
+                bpy.context.view_layer.update()
+
+                mod = body_obj.modifiers.new(name=f"Cut_{stl_name}", type='BOOLEAN')
+                mod.operation = 'DIFFERENCE'
+                mod.object = cutter
+                mod.solver = 'EXACT'
+                bpy.context.view_layer.objects.active = body_obj
+                bpy.ops.object.modifier_apply(modifier=mod.name)
+                bpy.data.objects.remove(cutter, do_unlink=True)
+                return True
+            except Exception as e:
+                print(f"Warning: Failed boolean cut with {stl_name}: {e}")
+                return False
+
+        # 1. Hardware cavity (pickups, bridge rout, jack rout, neck pocket)
+        hw_stl = f"hardware_{hw}.stl"
+        if not os.path.exists(os.path.join(stl_dir, hw_stl)):
+            hw_stl = "hardware.stl"
+        subtract_stl(hw_stl, rot_z=180, off_y=40, off_z=2)
+
+        # Hardware backplate mask & fixings (recess lip)
+        bp_stl = f"backplate_{hw}.stl"
+        has_bp = os.path.exists(os.path.join(stl_dir, bp_stl)) or (hw == "standard" and os.path.exists(os.path.join(stl_dir, "backplate.stl")))
+        if has_bp:
+            mask_stl = f"backplate_mask_{hw}.stl" if os.path.exists(os.path.join(stl_dir, f"backplate_mask_{hw}.stl")) else "backplate_mask.stl"
+            fix_stl = f"backplate_fixings_{hw}.stl" if os.path.exists(os.path.join(stl_dir, f"backplate_fixings_{hw}.stl")) else "backplate_fixings.stl"
+            subtract_stl(mask_stl, rot_z=180, off_y=40, off_z=2)
+            subtract_stl(fix_stl, rot_z=180, off_y=40, off_z=2)
+
+        # 2. Electronics cavity (controls, pot holes, switch slot)
+        elec_stl = f"electronics_{elec}.stl"
+        if not os.path.exists(os.path.join(stl_dir, elec_stl)):
+            elec_stl = "electronics.stl"
+        subtract_stl(elec_stl, off_x=0, off_y=0, off_z=2)
+
+        # Electronics backplate mask & fixings (recess lip)
+        ebp_stl = f"elec_backplate_{elec}.stl"
+        has_ebp = os.path.exists(os.path.join(stl_dir, ebp_stl)) or (elec == "sarcaster" and os.path.exists(os.path.join(stl_dir, "elec_backplate.stl")))
+        if has_ebp:
+            emask_stl = f"elec_backplate_mask_{elec}.stl" if os.path.exists(os.path.join(stl_dir, f"elec_backplate_mask_{elec}.stl")) else "elec_backplate_mask.stl"
+            efix_stl = f"elec_backplate_fixings_{elec}.stl" if os.path.exists(os.path.join(stl_dir, f"elec_backplate_fixings_{elec}.stl")) else "elec_backplate_fixings.stl"
+            subtract_stl(emask_stl, off_x=0, off_y=0, off_z=2)
+            subtract_stl(efix_stl, off_x=0, off_y=0, off_z=2)
 
     def find_uncut_body():
+        # In fast preview mode, prefer base body OBJ so active hardware/electronics cutouts apply dynamically
+        if args.preview and body_model_name:
+            p = os.path.join(models_dir, "obj", f"{body_model_name}.obj")
+            if os.path.exists(p):
+                return p
         candidates = [
             os.path.join(args.config_dir, "Guitar_Full_Body.stl"),
             os.path.join(args.config_dir, "stl", "Guitar_Full_Body.stl"),
@@ -2055,6 +2152,9 @@ def run_rendering():
             body_obj.location.z = -min_z
             bpy.context.view_layer.update()
             bpy.ops.object.transform_apply(location=True)
+
+            # Apply cavity cutouts (pickups, bridge, electronics, neck pocket, backplate recesses)
+            apply_body_cutouts(body_obj, models_dir, hw_variant, elec_variant)
 
             # Clear imported default materials and assign the chosen material to slot 0
             body_obj.data.materials.clear()
@@ -2214,40 +2314,27 @@ def run_rendering():
             tuner_finish=args.tuner_finish
         )
             
-        # Resolve electronics layout type based on config profile name
-        layout = "sarcaster"
-        if config_name:
-            c_name = config_name.lower().strip()
-            if "flying_v" in c_name or "sarcy_v" in c_name:
-                layout = "flying_v"
-            elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
-                layout = "les_paul"
-                
-        print(f"Using electronics layout for backplate: {layout}")
-        
-        elec_backplate_name = f"elec_backplate_{layout}.stl"
+        # Backplates - only import if the corresponding variant has a physical backplate
         stl_dir = os.path.join(models_dir, "stl")
-        if not os.path.exists(os.path.join(stl_dir, elec_backplate_name)):
-            elec_backplate_name = "elec_backplate.stl"
+        bp_stl = f"backplate_{hw_variant}.stl"
+        has_bp = os.path.exists(os.path.join(stl_dir, bp_stl)) or (hw_variant == "standard" and os.path.exists(os.path.join(stl_dir, "backplate.stl")))
+        if has_bp:
+            actual_bp = bp_stl if os.path.exists(os.path.join(stl_dir, bp_stl)) else "backplate.stl"
+            import_stl(os.path.join(stl_dir, actual_bp), "Hardware_backplate", backplate_mat)
+            bp_obj = bpy.data.objects.get("Hardware_backplate")
+            if bp_obj:
+                bp_obj.rotation_euler[2] = math.radians(180)
+                bp_obj.location.y = 40.0
+                bp_obj.location.z = 2.0
 
-        # Backplates
-        backplate_path = os.path.join(models_dir, "stl", "backplate.stl")
-        import_stl(backplate_path, "Hardware_backplate", backplate_mat)
-        
-        elec_backplate_path = os.path.join(stl_dir, elec_backplate_name)
-        import_stl(elec_backplate_path, "Hardware_elec_backplate", backplate_mat)
-        
-        # Optionally, move the backplates into place relative to standard layout
-        # (similar to setup_scene y offsets)
-        bp_obj = bpy.data.objects.get("Hardware_backplate")
-        if bp_obj:
-            bp_obj.rotation_euler[2] = math.radians(180)
-            bp_obj.location.y = 40.0
-            bp_obj.location.z = 2.0
-            
-        ebp_obj = bpy.data.objects.get("Hardware_elec_backplate")
-        if ebp_obj:
-            ebp_obj.location.z = 2.0
+        ebp_stl = f"elec_backplate_{elec_variant}.stl"
+        has_ebp = os.path.exists(os.path.join(stl_dir, ebp_stl)) or (elec_variant == "sarcaster" and os.path.exists(os.path.join(stl_dir, "elec_backplate.stl")))
+        if has_ebp:
+            actual_ebp = ebp_stl if os.path.exists(os.path.join(stl_dir, ebp_stl)) else "elec_backplate.stl"
+            import_stl(os.path.join(stl_dir, actual_ebp), "Hardware_elec_backplate", backplate_mat)
+            ebp_obj = bpy.data.objects.get("Hardware_elec_backplate")
+            if ebp_obj:
+                ebp_obj.location.z = 2.0
             
     # Setup initial static lighting and ground plane centered at the origin
     setup_lighting(args.lighting, (0.0, 0.0, 0.0))
