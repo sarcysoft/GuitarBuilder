@@ -9,7 +9,7 @@ $fn = 36;
 scale_len   = 62.865; // 24.75 inches in cm
 nut_y       = 77.30;
 nut_w       = 4.30;   // 43.0 mm
-heel_y      = 32.50;
+heel_y      = 31.00;   // Extends cleanly past 22nd fret at Y=32.08
 heel_w      = 5.68;   // 56.8 mm
 fretboard_h = 0.60;   // 6 mm thick
 fretboard_z = 4.00;   // Fretboard base sits at Z=4.0

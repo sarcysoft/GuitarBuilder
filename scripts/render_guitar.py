@@ -997,10 +997,10 @@ def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
     hw = (hardware_variant or "standard").lower().strip()
     if "piezo" in hw:
         bridge_y = 14.0
-        bridge_z = 4.45
+        bridge_z = 4.80
     else:
         bridge_y = 15.5
-        bridge_z = 4.45
+        bridge_z = 4.80
 
     # 6 strings spaced across 5.3 cm (standard 53mm bridge spacing)
     bridge_xs = [-2.65, -1.59, -0.53, 0.53, 1.59, 2.65]
@@ -1060,8 +1060,16 @@ def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
     strings_obj = bpy.data.objects.new("Guitar_Strings", curve_data)
     bpy.context.collection.objects.link(strings_obj)
 
+    # Convert curve to solid mesh so it is part of guitar_objs and transforms with Guitar_Rig
+    bpy.context.view_layer.objects.active = strings_obj
+    strings_obj.select_set(True)
+    bpy.ops.object.convert(target='MESH')
+
     mat = create_polished_chrome("Strings_Metal", color=(0.90, 0.90, 0.92, 1.0))
-    strings_obj.data.materials.append(mat)
+    if len(strings_obj.data.materials) == 0:
+        strings_obj.data.materials.append(mat)
+    else:
+        strings_obj.data.materials[0] = mat
     print(f"Generated 6 guitar strings automatically (Bridge Y={bridge_y:.1f} -> Nut Y={nut_y:.1f} -> Tuners).")
     return strings_obj
 

@@ -2,7 +2,7 @@
     "name": "Default_Sarcaster",
     "version": "1.0",
     "created_at": "2026-11-24T10:57:32.338833",
-    "updated_at": "2026-11-24T13:40:54.192124",
+    "updated_at": "2026-11-24T14:13:56.434260",
     "body_model": "sarcaster",
     "body_dimensions": {
         "Offset Scale": 4.0,
@@ -55,17 +55,19 @@
         "pin_diameter": 6.0,
         "pin_length": 16.0,
         "no_pins": false,
-        "no_cut": false
+        "no_cut": false,
+        "last_slice_signature": "5ea7e912134eef5b",
+        "last_cut_type": "flat"
     },
     "visuals": {
         "presentation_mode": "sliced",
-        "body_material": "sparkle:random",
+        "body_material": "chrome:random",
         "backplate_material": "gloss:black",
         "lighting": "studio",
         "engine": "eevee",
         "angle": "angled",
-        "animate": true,
+        "animate": false,
         "dynamic_zoom": true,
-        "seed": 74211
+        "seed": 459052
     }
 }
