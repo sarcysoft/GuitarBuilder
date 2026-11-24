@@ -288,6 +288,7 @@ Modes & General:
   --import-config <path>               Import configuration parameters from JSON
 
 Slicing & Geometry:
+  --slice-only                         Run 3D body cutting pipeline without rendering
   --no-cut                             Skip body cutting step
   --cut-type <flat|textured>           Slicing method: 'flat' or 'textured' (puzzle seam)
   --pin-diameter <mm>                  Alignment pin hole diameter in mm (default: 6.0)
@@ -299,6 +300,7 @@ Slicing & Geometry:
 
 Rendering & Studio:
   --render                             Execute background rendering studio
+  --sliced                             Render multi-part sliced body with joint seams
   --body-only                          Render body only (exclude neck and backplates)
   --exploded-body                      Render body segments separated along seams
   --uncut                              Render uncut full body
@@ -372,6 +374,7 @@ def parse_wrapper_args(argv):
     preview = False
     dynamic_zoom = False
     seed = None
+    slice_only = False
 
     # Load settings from project if provided
     if project_path:
@@ -396,6 +399,11 @@ def parse_wrapper_args(argv):
             hardware = hw.get("variant", hardware)
             electronics = hw.get("electronics", electronics)
             vis = pdata.get("visuals", {})
+            presentation_mode = vis.get("presentation_mode", "sliced")
+            if presentation_mode == "uncut":
+                uncut = True
+            elif presentation_mode == "exploded":
+                exploded_body = True
             material = vis.get("body_material", material)
             material_back = vis.get("backplate_material", material_back)
             lighting = vis.get("lighting", lighting)
@@ -459,6 +467,12 @@ def parse_wrapper_args(argv):
             i += 1
         elif arg in ["--exploded-body", "--exploded_body", "exploded_body", "--explode-body", "--explode_body", "explode_body"]:
             exploded_body = True
+            i += 1
+        elif arg in ["--slice-only", "--slice_only", "--slice", "--cut-only", "--cut_only"]:
+            slice_only = True
+            i += 1
+        elif arg in ["--sliced", "--slice-render"]:
+            uncut = False
             i += 1
         elif arg == "--uncut":
             uncut = True
@@ -658,7 +672,7 @@ def parse_wrapper_args(argv):
             config, export_config_flag, export_config, import_config, generate,
             render, body_only, exploded_body, uncut, angle, engine,
             material, material_back, lighting, save_blend, pitch,
-            guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir)
+            guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir, slice_only)
 
 
 def run_wrapper_mode():
@@ -679,7 +693,7 @@ def run_wrapper_mode():
      config, export_config_flag, wrapper_export_config, wrapper_import_config, generate,
      render, body_only, exploded_body, uncut, angle, engine,
      material, material_back, lighting, save_blend, pitch,
-     guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir) = parse_wrapper_args(sys.argv[1:])
+     guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir, slice_only) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
     if render or animate or no_render_anim or preview:
@@ -972,6 +986,14 @@ def run_wrapper_mode():
         
         print(f"-> Launching Stage 2 Scene Setup...")
         res2 = subprocess.run(cmd2)
+        if res2.returncode == 0 and project_dir:
+            try:
+                from scripts.project_manager import ProjectManager
+                pm = ProjectManager()
+                pm.update_slice_signature(project_dir, cut_type=cut_type, no_pins=no_pins)
+                print(f"[SUCCESS] Body slices generated ({cut_type or 'default'}) and signature updated (clean).")
+            except Exception as e:
+                print(f"Warning: Failed to update slice signature: {e}")
         sys.exit(res2.returncode)
         
     else:
@@ -1004,6 +1026,14 @@ def run_wrapper_mode():
         
         print(f"-> Launching Stage 2 Scene Setup (no configuration profile)...")
         res2 = subprocess.run(cmd2)
+        if res2.returncode == 0 and project_dir:
+            try:
+                from scripts.project_manager import ProjectManager
+                pm = ProjectManager()
+                pm.update_slice_signature(project_dir, cut_type=cut_type, no_pins=no_pins)
+                print(f"[SUCCESS] Body slices generated ({cut_type or 'default'}) and signature updated (clean).")
+            except Exception as e:
+                print(f"Warning: Failed to update slice signature: {e}")
         sys.exit(res2.returncode)
 
 

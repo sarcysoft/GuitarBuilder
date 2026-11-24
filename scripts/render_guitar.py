@@ -2190,17 +2190,13 @@ def run_rendering():
             "Guitar_Top_Right", "Guitar_Mid_Right", "Guitar_Top_Mid", "Guitar_Mid"
         ]
         
-        # Check if they exist in config_dir or config_dir/stl
+        # Check if they exist in config_dir, config_dir/stl, or config_dir/stl/body
         any_sliced = False
         parts_dir = args.config_dir
-        for part_name in parts_list:
-            if os.path.exists(os.path.join(args.config_dir, f"{part_name}.stl")):
+        for candidate_dir in [args.config_dir, os.path.join(args.config_dir, "stl"), os.path.join(args.config_dir, "stl", "body")]:
+            if any(os.path.exists(os.path.join(candidate_dir, f"{p}.stl")) for p in parts_list):
                 any_sliced = True
-                parts_dir = args.config_dir
-                break
-            elif os.path.exists(os.path.join(args.config_dir, "stl", f"{part_name}.stl")):
-                any_sliced = True
-                parts_dir = os.path.join(args.config_dir, "stl")
+                parts_dir = candidate_dir
                 break
                 
         if not any_sliced:
@@ -2229,7 +2225,7 @@ def run_rendering():
                 
             # Import each part
             for idx, part_name in enumerate(parts_list):
-                part_path = os.path.join(args.config_dir, f"{part_name}.stl")
+                part_path = os.path.join(parts_dir, f"{part_name}.stl")
                 if not os.path.exists(part_path):
                     continue
                     

@@ -1,7 +1,13 @@
 import os
 import json
 import shutil
+import hashlib
 from datetime import datetime
+
+SLICED_BODY_PARTS = [
+    "Guitar_Bot_Left.stl", "Guitar_Bot_Right.stl", "Guitar_Top_Left.stl", "Guitar_Mid_Left.stl",
+    "Guitar_Top_Right.stl", "Guitar_Mid_Right.stl", "Guitar_Top_Mid.stl", "Guitar_Mid.stl"
+]
 
 class ProjectManager:
     """Manages guitar builder projects, their configurations, directory structures, and assets."""
@@ -181,3 +187,125 @@ class ProjectManager:
 
         self.save_project(new_proj_dir, data)
         return new_proj_dir, data
+
+    def compute_slice_signature(self, project_data, cut_type=None, no_pins=None):
+        """Computes a deterministic hash of parameters that affect physical sliced body geometry.
+        Changes to materials, colors, neck wood, tuner finish, lighting, camera angle, and engine
+        DO NOT alter this signature.
+        """
+        body_model = project_data.get("body_model", "sarcaster")
+        body_dims = project_data.get("body_dimensions", {})
+        hardware = project_data.get("hardware", {})
+        slicing = project_data.get("slicing", {})
+
+        actual_cut_type = str(cut_type if cut_type is not None else slicing.get("cut_type", "textured")).strip().lower()
+        actual_no_pins = bool(no_pins if no_pins is not None else slicing.get("no_pins", False))
+
+        relevant_spec = {
+            "body_model": str(body_model).strip().lower(),
+            "body_dimensions": {str(k): round(float(v), 4) if isinstance(v, (int, float)) else str(v) for k, v in sorted(body_dims.items())},
+            "hardware_variant": str(hardware.get("variant", "standard")).strip().lower(),
+            "electronics": str(hardware.get("electronics", "auto")).strip().lower(),
+            "cut_type": actual_cut_type,
+            "no_pins": actual_no_pins,
+            "pin_diameter": round(float(slicing.get("pin_diameter", 6.0)), 2),
+            "pin_length": round(float(slicing.get("pin_length", 16.0)), 2),
+            "no_cut": bool(slicing.get("no_cut", False))
+        }
+        spec_json = json.dumps(relevant_spec, sort_keys=True)
+        return hashlib.sha256(spec_json.encode("utf-8")).hexdigest()[:16]
+
+    def get_slice_status(self, name_or_path, project_data=None, for_preview=False):
+        """Checks whether sliced body parts exist and match current geometry settings.
+        If for_preview=True:
+            - If existing slices match current geometry and are either textured or flat, returns 'clean'.
+              (Unless a textured cut has already been generated, then use that for the preview).
+        If for_preview=False (production):
+            - Slices must match the project's configured cut_type.
+        """
+        proj_dir = self.resolve_project_dir(name_or_path)
+        if project_data is None:
+            try:
+                project_data = self.load_project(proj_dir)
+            except Exception:
+                return "missing"
+
+        stl_dir = os.path.join(proj_dir, "stl")
+        body_stl_dir = os.path.join(stl_dir, "body")
+
+        for part in SLICED_BODY_PARTS:
+            if not os.path.exists(os.path.join(stl_dir, part)) and not os.path.exists(os.path.join(body_stl_dir, part)):
+                return "missing"
+
+        # Check saved signature
+        saved_sig = None
+        sig_file = os.path.join(stl_dir, ".slice_signature")
+        if os.path.exists(sig_file):
+            try:
+                with open(sig_file, "r", encoding="utf-8") as f:
+                    saved_sig = f.read().strip()
+            except Exception:
+                pass
+
+        if not saved_sig:
+            saved_sig = project_data.get("slicing", {}).get("last_slice_signature")
+
+        if not saved_sig:
+            return "dirty"
+
+        # Direct match with current project configuration
+        current_sig = self.compute_slice_signature(project_data)
+        if saved_sig == current_sig:
+            return "clean"
+
+        # For preview: textured cuts previously generated for this geometry should be reused directly!
+        if for_preview:
+            # Check if saved signature matches flat cuts
+            flat_sig = self.compute_slice_signature(project_data, cut_type="flat", no_pins=True)
+            if saved_sig == flat_sig:
+                return "clean"
+            # Or if textured cut was already generated for this geometry:
+            textured_sig = self.compute_slice_signature(project_data, cut_type="textured", no_pins=project_data.get("slicing", {}).get("no_pins", False))
+            if saved_sig == textured_sig:
+                return "clean"
+
+        return "dirty"
+
+    def update_slice_signature(self, name_or_path, project_data=None, cut_type=None, no_pins=None):
+        """Records current geometry signature to mark slices as up-to-date ('clean')."""
+        proj_dir = self.resolve_project_dir(name_or_path)
+        if project_data is None:
+            project_data = self.load_project(proj_dir)
+
+        sig = self.compute_slice_signature(project_data, cut_type=cut_type, no_pins=no_pins)
+        actual_cut_type = cut_type if cut_type is not None else project_data.get("slicing", {}).get("cut_type", "textured")
+
+        if "slicing" not in project_data:
+            project_data["slicing"] = {}
+        project_data["slicing"]["last_slice_signature"] = sig
+        project_data["slicing"]["last_cut_type"] = actual_cut_type
+
+        # Save to project.json
+        proj_json_path = os.path.join(proj_dir, "project.json")
+        try:
+            with open(proj_json_path, "w", encoding="utf-8") as f:
+                json.dump(project_data, f, indent=4)
+        except Exception as e:
+            print(f"Warning: Could not save signature to project.json: {e}")
+
+        # Save to stl/.slice_signature
+        stl_dir = os.path.join(proj_dir, "stl")
+        os.makedirs(stl_dir, exist_ok=True)
+        try:
+            with open(os.path.join(stl_dir, ".slice_signature"), "w", encoding="utf-8") as f:
+                f.write(sig)
+        except Exception:
+            pass
+        return sig
+        os.makedirs(stl_dir, exist_ok=True)
+        try:
+            with open(os.path.join(stl_dir, ".slice_signature"), "w", encoding="utf-8") as f:
+                f.write(sig)
+        except Exception:
+            pass
+        return sig

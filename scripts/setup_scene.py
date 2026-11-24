@@ -697,7 +697,9 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
         
         # Export all resultant parts to separate STL files
         print("Exporting parts to STL files...")
-        if config_name and config_name != "default":
+        if custom_output_dir:
+            output_dir = os.path.abspath(custom_output_dir)
+        elif config_name and config_name != "default":
             output_dir = os.path.join(root_dir, "output", config_name)
         else:
             output_dir = os.path.join(root_dir, "output")

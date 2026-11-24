@@ -147,6 +147,9 @@ class GuitarBuilderGUI:
         self.var_electronics = tk.StringVar(value="auto")
 
         # 2. Visuals & Finish
+        self.var_presentation_mode = tk.StringVar(value="sliced")  # "sliced", "uncut", "exploded"
+        self.var_finish_mode = tk.StringVar(value="uniform")  # "uniform", "random_parts"
+        self.var_random_style = tk.StringVar(value="gloss:random")
         self.var_material = tk.StringVar(value="sunburst")
         self.var_material_back = tk.StringVar(value="gloss:black")
         self.var_lighting = tk.StringVar(value="studio")
@@ -403,12 +406,12 @@ class GuitarBuilderGUI:
         ttk.Label(grid_hw, text="Hardware Cavity:").grid(row=0, column=0, sticky="w", pady=4)
         self.combo_hardware = ttk.Combobox(grid_hw, textvariable=self.var_hardware, width=18, state="readonly")
         self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 20), pady=4)
-        self.combo_hardware.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+        self.combo_hardware.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
 
         ttk.Label(grid_hw, text="Electronics Layout:").grid(row=0, column=2, sticky="w", pady=4)
         self.combo_electronics = ttk.Combobox(grid_hw, textvariable=self.var_electronics, width=18, state="readonly")
         self.combo_electronics.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
-        self.combo_electronics.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+        self.combo_electronics.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
 
         lbl_hw_note = ttk.Label(
             card_hw,
@@ -416,6 +419,37 @@ class GuitarBuilderGUI:
             foreground="#64748b"
         )
         lbl_hw_note.pack(anchor="w", pady=(6, 0))
+
+        # Card 4: Body Presentation & Slice Status
+        card_slice_stat = ttk.LabelFrame(container, text=" 4. Body Presentation & Slicing Status ", padding=10)
+        card_slice_stat.pack(fill="x", pady=(0, 6))
+
+        row_stat = ttk.Frame(card_slice_stat)
+        row_stat.pack(fill="x")
+
+        ttk.Label(row_stat, text="Presentation Mode:").pack(side="left", padx=(0, 8))
+        combo_pres = ttk.Combobox(
+            row_stat,
+            textvariable=self.var_presentation_mode,
+            values=["sliced", "uncut", "exploded"],
+            width=16,
+            state="readonly"
+        )
+        combo_pres.pack(side="left", padx=(0, 16))
+        combo_pres.bind("<<ComboboxSelected>>", self._on_presentation_mode_change)
+
+        self.lbl_slice_status = ttk.Label(row_stat, text="○ Slices: Unknown", font=("Segoe UI", 9, "bold"))
+        self.lbl_slice_status.pack(side="left", padx=(0, 16))
+
+        btn_cut_tab1 = ttk.Button(row_stat, text="✂️ Slice / Re-Cut Body", command=self._action_slice_body)
+        btn_cut_tab1.pack(side="left")
+
+        lbl_slice_desc = ttk.Label(
+            card_slice_stat,
+            text="ℹ Sliced mode renders the 8 3D-printable parts with visible seam cuts. Changes to geometry or hardware cavity mark slices as 'Needs Cut'.",
+            foreground="#64748b"
+        )
+        lbl_slice_desc.pack(anchor="w", pady=(6, 0))
 
     def _toggle_dimensions_drawer(self):
         if self.dims_drawer_visible:
@@ -454,12 +488,14 @@ class GuitarBuilderGUI:
         if "body_dimensions" not in self.active_project_data:
             self.active_project_data["body_dimensions"] = {}
         self.active_project_data["body_dimensions"][key] = val
+        self._update_slice_status_badge()
 
     def _reset_dims_to_model(self):
         model = self.var_body_model.get().strip()
         dims = self.project_manager.get_default_body_dimensions(model)
         self.active_project_data["body_dimensions"] = dims
         self._populate_dims_table(dims)
+        self._update_slice_status_badge()
 
     # =========================================================================
     # TAB 2: Visuals & Finish (with Quick Preview)
@@ -477,77 +513,162 @@ class GuitarBuilderGUI:
         right_col.pack(side="right", fill="both", expand=True, padx=(10, 0))
 
         # Left Column: Material & Lighting Controls
-        card_mats = ttk.LabelFrame(left_col, text=" Paint, Materials & Studio Lighting ", padding=10)
+        # Card 1: Presentation Mode & Slices Status
+        card_pres = ttk.LabelFrame(left_col, text=" 1. Body Presentation Mode & Slices ", padding=10)
+        card_pres.pack(fill="x", pady=(0, 8))
+
+        row_pres = ttk.Frame(card_pres)
+        row_pres.pack(fill="x", pady=(0, 4))
+
+        ttk.Label(row_pres, text="Body Mode:").pack(side="left", padx=(0, 6))
+        combo_pres_t2 = ttk.Combobox(
+            row_pres,
+            textvariable=self.var_presentation_mode,
+            values=["sliced", "uncut", "exploded"],
+            width=14,
+            state="readonly"
+        )
+        combo_pres_t2.pack(side="left", padx=(0, 10))
+        combo_pres_t2.bind("<<ComboboxSelected>>", self._on_presentation_mode_change)
+
+        self.lbl_slice_status_tab2 = ttk.Label(row_pres, text="○ Slices: Unknown", font=("Segoe UI", 9, "bold"))
+        self.lbl_slice_status_tab2.pack(side="left", padx=(0, 10))
+
+        btn_cut_tab2 = ttk.Button(row_pres, text="✂️ Slice / Re-Cut", command=self._action_slice_body)
+        btn_cut_tab2.pack(side="left")
+
+        ttk.Label(
+            card_pres,
+            text="• Sliced: Renders 8 printable sections with joint seams.\n• Seamless Uncut: Fast single-piece body preview (5-10s).\n• Exploded: Separates sliced parts along cut lines.",
+            foreground="#64748b"
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Card 2: Paint Scheme & Multi-Color Sections
+        card_mats = ttk.LabelFrame(left_col, text=" 2. Finish Scheme & Section Colors ", padding=10)
         card_mats.pack(fill="x", pady=(0, 8))
 
-        grid_m = ttk.Frame(card_mats)
-        grid_m.pack(fill="x")
+        mode_row = ttk.Frame(card_mats)
+        mode_row.pack(fill="x", pady=(0, 6))
 
-        ttk.Label(grid_m, text="Body Paint / Finish:").grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Label(mode_row, text="Finish Mode:", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
+        r1 = ttk.Radiobutton(
+            mode_row,
+            text="Uniform Finish",
+            variable=self.var_finish_mode,
+            value="uniform",
+            command=self._on_finish_mode_change
+        )
+        r1.pack(side="left", padx=(0, 12))
+
+        r2 = ttk.Radiobutton(
+            mode_row,
+            text="Random Colors Per Section",
+            variable=self.var_finish_mode,
+            value="random_parts",
+            command=self._on_finish_mode_change
+        )
+        r2.pack(side="left")
+
+        # Container for Uniform Finish controls
+        self.frame_uniform_finish = ttk.Frame(card_mats)
+        self.frame_uniform_finish.pack(fill="x", pady=(0, 4))
+
+        row_u = ttk.Frame(self.frame_uniform_finish)
+        row_u.pack(fill="x", pady=2)
+        ttk.Label(row_u, text="Body Paint / Finish:").pack(side="left", padx=(0, 8))
         body_mats = [
             "sunburst", "gloss:candy_red", "gloss:blue", "gloss:black", "gloss:white",
             "gold", "chrome", "silver", "glass", "glass:blue",
-            "sparkle:blue:silver", "striped", "random"
+            "sparkle:blue:silver", "striped"
         ]
-        combo_bmat = ttk.Combobox(grid_m, textvariable=self.var_material, values=body_mats, width=20)
-        combo_bmat.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=4)
-        combo_bmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
-        combo_bmat.bind("<KeyRelease>", lambda e: self._update_command_preview())
+        self.combo_bmat = ttk.Combobox(row_u, textvariable=self.var_material, values=body_mats, width=22)
+        self.combo_bmat.pack(side="left", padx=(0, 8))
+        self.combo_bmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+        self.combo_bmat.bind("<KeyRelease>", lambda e: self._update_command_preview())
 
-        ttk.Label(grid_m, text="Backplate Material:").grid(row=1, column=0, sticky="w", pady=4)
+        # Container for Random Finish controls
+        self.frame_random_finish = ttk.Frame(card_mats)
+
+        row_r = ttk.Frame(self.frame_random_finish)
+        row_r.pack(fill="x", pady=2)
+        ttk.Label(row_r, text="Finish Style:").pack(side="left", padx=(0, 8))
+        rand_styles = ["gloss:random", "matte:random", "sparkle:random", "random"]
+        combo_rstyle = ttk.Combobox(row_r, textvariable=self.var_random_style, values=rand_styles, width=16, state="readonly")
+        combo_rstyle.pack(side="left", padx=(0, 10))
+        combo_rstyle.bind("<<ComboboxSelected>>", lambda e: self._on_random_style_selected())
+
+        ttk.Label(row_r, text="Seed:").pack(side="left", padx=(0, 4))
+        ent_seed = ttk.Entry(row_r, textvariable=self.var_seed, width=10)
+        ent_seed.pack(side="left", padx=(0, 6))
+        ent_seed.bind("<KeyRelease>", lambda e: self._update_command_preview())
+
+        btn_roll = ttk.Button(row_r, text="🎲 Roll Colors", command=self._roll_random_seed)
+        btn_roll.pack(side="left")
+
+        ttk.Label(
+            self.frame_random_finish,
+            text="ℹ Distinct randomized colors are assigned to each of the 8 sliced 3D print sections.",
+            foreground="#64748b"
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Card 3: Studio Lighting & Scene Setup
+        card_scene = ttk.LabelFrame(left_col, text=" 3. Studio Lighting & Scene Setup ", padding=10)
+        card_scene.pack(fill="x", pady=(0, 8))
+
+        grid_s = ttk.Frame(card_scene)
+        grid_s.pack(fill="x")
+
+        ttk.Label(grid_s, text="Backplate Material:").grid(row=0, column=0, sticky="w", pady=4)
         back_mats = ["gloss:black", "gloss:white", "chrome", "gold", "gloss:red"]
-        combo_bkmat = ttk.Combobox(grid_m, textvariable=self.var_material_back, values=back_mats, width=20)
-        combo_bkmat.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_bkmat = ttk.Combobox(grid_s, textvariable=self.var_material_back, values=back_mats, width=20)
+        combo_bkmat.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=4)
         combo_bkmat.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
-        ttk.Label(grid_m, text="Studio Lighting:").grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Label(grid_s, text="Studio Lighting:").grid(row=1, column=0, sticky="w", pady=4)
         combo_light = ttk.Combobox(
-            grid_m,
+            grid_s,
             textvariable=self.var_lighting,
             values=["studio", "dramatic", "warm", "sunset"],
             width=20,
             state="readonly"
         )
-        combo_light.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_light.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=4)
         combo_light.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
-        ttk.Label(grid_m, text="Render Engine:").grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Label(grid_s, text="Render Engine:").grid(row=2, column=0, sticky="w", pady=4)
         combo_eng = ttk.Combobox(
-            grid_m,
+            grid_s,
             textvariable=self.var_engine,
             values=["eevee", "cycles"],
             width=20,
             state="readonly"
         )
-        combo_eng.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_eng.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=4)
         combo_eng.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
 
-        ttk.Label(grid_m, text="Preview Angle:").grid(row=4, column=0, sticky="w", pady=4)
+        ttk.Label(grid_s, text="Preview Angle:").grid(row=3, column=0, sticky="w", pady=4)
         combo_pangle = ttk.Combobox(
-            grid_m,
+            grid_s,
             textvariable=self.var_preview_angle,
             values=["angled", "front", "back"],
             width=20,
             state="readonly"
         )
-        combo_pangle.grid(row=4, column=1, sticky="w", padx=(6, 0), pady=4)
-
-        ttk.Label(grid_m, text="Random Seed:").grid(row=5, column=0, sticky="w", pady=4)
-        ttk.Entry(grid_m, textvariable=self.var_seed, width=14).grid(row=5, column=1, sticky="w", padx=(6, 0), pady=4)
+        combo_pangle.grid(row=3, column=1, sticky="w", padx=(6, 0), pady=4)
 
         ttk.Checkbutton(
-            card_mats,
+            card_scene,
             text="Generate 360° Turntable Video (--animate)",
             variable=self.var_animate,
             command=self._update_command_preview
-        ).pack(anchor="w", pady=(8, 2))
+        ).pack(anchor="w", pady=(6, 2))
 
         ttk.Checkbutton(
-            card_mats,
+            card_scene,
             text="Save .blend Scene in Project (--save-blend)",
             variable=self.var_save_blend,
             command=self._update_command_preview
-        ).pack(anchor="w", pady=(0, 4))
+        ).pack(anchor="w", pady=(0, 2))
 
         # Right Column: Visual Preview Canvas & Actions
         card_prev = ttk.LabelFrame(right_col, text=" Project Visual Preview ", padding=10)
@@ -599,32 +720,168 @@ class GuitarBuilderGUI:
     def _action_quick_preview(self):
         """Runs fast background preview render and updates live image on completion."""
         self._action_save_project()
-        angle = self.var_preview_angle.get().strip() or "angled"
-        cmd = [
-            sys.executable,
-            "guitar_builder.py",
-            "--project", self.active_project_dir,
-            "--preview",
-            "--angle", angle
-        ]
-        self._start_subprocess(cmd, f"Rendering Quick Preview ({angle} view)...", on_success=self._load_project_preview_image)
+
+        def do_render(force_uncut=False):
+            angle = self.var_preview_angle.get().strip() or "angled"
+            cmd = [
+                sys.executable,
+                "guitar_builder.py",
+                "--project", self.active_project_dir,
+                "--preview",
+                "--angle", angle
+            ]
+            mode = self.var_presentation_mode.get()
+            if force_uncut or mode == "uncut":
+                cmd.append("--uncut")
+            elif mode == "exploded":
+                cmd.append("--exploded-body")
+            else:
+                cmd.append("--sliced")
+
+            self._start_subprocess(cmd, f"Rendering Quick Preview ({angle} view)...", on_success=self._load_project_preview_image)
+
+        self._check_and_prompt_slicing(do_render, is_preview=True)
 
     def _action_full_render(self):
         """Runs full production studio render for active project."""
+        self._action_save_project()
+
+        def do_render(force_uncut=False):
+            cmd = [
+                sys.executable,
+                "guitar_builder.py",
+                "--project", self.active_project_dir,
+                "--render",
+                "--angle", "all"
+            ]
+            mode = self.var_presentation_mode.get()
+            if force_uncut or mode == "uncut":
+                cmd.append("--uncut")
+            elif mode == "exploded":
+                cmd.append("--exploded-body")
+            else:
+                cmd.append("--sliced")
+            if self.var_animate.get():
+                cmd.append("--animate")
+            if self.var_save_blend.get():
+                cmd.append("--save-blend")
+
+            self._start_subprocess(cmd, "Rendering Production Studio Set...", on_success=self._load_project_preview_image)
+
+        self._check_and_prompt_slicing(do_render, is_preview=False)
+
+    def _check_and_prompt_slicing(self, on_ready, is_preview=True):
+        """Checks if slicing is needed before rendering based on presentation mode.
+        If sliced presentation is active and slices are missing or dirty, prompts user.
+        For previews: uses fast straight cuts without pins (unless textured cuts already exist!).
+        For production: uses the full configured cuts.
+        """
+        mode = self.var_presentation_mode.get()
+        if mode in ["sliced", "exploded"]:
+            status = self.project_manager.get_slice_status(self.active_project_dir, self.active_project_data, for_preview=is_preview)
+            if status != "clean":
+                reason = "have not been generated yet" if status == "missing" else "need to be remade because geometry/hardware settings changed"
+                action_text = "make quick straight cuts (~10s)" if is_preview else "generate full 3D print cuts (~1-2 mins)"
+                msg = (
+                    f"The 3D sliced body parts {reason}.\n\n"
+                    f"• Click 'YES' to {action_text} and render multi-section cuts.\n"
+                    f"• Click 'NO' to preview as a seamless uncut body immediately (~5-10s).\n"
+                    f"• Click 'CANCEL' to abort."
+                )
+                ans = messagebox.askyesnocancel("Body Slicing Choice", msg, parent=self.root)
+                if ans is True:
+                    cut_type = "flat" if is_preview else None
+                    no_pins = True if is_preview else None
+                    self._action_slice_body(cut_type=cut_type, no_pins=no_pins, on_success=on_ready)
+                    return
+                elif ans is False:
+                    on_ready(force_uncut=True)
+                    return
+                else:
+                    return
+
+        on_ready(force_uncut=(mode == "uncut"))
+
+    def _action_slice_body(self, cut_type=None, no_pins=None, on_success=None):
+        """Runs dedicated physical slicing of body parts and updates slice signature."""
         self._action_save_project()
         cmd = [
             sys.executable,
             "guitar_builder.py",
             "--project", self.active_project_dir,
-            "--render",
-            "--angle", "all"
+            "--slice-only"
         ]
-        if self.var_animate.get():
-            cmd.append("--animate")
-        if self.var_save_blend.get():
-            cmd.append("--save-blend")
+        if cut_type:
+            cmd.extend(["--cut-type", cut_type])
+        if no_pins:
+            cmd.append("--no-pins")
 
-        self._start_subprocess(cmd, "Rendering Production Studio Set...", on_success=self._load_project_preview_image)
+        def _after_slice():
+            self._update_slice_status_badge()
+            if on_success:
+                on_success()
+        desc = "Fast Straight-Cut Slicing..." if cut_type == "flat" else "Slicing 3D Body Parts for Project..."
+        self._start_subprocess(cmd, desc, on_success=_after_slice)
+
+    def _update_slice_status_badge(self):
+        if not self.active_project_dir:
+            return
+        status_preview = self.project_manager.get_slice_status(self.active_project_dir, self.active_project_data, for_preview=True)
+        status_prod = self.project_manager.get_slice_status(self.active_project_dir, self.active_project_data, for_preview=False)
+
+        if status_prod == "clean":
+            text = "● Slices: Up-to-Date (Production)"
+            fg = "#16a34a"
+        elif status_preview == "clean":
+            text = "● Slices: Up-to-Date (Preview)"
+            fg = "#16a34a"
+        elif status_preview == "dirty" or status_prod == "dirty":
+            text = "● Slices: Geometry Changed (Needs Cut)"
+            fg = "#d97706"
+        else:
+            text = "○ Slices: Not Sliced (Uncut)"
+            fg = "#64748b"
+
+        for attr in ["lbl_slice_status", "lbl_slice_status_tab2", "lbl_slice_status_tab3"]:
+            lbl = getattr(self, attr, None)
+            if lbl:
+                try:
+                    lbl.configure(text=text, foreground=fg)
+                except Exception:
+                    pass
+
+    def _roll_random_seed(self):
+        import random
+        new_seed = random.randint(1000, 999999)
+        self.var_seed.set(str(new_seed))
+        self._update_command_preview()
+
+    def _on_finish_mode_change(self):
+        mode = self.var_finish_mode.get()
+        if mode == "random_parts":
+            style = self.var_random_style.get() or "gloss:random"
+            self.var_material.set(style)
+            self.var_presentation_mode.set("sliced")
+            if hasattr(self, "frame_uniform_finish"):
+                self.frame_uniform_finish.pack_forget()
+            if hasattr(self, "frame_random_finish"):
+                self.frame_random_finish.pack(fill="x", pady=4)
+        else:
+            current_mat = self.var_material.get()
+            if "random" in current_mat:
+                self.var_material.set("sunburst")
+            if hasattr(self, "frame_random_finish"):
+                self.frame_random_finish.pack_forget()
+            if hasattr(self, "frame_uniform_finish"):
+                self.frame_uniform_finish.pack(fill="x", pady=4)
+        self._update_command_preview()
+
+    def _on_random_style_selected(self):
+        self.var_material.set(self.var_random_style.get())
+        self._update_command_preview()
+
+    def _on_presentation_mode_change(self, *args):
+        self._update_command_preview()
 
     def _load_project_preview_image(self):
         """Loads and scales preview.png into the preview canvas."""
@@ -733,32 +990,36 @@ class GuitarBuilderGUI:
             state="readonly"
         )
         combo_cut.grid(row=0, column=1, sticky="w", padx=(6, 20), pady=4)
-        combo_cut.bind("<<ComboboxSelected>>", lambda e: self._update_command_preview())
+        combo_cut.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
 
         ttk.Checkbutton(
             grid_cut,
             text="Enable Locator Pins",
             variable=self.var_enable_pins,
-            command=self._update_command_preview
+            command=self._on_geometry_setting_changed
         ).grid(row=0, column=2, sticky="w", padx=(0, 20), pady=4)
 
         ttk.Label(grid_cut, text="Pin Diameter (mm):").grid(row=1, column=0, sticky="w", pady=4)
-        ttk.Combobox(
+        combo_pind = ttk.Combobox(
             grid_cut,
             textvariable=self.var_pin_diameter,
             values=[6.0, 5.0, 4.0, 8.0],
             width=18,
             state="readonly"
-        ).grid(row=1, column=1, sticky="w", padx=(6, 20), pady=4)
+        )
+        combo_pind.grid(row=1, column=1, sticky="w", padx=(6, 20), pady=4)
+        combo_pind.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
 
         ttk.Label(grid_cut, text="Pin Length (mm):").grid(row=1, column=2, sticky="w", pady=4)
-        ttk.Combobox(
+        combo_pinl = ttk.Combobox(
             grid_cut,
             textvariable=self.var_pin_length,
             values=[16.0, 12.0, 20.0, 24.0],
             width=14,
             state="readonly"
-        ).grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+        )
+        combo_pinl.grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+        combo_pinl.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
 
         lbl_pin_info = ttk.Label(
             card_cut,
@@ -774,8 +1035,13 @@ class GuitarBuilderGUI:
         box_manifest = ttk.Frame(card_act, relief="solid", borderwidth=1, padding=8)
         box_manifest.pack(fill="x", pady=(0, 10))
 
-        ttk.Label(box_manifest, text="Output Directory: projects/<project>/stl/", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        ttk.Label(box_manifest, text="• Body Parts: Guitar_Top.stl & Guitar_Bottom.stl (ready for slicer build plate)").pack(anchor="w", padx=(8, 0))
+        row_mf_header = ttk.Frame(box_manifest)
+        row_mf_header.pack(fill="x", pady=(0, 4))
+        ttk.Label(row_mf_header, text="Output Directory: projects/<project>/stl/", font=("Segoe UI", 9, "bold")).pack(side="left")
+        self.lbl_slice_status_tab3 = ttk.Label(row_mf_header, text="○ Slices: Unknown", font=("Segoe UI", 9, "bold"))
+        self.lbl_slice_status_tab3.pack(side="right")
+
+        ttk.Label(box_manifest, text="• Body Parts: 8 sliced sections (Guitar_Bot_Left.stl ... Guitar_Top_Right.stl)").pack(anchor="w", padx=(8, 0))
         ttk.Label(box_manifest, text="• Hardware & Electronics: Backplate.stl & Elec_Backplate.stl").pack(anchor="w", padx=(8, 0))
         ttk.Label(box_manifest, text="• Locator Pins: 4x 6mm tapered alignment pins").pack(anchor="w", padx=(8, 0))
         ttk.Label(box_manifest, text="• Neck Components: Modular neck shaft, fretboard, frets, nut, and tuners").pack(anchor="w", padx=(8, 0))
@@ -813,7 +1079,7 @@ class GuitarBuilderGUI:
             else:
                 cmd.extend(["--pin-diameter", str(self.var_pin_diameter.get()), "--pin-length", str(self.var_pin_length.get())])
 
-        self._start_subprocess(cmd, "Generating All 3D Printable STLs for Project...")
+        self._start_subprocess(cmd, "Generating All 3D Printable STLs for Project...", on_success=self._update_slice_status_badge)
 
     def _open_stl_folder(self):
         if self.active_project_dir:
@@ -1000,7 +1266,26 @@ class GuitarBuilderGUI:
 
             # 2. Visuals
             vis = self.active_project_data.get("visuals", {})
-            self.var_material.set(vis.get("body_material", "sunburst"))
+            bmat = vis.get("body_material", "sunburst")
+            self.var_material.set(bmat)
+            self.var_presentation_mode.set(vis.get("presentation_mode", "sliced"))
+            if "random" in bmat.lower():
+                self.var_finish_mode.set("random_parts")
+                if bmat.lower() in ["gloss:random", "matte:random", "sparkle:random", "random"]:
+                    self.var_random_style.set(bmat.lower())
+                else:
+                    self.var_random_style.set("gloss:random")
+                if hasattr(self, "frame_uniform_finish"):
+                    self.frame_uniform_finish.pack_forget()
+                if hasattr(self, "frame_random_finish"):
+                    self.frame_random_finish.pack(fill="x", pady=4)
+            else:
+                self.var_finish_mode.set("uniform")
+                if hasattr(self, "frame_random_finish"):
+                    self.frame_random_finish.pack_forget()
+                if hasattr(self, "frame_uniform_finish"):
+                    self.frame_uniform_finish.pack(fill="x", pady=4)
+
             self.var_material_back.set(vis.get("backplate_material", "gloss:black"))
             self.var_lighting.set(vis.get("lighting", "studio"))
             self.var_engine.set(vis.get("engine", "eevee"))
@@ -1019,6 +1304,7 @@ class GuitarBuilderGUI:
             self.var_no_cut.set(sl.get("no_cut", False))
 
             self._update_command_preview()
+            self._update_slice_status_badge()
             self._load_project_preview_image()
             self._refresh_gallery()
             self.lbl_status.configure(text=f"Loaded Project: {self.active_project_name.get()}", foreground="#0f172a")
@@ -1061,6 +1347,7 @@ class GuitarBuilderGUI:
             seed_val = None
 
         self.active_project_data["visuals"] = {
+            "presentation_mode": self.var_presentation_mode.get().strip(),
             "body_material": self.var_material.get().strip(),
             "backplate_material": self.var_material_back.get().strip(),
             "lighting": self.var_lighting.get().strip(),
@@ -1082,6 +1369,7 @@ class GuitarBuilderGUI:
 
         try:
             self.project_manager.save_project(self.active_project_dir, self.active_project_data)
+            self._update_slice_status_badge()
             self.lbl_status.configure(text=f"Project Saved: {self.active_project_name.get()}", foreground="#16a34a")
         except Exception as e:
             messagebox.showerror("Save Error", f"Failed to save project: {e}")
@@ -1183,14 +1471,36 @@ class GuitarBuilderGUI:
         elif "flying_v" in model or "sarcy_v" in model:
             self.var_electronics.set("flying_v")
 
+        self._update_slice_status_badge()
         self._update_command_preview()
+
+    def _on_geometry_setting_changed(self, event=None):
+        self._update_command_preview()
+        self._update_slice_status_badge()
 
     # =========================================================================
     # Subprocess Execution & Command Preview
     # =========================================================================
     def _update_command_preview(self):
         """Construct the exact CLI argument string based on active options."""
-        cmd = [sys.executable, "guitar_builder.py", "--project", self.active_project_dir or self.active_project_name.get()]
+        proj = self.active_project_dir or self.active_project_name.get()
+        cmd = [sys.executable, "guitar_builder.py", "--project", proj]
+        mode = self.var_presentation_mode.get()
+        if mode == "uncut":
+            cmd.append("--uncut")
+        elif mode == "exploded":
+            cmd.append("--exploded-body")
+        else:
+            cmd.append("--sliced")
+
+        mat = self.var_material.get().strip()
+        if mat and mat != "sunburst":
+            cmd.extend(["--material", mat])
+
+        seed = self.var_seed.get().strip()
+        if seed:
+            cmd.extend(["--seed", seed])
+
         self.var_cmd_preview.set(" ".join(cmd))
         return cmd
 
