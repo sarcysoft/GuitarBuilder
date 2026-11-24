@@ -1007,35 +1007,32 @@ def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
 
     nk = (neck_type or "strat").lower().strip()
     if any(k in nk for k in ["les_paul", "sg", "flying_v", "sarcy_v", "single_cut"]):
-        nut_y = 76.80
         is_les_paul = True
+        nut_front_y = 77.30
+        nut_back_y = 77.64
+        nut_z = 4.88
+        tuner_posts = [
+            (-1.95, 82.09, 4.80),  # E (low) - Row 1 bass
+            (-1.95, 85.97, 3.84),  # A       - Row 2 bass
+            (-1.95, 89.85, 2.87),  # D       - Row 3 bass
+            ( 1.95, 89.85, 2.87),  # G       - Row 3 treble
+            ( 1.95, 85.97, 3.84),  # B       - Row 2 treble
+            ( 1.95, 82.09, 4.80)   # E (high)- Row 1 treble
+        ]
     else:
-        nut_y = 79.20
         is_les_paul = False
-    nut_z = 4.85
+        nut_front_y = 79.20
+        nut_back_y = 79.54
+        nut_z = 4.88
+        # 6 in-line headstock (Strat): all posts at X = -1.35
+        tuner_ys = [82.60, 84.90, 87.20, 89.50, 91.80, 94.10]
+        tuner_posts = [(-1.35, ty, 4.65) for ty in tuner_ys]
 
     # 6 strings spaced across 3.5 cm (35mm nut string spacing)
     nut_xs = [-1.75, -1.05, -0.35, 0.35, 1.05, 1.75]
 
     # Gauges: standard 10-46 set (E, A, D, G, B, E)
     gauges = [0.024, 0.020, 0.016, 0.013, 0.010, 0.007]
-
-    tuner_posts = []
-    if is_les_paul:
-        # 3x3 headstock: left side (strings 0, 1, 2) and right side (strings 3, 4, 5)
-        tuner_posts = [
-            (-2.2, 78.5, 4.60),  # E (low)
-            (-2.2, 82.0, 4.60),  # A
-            (-2.2, 85.5, 4.60),  # D
-            ( 2.2, 85.5, 4.60),  # G
-            ( 2.2, 82.0, 4.60),  # B
-            ( 2.2, 78.5, 4.60)   # E (high)
-        ]
-    else:
-        # 6 in-line headstock (Strat): all posts at X = -1.35
-        tuner_ys = [82.6, 84.9, 87.2, 89.5, 91.8, 94.1]
-        for ty in tuner_ys:
-            tuner_posts.append((-1.35, ty, 4.60))
 
     curve_data = bpy.data.curves.new("Guitar_Strings_Data", 'CURVE')
     curve_data.dimensions = '3D'
@@ -1044,18 +1041,26 @@ def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
 
     for i in range(6):
         spline = curve_data.splines.new('POLY')
-        spline.points.add(2)
+        # A new spline starts with 1 point. Adding 3 points gives 4 total points (indices 0, 1, 2, 3).
+        spline.points.add(3)
         rel_rad = gauges[i] / 0.012
 
+        # Point 0: Bridge saddle
         spline.points[0].co = (bridge_xs[i], bridge_y, bridge_z, 1.0)
         spline.points[0].radius = rel_rad
 
-        spline.points[1].co = (nut_xs[i], nut_y, nut_z, 1.0)
+        # Point 1: Front of nut (entry from fretboard)
+        spline.points[1].co = (nut_xs[i], nut_front_y, nut_z, 1.0)
         spline.points[1].radius = rel_rad
 
-        tp = tuner_posts[i]
-        spline.points[2].co = (tp[0], tp[1], tp[2], 1.0)
+        # Point 2: Back of nut (exit towards headstock)
+        spline.points[2].co = (nut_xs[i], nut_back_y, nut_z, 1.0)
         spline.points[2].radius = rel_rad
+
+        # Point 3: Tuner post
+        tp = tuner_posts[i]
+        spline.points[3].co = (tp[0], tp[1], tp[2], 1.0)
+        spline.points[3].radius = rel_rad
 
     strings_obj = bpy.data.objects.new("Guitar_Strings", curve_data)
     bpy.context.collection.objects.link(strings_obj)
@@ -1070,7 +1075,7 @@ def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
         strings_obj.data.materials.append(mat)
     else:
         strings_obj.data.materials[0] = mat
-    print(f"Generated 6 guitar strings automatically (Bridge Y={bridge_y:.1f} -> Nut Y={nut_y:.1f} -> Tuners).")
+    print(f"Generated 6 guitar strings automatically (Bridge Y={bridge_y:.1f} -> Nut Front Y={nut_front_y:.2f} -> Nut Back Y={nut_back_y:.2f} -> Tuners).")
     return strings_obj
 
 
