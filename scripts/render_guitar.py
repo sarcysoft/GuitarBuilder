@@ -1847,6 +1847,7 @@ def run_rendering():
     parser.add_argument("--preview", action="store_true", help="Fast preview mode with lower resolution, lower sample counts, and simplified EEVEE settings")
     parser.add_argument("--dynamic-zoom", "--dynamic_zoom", action="store_true", help="Calculate optimal camera distance for each individual frame instead of using a constant zoom level")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for material colors")
+    parser.add_argument("--config", "--body-model", default=None, help="Name of the body model preset (e.g. sarcaster, les_paul)")
     parser.add_argument("--neck", default="auto", choices=["auto", "strat", "les_paul"], help="Neck model style")
     parser.add_argument("--neck-material", "--neck_material", default="maple", choices=["maple", "rosewood", "ebony"], help="Wood material for main neck shaft")
     parser.add_argument("--fretboard-material", "--fretboard_material", default="rosewood", choices=["rosewood", "maple", "ebony"], help="Wood material for fretboard")
@@ -1996,29 +1997,51 @@ def run_rendering():
     chrome_mat = create_polished_chrome()
     backplate_mat = get_material_by_name(args.material_back)
     
+    # Resolve body model name
+    body_model_name = getattr(args, 'config', None)
+    if not body_model_name:
+        proj_json = os.path.join(args.config_dir, "project.json")
+        if os.path.exists(proj_json):
+            try:
+                import json
+                with open(proj_json, "r") as f:
+                    pdata = json.load(f)
+                    body_model_name = pdata.get("body_model")
+            except Exception:
+                pass
+    if not body_model_name:
+        body_model_name = os.path.basename(args.config_dir.strip(os.sep))
+
+    def find_uncut_body():
+        candidates = [
+            os.path.join(args.config_dir, "Guitar_Full_Body.stl"),
+            os.path.join(args.config_dir, "stl", "Guitar_Full_Body.stl"),
+            os.path.join(args.config_dir, "stl", "body", "Guitar_Full_Body.stl"),
+        ]
+        if body_model_name:
+            candidates.append(os.path.join(models_dir, "obj", f"{body_model_name}.obj"))
+        candidates.append(os.path.join(models_dir, "obj", "guitar.obj"))
+        for cp in candidates:
+            if os.path.exists(cp):
+                return cp
+        return None
+
     # Import Body Meshes
     body_objects = []
     
     if args.uncut:
         # Load single uncut body
-        body_path = os.path.join(args.config_dir, "Guitar_Full_Body.stl")
-        # Fallback to models/obj/guitar.obj if Full Body STL does not exist
-        if not os.path.exists(body_path):
-            print(f"Guitar_Full_Body.stl not found in {args.config_dir}. Falling back to default models...")
-            # Detect config-specific obj
-            config_name = os.path.basename(args.config_dir.strip(os.sep))
-            body_path = os.path.join(models_dir, "obj", f"{config_name}.obj")
-            if not os.path.exists(body_path):
-                body_path = os.path.join(models_dir, "obj", "guitar.obj")
-                
-            # OBJ loader
+        body_path = find_uncut_body()
+        if not body_path:
+            print(f"Warning: No body mesh found in {args.config_dir} or {models_dir}/obj/")
+        elif body_path.lower().endswith(".stl"):
+            body_obj = import_stl(body_path, "Guitar_Body", body_mat, scale_factor=0.1)
+            if body_obj:
+                body_objects.append(body_obj)
+        else:
             body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
             if body_obj:
                 body_obj.data.materials.append(body_mat)
-                body_objects.append(body_obj)
-        else:
-            body_obj = import_stl(body_path, "Guitar_Body", body_mat, scale_factor=0.1)
-            if body_obj:
                 body_objects.append(body_obj)
     else:
         # Load sliced cut parts
@@ -2027,24 +2050,33 @@ def run_rendering():
             "Guitar_Top_Right", "Guitar_Mid_Right", "Guitar_Top_Mid", "Guitar_Mid"
         ]
         
-        # Check if they exist. If none are found, fallback to uncut
+        # Check if they exist in config_dir or config_dir/stl
         any_sliced = False
+        parts_dir = args.config_dir
         for part_name in parts_list:
-            part_path = os.path.join(args.config_dir, f"{part_name}.stl")
-            if os.path.exists(part_path):
+            if os.path.exists(os.path.join(args.config_dir, f"{part_name}.stl")):
                 any_sliced = True
+                parts_dir = args.config_dir
+                break
+            elif os.path.exists(os.path.join(args.config_dir, "stl", f"{part_name}.stl")):
+                any_sliced = True
+                parts_dir = os.path.join(args.config_dir, "stl")
                 break
                 
         if not any_sliced:
-            print("No sliced parts found in config output folder. Falling back to uncut body render...")
-            body_path = os.path.join(args.config_dir, "Guitar_Full_Body.stl")
-            if not os.path.exists(body_path):
-                body_path = os.path.join(models_dir, "obj", "guitar.obj")
-                body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
-            else:
+            print(f"No sliced parts found in {args.config_dir}. Falling back to uncut body render ({body_model_name})...")
+            body_path = find_uncut_body()
+            if not body_path:
+                print(f"Warning: No body mesh found in {args.config_dir} or {models_dir}/obj/")
+            elif body_path.lower().endswith(".stl"):
                 body_obj = import_stl(body_path, "Guitar_Body", body_mat, scale_factor=0.1)
-            if body_obj:
-                body_objects.append(body_obj)
+                if body_obj:
+                    body_objects.append(body_obj)
+            else:
+                body_obj = import_obj(body_path, "Guitar_Body", rotation_x=90)
+                if body_obj:
+                    body_obj.data.materials.append(body_mat)
+                    body_objects.append(body_obj)
         else:
             # Parse material scheme for sliced parts
             material_mode = args.material.lower().strip()

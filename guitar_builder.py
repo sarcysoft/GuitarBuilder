@@ -742,7 +742,26 @@ def run_wrapper_mode():
         except Exception as e:
             print(f"Warning: Failed to save last_config.json: {e}")
             
+        # Ensure base body mesh exists if not yet generated
+        body_obj_path = os.path.join(script_dir, "models", "obj", f"{config}.obj") if config else None
+        has_stl = os.path.exists(os.path.join(config_dir, "Guitar_Full_Body.stl")) or os.path.exists(os.path.join(config_dir, "stl", "Guitar_Full_Body.stl"))
+        if config and not has_stl and (not body_obj_path or not os.path.exists(body_obj_path)):
+            print(f"Base body mesh '{config}.obj' not found. Auto-generating base 3D mesh from guitar.blend...")
+            cmd_gen = [
+                blender_exe,
+                "--background",
+                guitar_blend,
+                "--python",
+                os.path.abspath(__file__),
+                "--",
+                "--config", config,
+                "--generate"
+            ]
+            subprocess.run(cmd_gen)
+
         render_args = ["--config-dir", config_dir]
+        if config:
+            render_args += ["--config", config]
         if uncut:
             render_args.append("--uncut")
         if body_only:
