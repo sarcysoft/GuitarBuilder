@@ -63,7 +63,7 @@ class ProjectManager:
 
     def resolve_project_dir(self, name_or_path):
         """Returns the absolute path to a project directory."""
-        if os.path.isabs(name_or_path) or os.path.sep in name_or_path:
+        if os.path.isabs(name_or_path) or "/" in name_or_path or "\\" in name_or_path or os.path.exists(name_or_path):
             p = os.path.abspath(name_or_path)
             if os.path.isfile(p):
                 return os.path.dirname(p)

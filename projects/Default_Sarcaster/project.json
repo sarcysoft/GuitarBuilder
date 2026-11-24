@@ -2,7 +2,7 @@
     "name": "Default_Sarcaster",
     "version": "1.0",
     "created_at": "2026-11-24T10:57:32.338833",
-    "updated_at": "2026-11-24T12:50:09.832205",
+    "updated_at": "2026-11-24T13:05:25.645857",
     "body_model": "sarcaster",
     "body_dimensions": {
         "Offset Scale": 4.0,
@@ -47,7 +47,7 @@
         "tuner_finish": "black"
     },
     "hardware": {
-        "variant": "standard",
+        "variant": "piezo",
         "electronics": "sarcaster"
     },
     "slicing": {
@@ -55,17 +55,19 @@
         "pin_diameter": 6.0,
         "pin_length": 16.0,
         "no_pins": false,
-        "no_cut": false
+        "no_cut": false,
+        "last_slice_signature": "541d6b1a9c32eb27",
+        "last_cut_type": "flat"
     },
     "visuals": {
         "presentation_mode": "sliced",
-        "body_material": "random",
+        "body_material": "sparkle:random",
         "backplate_material": "gloss:black",
         "lighting": "studio",
         "engine": "eevee",
-        "angle": "front",
+        "angle": "angled",
         "animate": false,
         "dynamic_zoom": true,
-        "seed": 966652
+        "seed": 74211
     }
 }

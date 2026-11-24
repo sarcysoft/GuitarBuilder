@@ -218,7 +218,16 @@ def import_and_subtract_stl(stl_filename, guitar_body, script_dir, rotation_z=0,
     bool_mod = guitar_body.modifiers.new(name=f"{obj_name}_Boolean", type='BOOLEAN')
     bool_mod.operation = 'DIFFERENCE'
     bool_mod.object = imported_obj
-    bool_mod.solver = 'EXACT'  # Use EXACT solver for robust boolean cuts
+    try:
+        available_solvers = [e.identifier for e in bpy.types.BooleanModifier.bl_rna.properties['solver'].enum_items]
+    except Exception:
+        available_solvers = ['EXACT']
+    if 'MANIFOLD' in available_solvers:
+        bool_mod.solver = 'MANIFOLD'
+    elif 'FLOAT' in available_solvers:
+        bool_mod.solver = 'FLOAT'
+    else:
+        bool_mod.solver = 'EXACT'
     
     # Apply the modifier
     try:
