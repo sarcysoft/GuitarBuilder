@@ -253,9 +253,9 @@ class GuitarBuilderGUI:
         self.paned_window = ttk.PanedWindow(self.root, orient="vertical")
         self.paned_window.pack(fill="both", expand=True, padx=16, pady=(4, 6))
 
-        # Top Pane: Tabbed Notebook
+        # Top Pane: Tabbed Notebook (high weight so top gets maximum vertical space)
         self.notebook_frame = ttk.Frame(self.paned_window)
-        self.paned_window.add(self.notebook_frame, weight=5)
+        self.paned_window.add(self.notebook_frame, weight=9)
 
         self.notebook = ttk.Notebook(self.notebook_frame)
         self.notebook.pack(fill="both", expand=True)
@@ -276,12 +276,12 @@ class GuitarBuilderGUI:
         self._build_tab_config_editor()
         self._build_tab_gallery()
 
-        # Bottom Pane: Command Preview Bar + Live Console
+        # Bottom Pane: Command Preview Bar + Live Console (compact weight)
         self.bottom_frame = ttk.Frame(self.paned_window)
-        self.paned_window.add(self.bottom_frame, weight=2)
+        self.paned_window.add(self.bottom_frame, weight=1)
 
         # Command Preview Bar
-        preview_frame = ttk.Frame(self.bottom_frame, padding=(0, 2, 0, 4))
+        preview_frame = ttk.Frame(self.bottom_frame, padding=(0, 1, 0, 2))
         preview_frame.pack(fill="x")
         ttk.Label(preview_frame, text="Command Preview:", font=("Segoe UI", 9, "bold"), foreground="#475569").pack(side="left", padx=(0, 6))
         ent_preview = ttk.Entry(preview_frame, textvariable=self.var_cmd_preview, state="readonly", font=("Consolas", 9))
@@ -876,11 +876,11 @@ class GuitarBuilderGUI:
     # =========================================================================
     def _build_console_area(self, parent=None):
         target_parent = parent if parent is not None else self.root
-        console_container = ttk.Frame(target_parent, padding=(0, 2, 0, 4))
+        console_container = ttk.Frame(target_parent, padding=(0, 1, 0, 2))
         console_container.pack(fill="both", expand=True)
 
         header_bar = ttk.Frame(console_container)
-        header_bar.pack(fill="x", pady=(0, 3))
+        header_bar.pack(fill="x", pady=(0, 2))
 
         self.lbl_status = ttk.Label(header_bar, text="Status: Ready", font=("Segoe UI", 9, "bold"), foreground="#0f172a")
         self.lbl_status.pack(side="left")
@@ -894,13 +894,13 @@ class GuitarBuilderGUI:
         self.btn_toggle_console = ttk.Button(header_bar, text="▾ Minimize", width=11, command=self._toggle_console)
         self.btn_toggle_console.pack(side="right")
 
-        # Text Console with Scrollbar
+        # Text Console with Scrollbar (compact height so top section expands)
         self.console_body = ttk.Frame(console_container)
         self.console_body.pack(fill="both", expand=True)
 
         self.txt_console = tk.Text(
             self.console_body, 
-            height=6, 
+            height=4, 
             bg="#0f172a", 
             fg="#f8fafc", 
             insertbackground="#38bdf8",
@@ -908,7 +908,7 @@ class GuitarBuilderGUI:
             wrap="word",
             relief="flat",
             padx=8,
-            pady=4
+            pady=3
         )
         scroll = ttk.Scrollbar(self.console_body, orient="vertical", command=self.txt_console.yview)
         self.txt_console.configure(yscrollcommand=scroll.set)
