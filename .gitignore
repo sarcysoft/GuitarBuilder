@@ -6,6 +6,8 @@
 debug/
 output/
 scratch/
+last_config.json
 projects/*/renders/
 projects/*/stl/
+projects/*/last_config.json
 
