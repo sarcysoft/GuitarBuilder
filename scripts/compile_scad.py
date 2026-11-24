@@ -122,17 +122,37 @@ def main():
             v_dir = os.path.join(hw_base_dir, variant)
             print(f"Compiling Hardware Variant [{variant}]...")
             
-            # Main hardware cut file
-            hw_scad = os.path.join(v_dir, "hardware.scad")
-            if os.path.exists(hw_scad):
-                out_stl = os.path.join(stl_dir, f"hardware_{variant}.stl")
-                run_openscad(openscad_exe + ["-o", out_stl, hw_scad], f"hardware_{variant}.stl")
+            # 1. Hardware cavity cutouts (pickup cavities, bridge rout, jack rout)
+            hw_cut_scad = os.path.join(v_dir, "hardware_cutout.scad")
+            legacy_hw_scad = os.path.join(v_dir, "hardware.scad")
+            has_explicit_cutout = os.path.exists(hw_cut_scad)
+
+            if has_explicit_cutout:
+                out_cut_stl = os.path.join(stl_dir, f"hardware_cutout_{variant}.stl")
+                run_openscad(openscad_exe + ["-o", out_cut_stl, hw_cut_scad], f"hardware_cutout_{variant}.stl")
                 if variant == "standard":
-                    # Backward compatibility alias
                     import shutil
-                    shutil.copyfile(out_stl, os.path.join(stl_dir, "hardware.stl"))
-            else:
-                print(f"  Warning: No hardware.scad found in {v_dir}")
+                    shutil.copyfile(out_cut_stl, os.path.join(stl_dir, "hardware_cutout.stl"))
+            elif os.path.exists(legacy_hw_scad):
+                # Fallback: legacy hardware.scad used as cutout
+                out_cut_stl = os.path.join(stl_dir, f"hardware_cutout_{variant}.stl")
+                run_openscad(openscad_exe + ["-o", out_cut_stl, legacy_hw_scad], f"hardware_cutout_{variant}.stl")
+                if variant == "standard":
+                    import shutil
+                    shutil.copyfile(out_cut_stl, os.path.join(stl_dir, "hardware_cutout.stl"))
+
+            # 2. Physical hardware model for rendering (Bridge, Pickups, Jack plate, etc.)
+            hw_phys_scad = os.path.join(v_dir, "hardware_physical.scad")
+            if not os.path.exists(hw_phys_scad) and has_explicit_cutout and os.path.exists(legacy_hw_scad):
+                hw_phys_scad = legacy_hw_scad
+
+            if os.path.exists(hw_phys_scad):
+                out_phys_stl = os.path.join(stl_dir, f"hardware_physical_{variant}.stl")
+                run_openscad(openscad_exe + ["-o", out_phys_stl, hw_phys_scad], f"hardware_physical_{variant}.stl")
+                import shutil
+                shutil.copyfile(out_phys_stl, os.path.join(stl_dir, f"hardware_{variant}.stl"))
+                if variant == "standard":
+                    shutil.copyfile(out_phys_stl, os.path.join(stl_dir, "hardware.stl"))
                 
             # Check for backplate files - omitting backplate.scad skips backplate completely
             backplate_scad = os.path.join(v_dir, "backplate.scad")

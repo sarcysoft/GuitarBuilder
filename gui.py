@@ -927,7 +927,10 @@ class GuitarBuilderGUI:
 
         if preview_path and os.path.exists(preview_path):
             try:
-                raw_img = tk.PhotoImage(file=preview_path)
+                import base64
+                with open(preview_path, "rb") as f:
+                    b64_data = base64.b64encode(f.read()).decode("ascii")
+                raw_img = tk.PhotoImage(data=b64_data)
                 # Generous width (~640px) so the preview fills the right pane
                 sub_factor = max(1, raw_img.width() // 640)
                 sub_img = raw_img.subsample(sub_factor, sub_factor)
@@ -955,7 +958,10 @@ class GuitarBuilderGUI:
         pop.title(f"Preview - {self.active_project_name.get()} (Actual Size)")
 
         try:
-            full_img = tk.PhotoImage(file=preview_path)
+            import base64
+            with open(preview_path, "rb") as f:
+                b64_data = base64.b64encode(f.read()).decode("ascii")
+            full_img = tk.PhotoImage(data=b64_data)
             w = full_img.width()
             h = full_img.height()
             screen_w = self.root.winfo_screenwidth()

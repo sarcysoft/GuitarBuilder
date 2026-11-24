@@ -989,6 +989,83 @@ def import_modular_neck(models_dir, third_party_dir, neck_type="auto", config_na
         return []
 
 
+def create_guitar_strings(hardware_variant="standard", neck_type="strat"):
+    """
+    Automatically generates 6 realistic 3D guitar strings running continuously
+    from the bridge saddles over the frets and nut slots to the headstock tuning posts.
+    """
+    hw = (hardware_variant or "standard").lower().strip()
+    if "piezo" in hw:
+        bridge_y = 14.0
+        bridge_z = 4.45
+    else:
+        bridge_y = 15.5
+        bridge_z = 4.45
+
+    # 6 strings spaced across 5.3 cm (standard 53mm bridge spacing)
+    bridge_xs = [-2.65, -1.59, -0.53, 0.53, 1.59, 2.65]
+
+    nk = (neck_type or "strat").lower().strip()
+    if any(k in nk for k in ["les_paul", "sg", "flying_v", "sarcy_v", "single_cut"]):
+        nut_y = 76.80
+        is_les_paul = True
+    else:
+        nut_y = 79.20
+        is_les_paul = False
+    nut_z = 4.85
+
+    # 6 strings spaced across 3.5 cm (35mm nut string spacing)
+    nut_xs = [-1.75, -1.05, -0.35, 0.35, 1.05, 1.75]
+
+    # Gauges: standard 10-46 set (E, A, D, G, B, E)
+    gauges = [0.024, 0.020, 0.016, 0.013, 0.010, 0.007]
+
+    tuner_posts = []
+    if is_les_paul:
+        # 3x3 headstock: left side (strings 0, 1, 2) and right side (strings 3, 4, 5)
+        tuner_posts = [
+            (-2.2, 78.5, 4.60),  # E (low)
+            (-2.2, 82.0, 4.60),  # A
+            (-2.2, 85.5, 4.60),  # D
+            ( 2.2, 85.5, 4.60),  # G
+            ( 2.2, 82.0, 4.60),  # B
+            ( 2.2, 78.5, 4.60)   # E (high)
+        ]
+    else:
+        # 6 in-line headstock (Strat): all posts at X = -1.35
+        tuner_ys = [82.6, 84.9, 87.2, 89.5, 91.8, 94.1]
+        for ty in tuner_ys:
+            tuner_posts.append((-1.35, ty, 4.60))
+
+    curve_data = bpy.data.curves.new("Guitar_Strings_Data", 'CURVE')
+    curve_data.dimensions = '3D'
+    curve_data.bevel_depth = 0.012  # base radius
+    curve_data.bevel_resolution = 3
+
+    for i in range(6):
+        spline = curve_data.splines.new('POLY')
+        spline.points.add(2)
+        rel_rad = gauges[i] / 0.012
+
+        spline.points[0].co = (bridge_xs[i], bridge_y, bridge_z, 1.0)
+        spline.points[0].radius = rel_rad
+
+        spline.points[1].co = (nut_xs[i], nut_y, nut_z, 1.0)
+        spline.points[1].radius = rel_rad
+
+        tp = tuner_posts[i]
+        spline.points[2].co = (tp[0], tp[1], tp[2], 1.0)
+        spline.points[2].radius = rel_rad
+
+    strings_obj = bpy.data.objects.new("Guitar_Strings", curve_data)
+    bpy.context.collection.objects.link(strings_obj)
+
+    mat = create_polished_chrome("Strings_Metal", color=(0.90, 0.90, 0.92, 1.0))
+    strings_obj.data.materials.append(mat)
+    print(f"Generated 6 guitar strings automatically (Bridge Y={bridge_y:.1f} -> Nut Y={nut_y:.1f} -> Tuners).")
+    return strings_obj
+
+
 
 def import_stl(filepath, name, material=None, scale_factor=1.0):
     """Helper to import an STL and assign a material."""
@@ -2099,10 +2176,19 @@ def run_rendering():
                 return False
 
         # 1. Hardware cavity (pickups, bridge rout, jack rout, neck pocket)
-        hw_stl = f"hardware_{hw}.stl"
-        if not os.path.exists(os.path.join(stl_dir, hw_stl)):
-            hw_stl = "hardware.stl"
-        subtract_stl(hw_stl, rot_z=180, off_y=40, off_z=2)
+        hw_cutout_candidates = [
+            f"hardware_cutout_{hw}.stl",
+            "hardware_cutout.stl",
+            f"hardware_{hw}.stl",
+            "hardware.stl"
+        ]
+        hw_stl = None
+        for cand in hw_cutout_candidates:
+            if os.path.exists(os.path.join(stl_dir, cand)):
+                hw_stl = cand
+                break
+        if hw_stl:
+            subtract_stl(hw_stl, rot_z=180, off_y=40, off_z=2)
 
         # Hardware backplate mask & fixings (recess lip)
         bp_stl = f"backplate_{hw}.stl"
@@ -2356,6 +2442,27 @@ def run_rendering():
             ebp_obj = bpy.data.objects.get("Hardware_elec_backplate")
             if ebp_obj:
                 ebp_obj.location.z = 2.0
+
+        # Physical Hardware (Bridge, Pickups, Jack plate, etc. - rendered in chrome)
+        has_phys_hw = False
+        for hw_cand in [f"hardware_physical_{hw_variant}.stl", f"hardware_{hw_variant}.stl"]:
+            cand_path = os.path.join(stl_dir, hw_cand)
+            is_valid_phys = "hardware_physical" in hw_cand or os.path.exists(os.path.join(stl_dir, f"hardware_cutout_{hw_variant}.stl"))
+            if is_valid_phys and os.path.exists(cand_path):
+                print(f"Importing physical chrome hardware: {hw_cand}...")
+                hw_chrome = get_or_create_hardware_metal("chrome")
+                import_stl(cand_path, "Physical_Hardware", hw_chrome)
+                hw_obj = bpy.data.objects.get("Physical_Hardware")
+                if hw_obj:
+                    hw_obj.rotation_euler[2] = math.radians(180)
+                    hw_obj.location.y = 40.0
+                    hw_obj.location.z = 2.0
+                    has_phys_hw = True
+                break
+
+        # Automatically add strings if physical hardware is present
+        if has_phys_hw:
+            create_guitar_strings(hardware_variant=hw_variant, neck_type=args.neck)
             
     # Setup initial static lighting and ground plane centered at the origin
     setup_lighting(args.lighting, (0.0, 0.0, 0.0))
@@ -2493,7 +2600,15 @@ def run_rendering():
             print(f"Rendering view '{angle}' to: {output_filepath}")
             
             scene.render.filepath = output_filepath
-            bpy.ops.render.render(write_still=True)
+            try:
+                bpy.ops.render.render(write_still=True)
+            except Exception as e:
+                # If target file is locked by a viewer or Tkinter handle on Windows
+                fallback_path = os.path.join(renders_dir, f"{angle}_render.png")
+                print(f"Warning: Failed writing to {output_filepath} ({e}). Retrying with {fallback_path}...")
+                scene.render.filepath = fallback_path
+                bpy.ops.render.render(write_still=True)
+                output_filepath = fallback_path
 
             if args.preview:
                 preview_filepath = os.path.join(renders_dir, "preview.png")

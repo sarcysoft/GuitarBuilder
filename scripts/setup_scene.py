@@ -478,11 +478,14 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
     print(f"Active Hardware Variant: {hardware}")
     print(f"Active Electronics Variant: {electronics}")
 
-    # 1. Hardware subtraction
-    hw_stl = f"hardware_{hardware}.stl"
-    if not os.path.exists(os.path.join(stl_dir, hw_stl)):
-        hw_stl = "hardware.stl"
-    import_and_subtract_stl(hw_stl, guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
+    # 1. Hardware cavity cutout subtraction
+    hw_stl = None
+    for cand in [f"hardware_cutout_{hardware}.stl", "hardware_cutout.stl", f"hardware_{hardware}.stl", "hardware.stl"]:
+        if os.path.exists(os.path.join(stl_dir, cand)):
+            hw_stl = cand
+            break
+    if hw_stl:
+        import_and_subtract_stl(hw_stl, guitar_body, stl_dir, rotation_z=180, offset_y=40, offset_z=2)
 
     # Check for backplate on this hardware variant (omitting backplate skips it completely)
     bp_stl = f"backplate_{hardware}.stl"

@@ -527,6 +527,7 @@ def parse_wrapper_args(argv):
             i += 1
         elif arg in ["--preview", "-p"]:
             preview = True
+            animate = False
             i += 1
         elif arg in ["--dynamic-zoom", "--dynamic_zoom"]:
             dynamic_zoom = True
