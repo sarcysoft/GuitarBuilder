@@ -32,12 +32,12 @@ func _setup_default_material():
 	if not body_mesh:
 		return
 	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.12, 0.38, 0.82) # Candy Royal Blue
-	mat.metallic = 0.45
-	mat.roughness = 0.18
+	mat.albedo_color = Color(0.85, 0.14, 0.16) # Candy Apple Fiesta Red
+	mat.metallic = 0.15
+	mat.roughness = 0.22
 	mat.clearcoat_enabled = true
-	mat.clearcoat = 1.0
-	mat.clearcoat_roughness = 0.04
+	mat.clearcoat = 0.9
+	mat.clearcoat_roughness = 0.08
 	body_mesh.material_override = mat
 
 func _sync_ui_from_mesh():
@@ -69,7 +69,7 @@ func _connect_signals():
 func _check_cli_capture():
 	var args = OS.get_cmdline_user_args()
 	if "--screenshot" in args or "--capture" in args:
-		await get_tree().create_timer(0.3).timeout
+		await get_tree().create_timer(0.4).timeout
 		var img = get_viewport().get_texture().get_image()
 		img.save_png("res://preview.png")
 		print("[GuitarBuilder] Saved screenshot to res://preview.png")

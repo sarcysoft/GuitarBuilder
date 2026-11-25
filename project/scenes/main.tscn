@@ -1,24 +1,16 @@
-[gd_scene load_steps=5 format=3 uid="uid://c6f2a7b8e9d01"]
+[gd_scene load_steps=3 format=3 uid="uid://c6f2a7b8e9d01"]
 
 [ext_resource type="Script" path="res://scripts/studio_controller.gd" id="1_controller"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
-sky_top_color = Color(0.25, 0.28, 0.35, 1)
-sky_horizon_color = Color(0.6, 0.62, 0.68, 1)
-ground_bottom_color = Color(0.12, 0.13, 0.15, 1)
-ground_horizon_color = Color(0.3, 0.32, 0.35, 1)
-
-[sub_resource type="Sky" id="Sky_env"]
-sky_material = SubResource("ProceduralSkyMaterial_sky")
-
 [sub_resource type="Environment" id="Environment_main"]
-background_mode = 2
-sky = SubResource("Sky_env")
-ambient_light_source = 3
-ambient_light_color = Color(0.65, 0.68, 0.72, 1)
+background_mode = 1
+background_color = Color(0.11, 0.12, 0.15, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.35, 0.38, 0.45, 1)
 tonemap_mode = 3
 ssao_enabled = true
 glow_enabled = true
+glow_intensity = 0.2
 
 [node name="StudioScene" type="Node3D"]
 script = ExtResource("1_controller")
@@ -26,23 +18,31 @@ script = ExtResource("1_controller")
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_main")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 2, 0)
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 1.5, 2, 2)
+light_color = Color(1, 0.98, 0.95, 1)
+light_energy = 1.2
 shadow_enabled = true
 
 [node name="FillLight" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-0.707107, 0.5, -0.5, 0, 0.707107, 0.707107, 0.707107, 0.5, -0.5, 0, 2, 0)
-light_color = Color(0.7, 0.75, 0.85, 1)
-light_energy = 0.5
+transform = Transform3D(-0.707107, 0.353553, -0.612372, 0, 0.866025, 0.5, 0.707107, 0.353553, -0.612372, -1.5, 1.5, -1)
+light_color = Color(0.7, 0.8, 0.95, 1)
+light_energy = 0.6
+
+[node name="RimLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, 0, -0.5, -0.25, 0.866025, -0.433013, 0.433013, 0.5, 0.75, 0, -2, -1)
+light_color = Color(0.9, 0.95, 1, 1)
+light_energy = 0.8
 
 [node name="GuitarBodyMesh" type="GuitarBodyMesh" parent="."]
 
 [node name="CameraPivot" type="Node3D" parent="."]
+transform = Transform3D(0.92388, 0.0667652, -0.376815, 0, 0.984808, 0.174311, 0.382683, -0.161043, 0.909844, 0, 0, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0.15, 0.9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.85)
 current = true
-fov = 45.0
+fov = 42.0
 
 [node name="UI" type="Control" parent="."]
 layout_mode = 3
