@@ -1046,14 +1046,17 @@ void GuitarBodyMesh::rebuild_mesh() {
     if (control_cavity_enabled) {
         double pocket_depth = std::min(control_cavity_depth, body_thickness - 6.0);
 
-        // Organic control cavity polygon in lower treble bout
+        // Organic control cavity polygon extended downward into the lower bout
+        // to provide generous internal space (> 28mm clearance) for the bottom CTS pot,
+        // tone capacitors, and wiring.
         SimplePolygon cc_pts = {
-            vec2{ -14.0, -45.0 },
-            vec2{  18.0, -40.0 },
-            vec2{  24.0,  10.0 },
-            vec2{  12.0,  52.0 },
-            vec2{ -14.0,  50.0 },
-            vec2{ -14.0,   5.0 }
+            vec2{ -14.0, -70.0 }, // Extended tail end
+            vec2{  14.0, -68.0 }, // Extended tail end right
+            vec2{  20.0, -35.0 }, // Lower-right flank
+            vec2{  24.0,  10.0 }, // Mid-right flank
+            vec2{  14.0,  52.0 }, // Top-right flank
+            vec2{ -14.0,  50.0 }, // Top-left
+            vec2{ -14.0,   5.0 }  // Mid-left (facing bridge ferrules with >17mm wall)
         };
         CrossSection cs_cc(cc_pts, CrossSection::FillRule::Positive);
         cs_cc = cs_cc.Offset(8.0, CrossSection::JoinType::Round).Offset(-2.0, CrossSection::JoinType::Round);
