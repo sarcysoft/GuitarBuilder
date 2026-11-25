@@ -1,13 +1,46 @@
-*.stl
-*.obj
-*.mtl
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Legacy PoC artifacts
+legacy_poc/debug/
+legacy_poc/output/
+legacy_poc/scratch/
+legacy_poc/projects/*/renders/
+legacy_poc/projects/*/stl/
+legacy_poc/projects/*/last_config.json
+legacy_poc/config/output/
+legacy_poc/__pycache__/
+legacy_poc/*/__pycache__/
+legacy_poc/*.stl
+legacy_poc/*.obj
+legacy_poc/*.mtl
+legacy_poc/*/*.stl
+legacy_poc/*/*.obj
+legacy_poc/*/*.mtl
+legacy_poc/*/*/*.stl
+legacy_poc/*/*/*.obj
+legacy_poc/*/*/*.mtl
 *.blend1
 *.pyc
-debug/
-output/
-scratch/
-last_config.json
-projects/*/renders/
-projects/*/stl/
-projects/*/last_config.json
 
+# General CAD / Mesh output ignores
+*.stl
+output/
+debug/
+
+# Godot 4 project ignores
+.godot/
+*.translation
+
+# C++ / SCons / CMake build artifacts
+build/
+bin/
+*.o
+*.exp
+*.lib
+*.pdb
+*.ilk
+.sconsign.dblite
