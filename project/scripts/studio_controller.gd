@@ -4,6 +4,12 @@ extends Node3D
 @onready var camera_pivot = $CameraPivot
 @onready var camera = $CameraPivot/Camera3D
 
+# Camera View Buttons
+@onready var btn_orbit = $UI/Panel/Scroll/VBox/ViewButtons/BtnOrbit
+@onready var btn_front = $UI/Panel/Scroll/VBox/ViewButtons/BtnFront
+@onready var btn_back = $UI/Panel/Scroll/VBox/ViewButtons/BtnBack
+@onready var btn_side = $UI/Panel/Scroll/VBox/ViewButtons/BtnSide
+
 # Global UI Sliders
 @onready var slider_length = $UI/Panel/Scroll/VBox/GridGlobal/SliderLength
 @onready var slider_thickness = $UI/Panel/Scroll/VBox/GridGlobal/SliderThickness
@@ -19,18 +25,22 @@ extends Node3D
 @onready var slider_waist = $UI/Panel/Scroll/VBox/SymmetricControls/SliderWaist
 @onready var slider_chest = $UI/Panel/Scroll/VBox/SymmetricControls/SliderChest
 @onready var slider_shoulder = $UI/Panel/Scroll/VBox/SymmetricControls/SliderShoulder
+@onready var slider_horn_reach = $UI/Panel/Scroll/VBox/SymmetricControls/SliderHornReach
+@onready var slider_horn_roundness = $UI/Panel/Scroll/VBox/SymmetricControls/SliderHornRoundness
 
 # Asymmetric Treble Sliders
 @onready var slider_t_hip = $UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble/SliderTrebleHip
 @onready var slider_t_waist = $UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble/SliderTrebleWaist
 @onready var slider_t_chest = $UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble/SliderTrebleChest
 @onready var slider_t_horn = $UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble/SliderTrebleHorn
+@onready var slider_t_roundness = $UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble/SliderTrebleRoundness
 
 # Asymmetric Bass Sliders
 @onready var slider_b_hip = $UI/Panel/Scroll/VBox/AsymmetricControls/GridBass/SliderBassHip
 @onready var slider_b_waist = $UI/Panel/Scroll/VBox/AsymmetricControls/GridBass/SliderBassWaist
 @onready var slider_b_chest = $UI/Panel/Scroll/VBox/AsymmetricControls/GridBass/SliderBassChest
 @onready var slider_b_horn = $UI/Panel/Scroll/VBox/AsymmetricControls/GridBass/SliderBassHorn
+@onready var slider_b_roundness = $UI/Panel/Scroll/VBox/AsymmetricControls/GridBass/SliderBassRoundness
 
 # Ergonomic Cuts
 @onready var check_belly = $UI/Panel/Scroll/VBox/CheckBellyCut
@@ -83,16 +93,20 @@ func _sync_ui_from_mesh():
 	slider_waist.value = body_mesh.waist_width
 	slider_chest.value = body_mesh.chest_width
 	slider_shoulder.value = body_mesh.shoulder_width
+	slider_horn_reach.value = body_mesh.horn_reach
+	slider_horn_roundness.value = body_mesh.horn_roundness
 
 	slider_t_hip.value = body_mesh.treble_hip_width
 	slider_t_waist.value = body_mesh.treble_waist_width
 	slider_t_chest.value = body_mesh.treble_chest_width
 	slider_t_horn.value = body_mesh.treble_horn_length
+	slider_t_roundness.value = body_mesh.treble_horn_roundness
 
 	slider_b_hip.value = body_mesh.bass_hip_width
 	slider_b_waist.value = body_mesh.bass_waist_width
 	slider_b_chest.value = body_mesh.bass_chest_width
 	slider_b_horn.value = body_mesh.bass_horn_length
+	slider_b_roundness.value = body_mesh.bass_horn_roundness
 
 	check_belly.button_pressed = body_mesh.belly_cut_enabled
 	belly_controls.visible = body_mesh.belly_cut_enabled
@@ -105,6 +119,20 @@ func _sync_ui_from_mesh():
 	slider_forearm_length.value = body_mesh.forearm_bevel_length
 
 func _connect_signals():
+	# View presets
+	btn_orbit.pressed.connect(func():
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+	)
+	btn_front.pressed.connect(func():
+		camera_pivot.rotation = Vector3(0.0, 0.0, 0.0)
+	)
+	btn_back.pressed.connect(func():
+		camera_pivot.rotation = Vector3(0.0, PI, 0.0)
+	)
+	btn_side.pressed.connect(func():
+		camera_pivot.rotation = Vector3(-0.15, 1.35, 0.0)
+	)
+
 	# Global
 	slider_length.value_changed.connect(func(v): body_mesh.body_length = v)
 	slider_thickness.value_changed.connect(func(v): body_mesh.body_thickness = v)
@@ -135,8 +163,16 @@ func _connect_signals():
 	)
 	slider_shoulder.value_changed.connect(func(v):
 		body_mesh.shoulder_width = v
-		slider_t_horn.value = body_mesh.treble_horn_length
-		slider_b_horn.value = body_mesh.bass_horn_length
+	)
+	slider_horn_reach.value_changed.connect(func(v):
+		body_mesh.horn_reach = v
+		slider_t_horn.value = v
+		slider_b_horn.value = v
+	)
+	slider_horn_roundness.value_changed.connect(func(v):
+		body_mesh.horn_roundness = v
+		slider_t_roundness.value = v
+		slider_b_roundness.value = v
 	)
 
 	# Asymmetric Treble
@@ -144,12 +180,14 @@ func _connect_signals():
 	slider_t_waist.value_changed.connect(func(v): body_mesh.treble_waist_width = v)
 	slider_t_chest.value_changed.connect(func(v): body_mesh.treble_chest_width = v)
 	slider_t_horn.value_changed.connect(func(v): body_mesh.treble_horn_length = v)
+	slider_t_roundness.value_changed.connect(func(v): body_mesh.treble_horn_roundness = v)
 
 	# Asymmetric Bass
 	slider_b_hip.value_changed.connect(func(v): body_mesh.bass_hip_width = v)
 	slider_b_waist.value_changed.connect(func(v): body_mesh.bass_waist_width = v)
 	slider_b_chest.value_changed.connect(func(v): body_mesh.bass_chest_width = v)
 	slider_b_horn.value_changed.connect(func(v): body_mesh.bass_horn_length = v)
+	slider_b_roundness.value_changed.connect(func(v): body_mesh.bass_horn_roundness = v)
 
 	# Belly Cut
 	check_belly.toggled.connect(func(v):
@@ -168,17 +206,39 @@ func _connect_signals():
 	slider_forearm_length.value_changed.connect(func(v): body_mesh.forearm_bevel_length = v)
 
 func _check_cli_capture():
-	var args = OS.get_cmdline_user_args()
-	if "--test-cuts" in args:
+	var args = OS.get_cmdline_args() + OS.get_cmdline_user_args()
+	var should_exit = false
+	if "--test-cuts-front" in args:
 		check_forearm.button_pressed = true
 		check_belly.button_pressed = true
-		camera_pivot.rotation.y = 0.6
-		camera_pivot.rotation.x = -0.3
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		should_exit = true
+	elif "--test-cuts-back" in args:
+		check_forearm.button_pressed = true
+		check_belly.button_pressed = true
+		camera_pivot.rotation = Vector3(-0.25, PI + 0.4, 0.0)
+		should_exit = true
+	elif "--test-short-horns" in args:
+		slider_horn_reach.value = 405.0
+		slider_horn_roundness.value = 1.6
+		camera_pivot.rotation = Vector3(0.0, 0.0, 0.0)
+		should_exit = true
+	elif "--test-sharp-horns" in args:
+		slider_horn_reach.value = 460.0
+		slider_horn_roundness.value = 0.65
+		camera_pivot.rotation = Vector3(0.0, 0.0, 0.0)
+		should_exit = true
+	elif "--test-cuts" in args:
+		check_forearm.button_pressed = true
+		check_belly.button_pressed = true
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		should_exit = true
 	elif "--test-asym" in args:
 		check_symmetric.button_pressed = false
+		should_exit = true
 
-	if "--screenshot" in args or "--capture" in args or "--test-cuts" in args or "--test-asym" in args:
-		await get_tree().create_timer(0.4).timeout
+	if should_exit or "--screenshot" in args or "--capture" in args:
+		await get_tree().create_timer(0.6).timeout
 		var img = get_viewport().get_texture().get_image()
 		img.save_png("res://preview.png")
 		print("[GuitarBuilder] Saved screenshot to res://preview.png")

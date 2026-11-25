@@ -20,6 +20,8 @@ private:
     double edge_radius = 8.0;
 
     bool symmetric_mode = true;
+    double horn_reach = 446.4;
+    double horn_roundness = 1.0;
 
     // Independent side parameters (Asymmetric mode)
     double treble_hip_width = 159.0;
@@ -32,6 +34,8 @@ private:
     double bass_shoulder_width = 125.0;
     double treble_horn_length = 446.4;
     double bass_horn_length = 458.0;
+    double treble_horn_roundness = 1.0;
+    double bass_horn_roundness = 1.0;
 
     // Ergonomic cuts
     bool belly_cut_enabled = false;
@@ -80,6 +84,12 @@ public:
     void set_symmetric_mode(bool p_val);
     bool get_symmetric_mode() const { return symmetric_mode; }
 
+    void set_horn_reach(double p_val);
+    double get_horn_reach() const { return horn_reach; }
+
+    void set_horn_roundness(double p_val);
+    double get_horn_roundness() const { return horn_roundness; }
+
     // Independent Treble / Bass accessors
     void set_treble_hip_width(double p_val);
     double get_treble_hip_width() const { return treble_hip_width; }
@@ -110,6 +120,12 @@ public:
 
     void set_bass_horn_length(double p_val);
     double get_bass_horn_length() const { return bass_horn_length; }
+
+    void set_treble_horn_roundness(double p_val);
+    double get_treble_horn_roundness() const { return treble_horn_roundness; }
+
+    void set_bass_horn_roundness(double p_val);
+    double get_bass_horn_roundness() const { return bass_horn_roundness; }
 
     // Ergonomic cuts accessors
     void set_belly_cut_enabled(bool p_val);

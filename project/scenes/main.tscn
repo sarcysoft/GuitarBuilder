@@ -75,6 +75,31 @@ theme_override_font_sizes/font_size = 18
 text = "🎸 GuitarBuilder Studio"
 horizontal_alignment = 1
 
+[node name="ViewButtons" type="HBoxContainer" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="BtnOrbit" type="Button" parent="UI/Panel/Scroll/VBox/ViewButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Orbit"
+
+[node name="BtnFront" type="Button" parent="UI/Panel/Scroll/VBox/ViewButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Front"
+
+[node name="BtnBack" type="Button" parent="UI/Panel/Scroll/VBox/ViewButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Back"
+
+[node name="BtnSide" type="Button" parent="UI/Panel/Scroll/VBox/ViewButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Side"
+
 [node name="HSeparator" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 
@@ -188,6 +213,30 @@ max_value = 340.0
 step = 1.0
 value = 250.0
 
+[node name="LblHornReach" type="Label" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+layout_mode = 2
+text = "Horn Reach (mm)"
+
+[node name="SliderHornReach" type="HSlider" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 390.0
+max_value = 490.0
+step = 1.0
+value = 446.4
+
+[node name="LblHornRoundness" type="Label" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+layout_mode = 2
+text = "Horn Roundness"
+
+[node name="SliderHornRoundness" type="HSlider" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 0.5
+max_value = 2.0
+step = 0.05
+value = 1.0
+
 [node name="AsymmetricControls" type="VBoxContainer" parent="UI/Panel/Scroll/VBox"]
 visible = false
 layout_mode = 2
@@ -248,10 +297,22 @@ text = "Horn Reach (mm)"
 [node name="SliderTrebleHorn" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-min_value = 400.0
+min_value = 390.0
 max_value = 490.0
 step = 1.0
 value = 446.4
+
+[node name="LblTRoundness" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+layout_mode = 2
+text = "Horn Roundness"
+
+[node name="SliderTrebleRoundness" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 0.5
+max_value = 2.0
+step = 0.05
+value = 1.0
 
 [node name="LblBass" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls"]
 layout_mode = 2
@@ -308,10 +369,22 @@ text = "Horn Reach (mm)"
 [node name="SliderBassHorn" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-min_value = 400.0
+min_value = 390.0
 max_value = 490.0
 step = 1.0
 value = 458.0
+
+[node name="LblBRoundness" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+layout_mode = 2
+text = "Horn Roundness"
+
+[node name="SliderBassRoundness" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 0.5
+max_value = 2.0
+step = 0.05
+value = 1.0
 
 [node name="HSeparator3" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
