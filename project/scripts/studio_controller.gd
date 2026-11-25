@@ -1,6 +1,7 @@
 extends Node3D
 
 @onready var body_mesh = $GuitarBodyMesh
+@onready var hardware_rig = $HardwareRig
 @onready var camera_pivot = $CameraPivot
 @onready var camera = $CameraPivot/Camera3D
 
@@ -53,6 +54,22 @@ extends Node3D
 @onready var slider_forearm_angle = $UI/Panel/Scroll/VBox/ForearmControls/SliderForearmAngle
 @onready var slider_forearm_length = $UI/Panel/Scroll/VBox/ForearmControls/SliderForearmLength
 
+# Hardware & Cavity Controls
+@onready var option_pickups = $UI/Panel/Scroll/VBox/GridHardware/OptionPickups
+@onready var option_bridge = $UI/Panel/Scroll/VBox/GridHardware/OptionBridge
+@onready var slider_bridge_y = $UI/Panel/Scroll/VBox/GridHardware/SliderBridgeY
+@onready var slider_bridge_slant = $UI/Panel/Scroll/VBox/GridHardware/SliderBridgeSlant
+@onready var slider_clearance = $UI/Panel/Scroll/VBox/GridHardware/SliderClearance
+@onready var slider_cavity_depth = $UI/Panel/Scroll/VBox/GridHardware/SliderCavityDepth
+@onready var check_neck_pocket = $UI/Panel/Scroll/VBox/CheckNeckPocket
+@onready var check_control_cavity = $UI/Panel/Scroll/VBox/CheckControlCavity
+@onready var check_hardware_models = $UI/Panel/Scroll/VBox/CheckHardwareModels
+
+# Materials for Hardware
+var chrome_mat: StandardMaterial3D
+var black_plastic_mat: StandardMaterial3D
+var cream_mat: StandardMaterial3D
+
 # Camera navigation state
 var is_orbiting = false
 var last_mouse_pos = Vector2.ZERO
@@ -60,12 +77,13 @@ var orbit_speed = 0.005
 var zoom_speed = 0.05
 
 func _ready():
-	_setup_default_material()
+	_setup_materials()
 	_sync_ui_from_mesh()
 	_connect_signals()
+	_update_hardware_visuals()
 	_check_cli_capture()
 
-func _setup_default_material():
+func _setup_materials():
 	if not body_mesh:
 		return
 	var mat = StandardMaterial3D.new()
@@ -77,6 +95,24 @@ func _setup_default_material():
 	mat.clearcoat_roughness = 0.08
 	mat.cull_mode = BaseMaterial3D.CULL_BACK
 	body_mesh.material_override = mat
+
+	chrome_mat = StandardMaterial3D.new()
+	chrome_mat.albedo_color = Color(0.92, 0.94, 0.96)
+	chrome_mat.metallic = 0.98
+	chrome_mat.roughness = 0.12
+	chrome_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	black_plastic_mat = StandardMaterial3D.new()
+	black_plastic_mat.albedo_color = Color(0.08, 0.08, 0.09)
+	black_plastic_mat.metallic = 0.05
+	black_plastic_mat.roughness = 0.32
+	black_plastic_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	cream_mat = StandardMaterial3D.new()
+	cream_mat.albedo_color = Color(0.92, 0.88, 0.78)
+	cream_mat.metallic = 0.05
+	cream_mat.roughness = 0.38
+	cream_mat.cull_mode = BaseMaterial3D.CULL_BACK
 
 func _sync_ui_from_mesh():
 	if not body_mesh:
@@ -118,6 +154,16 @@ func _sync_ui_from_mesh():
 	slider_forearm_angle.value = body_mesh.forearm_bevel_angle
 	slider_forearm_length.value = body_mesh.forearm_bevel_length
 
+	# Hardware
+	option_pickups.selected = body_mesh.pickup_config
+	option_bridge.selected = body_mesh.bridge_type
+	slider_bridge_y.value = body_mesh.bridge_y
+	slider_bridge_slant.value = body_mesh.bridge_pickup_slant
+	slider_clearance.value = body_mesh.pickup_clearance
+	slider_cavity_depth.value = body_mesh.pickup_depth
+	check_neck_pocket.button_pressed = body_mesh.neck_pocket_enabled
+	check_control_cavity.button_pressed = body_mesh.control_cavity_enabled
+
 func _connect_signals():
 	# View presets
 	btn_orbit.pressed.connect(func():
@@ -134,8 +180,14 @@ func _connect_signals():
 	)
 
 	# Global
-	slider_length.value_changed.connect(func(v): body_mesh.body_length = v)
-	slider_thickness.value_changed.connect(func(v): body_mesh.body_thickness = v)
+	slider_length.value_changed.connect(func(v):
+		body_mesh.body_length = v
+		_update_hardware_visuals()
+	)
+	slider_thickness.value_changed.connect(func(v):
+		body_mesh.body_thickness = v
+		_update_hardware_visuals()
+	)
 	slider_radius.value_changed.connect(func(v): body_mesh.edge_radius = v)
 
 	# Symmetry
@@ -205,6 +257,278 @@ func _connect_signals():
 	slider_forearm_angle.value_changed.connect(func(v): body_mesh.forearm_bevel_angle = v)
 	slider_forearm_length.value_changed.connect(func(v): body_mesh.forearm_bevel_length = v)
 
+	# Hardware & Cavity Controls
+	option_pickups.item_selected.connect(func(idx):
+		body_mesh.pickup_config = idx
+		_update_hardware_visuals()
+	)
+	option_bridge.item_selected.connect(func(idx):
+		body_mesh.bridge_type = idx
+		_update_hardware_visuals()
+	)
+	slider_bridge_y.value_changed.connect(func(v):
+		body_mesh.bridge_y = v
+		_update_hardware_visuals()
+	)
+	slider_bridge_slant.value_changed.connect(func(v):
+		body_mesh.bridge_pickup_slant = v
+		_update_hardware_visuals()
+	)
+	slider_clearance.value_changed.connect(func(v):
+		body_mesh.pickup_clearance = v
+	)
+	slider_cavity_depth.value_changed.connect(func(v):
+		body_mesh.pickup_depth = v
+	)
+	check_neck_pocket.toggled.connect(func(v):
+		body_mesh.neck_pocket_enabled = v
+	)
+	check_control_cavity.toggled.connect(func(v):
+		body_mesh.control_cavity_enabled = v
+		_update_hardware_visuals()
+	)
+	check_hardware_models.toggled.connect(func(v):
+		hardware_rig.visible = v
+	)
+
+func _update_hardware_visuals():
+	if not is_instance_valid(hardware_rig) or not is_instance_valid(body_mesh):
+		return
+	for c in hardware_rig.get_children():
+		c.queue_free()
+
+	hardware_rig.visible = check_hardware_models.button_pressed
+
+	var scale_y = body_mesh.body_length / 446.0
+	var thickness = body_mesh.body_thickness
+	var center_y = 240.0 * scale_y * 0.001
+	var center_z = thickness * 0.5 * 0.001
+	var front_z = center_z
+
+	var to_world = func(mx: float, my: float, mz_top: float = 0.0) -> Vector3:
+		return Vector3(mx * 0.001, (my * scale_y) * 0.001 - center_y, front_z + mz_top * 0.001)
+
+	# 1. Bridge
+	if body_mesh.bridge_enabled:
+		_create_bridge_visuals(to_world, scale_y)
+
+	# 2. Pickups
+	_create_pickup_visuals(to_world, scale_y)
+
+	# 3. Potentiometer Knobs
+	if body_mesh.control_cavity_enabled:
+		_create_knob_visuals(to_world, scale_y)
+
+	# 4. Output Jack Plate
+	_create_jack_plate_visuals(to_world, scale_y)
+
+func _create_bridge_visuals(to_world: Callable, scale_y: float):
+	var bridge_group = Node3D.new()
+	bridge_group.name = "BridgeRig"
+	hardware_rig.add_child(bridge_group)
+
+	var b_y = body_mesh.bridge_y
+
+	if body_mesh.bridge_type == 0:
+		# Hardtail baseplate (76mm x 40mm x 3mm)
+		var plate = MeshInstance3D.new()
+		var box = BoxMesh.new()
+		box.size = Vector3(0.076, 0.040, 0.003)
+		plate.mesh = box
+		plate.material_override = chrome_mat
+		plate.position = to_world.call(0.0, b_y, 0.0015)
+		bridge_group.add_child(plate)
+
+		# 6 individual chrome saddles
+		for i in range(6):
+			var sx = -26.25 + i * 10.5
+			var saddle = MeshInstance3D.new()
+			var s_box = BoxMesh.new()
+			s_box.size = Vector3(0.010, 0.020, 0.006)
+			saddle.mesh = s_box
+			saddle.material_override = chrome_mat
+			saddle.position = to_world.call(sx, b_y - 2.0 / scale_y, 0.005)
+			bridge_group.add_child(saddle)
+
+	else:
+		# Tremolo baseplate (84mm x 40mm x 3.5mm)
+		var plate = MeshInstance3D.new()
+		var box = BoxMesh.new()
+		box.size = Vector3(0.084, 0.040, 0.0035)
+		plate.mesh = box
+		plate.material_override = chrome_mat
+		plate.position = to_world.call(0.0, b_y, 0.00175)
+		bridge_group.add_child(plate)
+
+		# 6 Saddles
+		for i in range(6):
+			var sx = -26.25 + i * 10.5
+			var saddle = MeshInstance3D.new()
+			var s_box = BoxMesh.new()
+			s_box.size = Vector3(0.010, 0.020, 0.006)
+			saddle.mesh = s_box
+			saddle.material_override = chrome_mat
+			saddle.position = to_world.call(sx, b_y - 2.0 / scale_y, 0.0055)
+			bridge_group.add_child(saddle)
+
+		# Tremolo Arm (Whammy bar)
+		var arm = MeshInstance3D.new()
+		var arm_mesh = CylinderMesh.new()
+		arm_mesh.top_radius = 0.0025
+		arm_mesh.bottom_radius = 0.0025
+		arm_mesh.height = 0.110
+		arm.mesh = arm_mesh
+		arm.material_override = chrome_mat
+		arm.position = to_world.call(34.0, b_y - 5.0 / scale_y, 0.035)
+		arm.rotation = Vector3(deg_to_rad(-30.0), 0.0, deg_to_rad(10.0))
+		bridge_group.add_child(arm)
+
+func _create_pickup_visuals(to_world: Callable, scale_y: float):
+	var pickup_group = Node3D.new()
+	pickup_group.name = "PickupsRig"
+	hardware_rig.add_child(pickup_group)
+
+	var config = body_mesh.pickup_config
+	if config == 0:
+		return
+
+	if config == 1: # SSS
+		_create_single_coil(pickup_group, to_world.call(0.0, body_mesh.bridge_pickup_y, 0.002), body_mesh.bridge_pickup_slant)
+		_create_single_coil(pickup_group, to_world.call(0.0, body_mesh.middle_pickup_y, 0.002), 0.0)
+		_create_single_coil(pickup_group, to_world.call(0.0, body_mesh.neck_pickup_y, 0.002), 0.0)
+	elif config == 2: # HSS
+		_create_humbucker(pickup_group, to_world.call(0.0, body_mesh.bridge_pickup_y, 0.002), 0.0)
+		_create_single_coil(pickup_group, to_world.call(0.0, body_mesh.middle_pickup_y, 0.002), 0.0)
+		_create_single_coil(pickup_group, to_world.call(0.0, body_mesh.neck_pickup_y, 0.002), 0.0)
+	elif config == 3: # HH
+		_create_humbucker(pickup_group, to_world.call(0.0, body_mesh.bridge_pickup_y, 0.002), 0.0)
+		_create_humbucker(pickup_group, to_world.call(0.0, body_mesh.neck_pickup_y, 0.002), 0.0)
+
+func _create_single_coil(parent: Node3D, pos: Vector3, slant_deg: float):
+	var sc = Node3D.new()
+	sc.position = pos
+	sc.rotation.z = deg_to_rad(slant_deg)
+	parent.add_child(sc)
+
+	# Bobbin cover (70mm x 18mm x 12mm)
+	var cover = MeshInstance3D.new()
+	var box = BoxMesh.new()
+	box.size = Vector3(0.070, 0.018, 0.012)
+	cover.mesh = box
+	cover.material_override = black_plastic_mat
+	cover.position = Vector3(0.0, 0.0, -0.004)
+	sc.add_child(cover)
+
+	# 6 Chrome pole pieces
+	for p in range(6):
+		var px = -26.0 + p * 10.4
+		var pole = MeshInstance3D.new()
+		var cyl = CylinderMesh.new()
+		cyl.top_radius = 0.0025
+		cyl.bottom_radius = 0.0025
+		cyl.height = 0.004
+		pole.mesh = cyl
+		pole.material_override = chrome_mat
+		pole.rotation.x = PI * 0.5
+		pole.position = Vector3(px * 0.001, 0.0, 0.002)
+		sc.add_child(pole)
+
+func _create_humbucker(parent: Node3D, pos: Vector3, slant_deg: float):
+	var hb = Node3D.new()
+	hb.position = pos
+	hb.rotation.z = deg_to_rad(slant_deg)
+	parent.add_child(hb)
+
+	# Mounting Bezel / Ring (89mm x 45mm x 3mm)
+	var ring = MeshInstance3D.new()
+	var r_box = BoxMesh.new()
+	r_box.size = Vector3(0.089, 0.045, 0.003)
+	ring.mesh = r_box
+	ring.material_override = black_plastic_mat
+	ring.position = Vector3(0.0, 0.0, 0.001)
+	hb.add_child(ring)
+
+	# Bobbin 1 (Slug coil, 68mm x 17mm x 12mm)
+	var b1 = MeshInstance3D.new()
+	var b1_mesh = BoxMesh.new()
+	b1_mesh.size = Vector3(0.068, 0.017, 0.012)
+	b1.mesh = b1_mesh
+	b1.material_override = black_plastic_mat
+	b1.position = Vector3(0.0, -0.009, -0.003)
+	hb.add_child(b1)
+
+	# Bobbin 2 (Screw coil, 68mm x 17mm x 12mm)
+	var b2 = MeshInstance3D.new()
+	var b2_mesh = BoxMesh.new()
+	b2_mesh.size = Vector3(0.068, 0.017, 0.012)
+	b2.mesh = b2_mesh
+	b2.material_override = cream_mat # Zebra style for distinctive boutique appearance
+	b2.position = Vector3(0.0, 0.009, -0.003)
+	hb.add_child(b2)
+
+	# 12 Chrome Pole Pieces
+	for p in range(6):
+		var px = -25.0 + p * 10.0
+		# Slug coil poles
+		var p1 = MeshInstance3D.new()
+		var cyl1 = CylinderMesh.new()
+		cyl1.top_radius = 0.0025
+		cyl1.bottom_radius = 0.0025
+		cyl1.height = 0.004
+		p1.mesh = cyl1
+		p1.material_override = chrome_mat
+		p1.rotation.x = PI * 0.5
+		p1.position = Vector3(px * 0.001, -0.009, 0.003)
+		hb.add_child(p1)
+
+		# Screw coil poles
+		var p2 = MeshInstance3D.new()
+		var cyl2 = CylinderMesh.new()
+		cyl2.top_radius = 0.002
+		cyl2.bottom_radius = 0.002
+		cyl2.height = 0.0045
+		p2.mesh = cyl2
+		p2.material_override = chrome_mat
+		p2.rotation.x = PI * 0.5
+		p2.position = Vector3(px * 0.001, 0.009, 0.0032)
+		hb.add_child(p2)
+
+func _create_knob_visuals(to_world: Callable, scale_y: float):
+	var knob_group = Node3D.new()
+	knob_group.name = "KnobsRig"
+	hardware_rig.add_child(knob_group)
+
+	var cc_x = 55.0
+	var cc_y = 150.0
+
+	var pot_positions = [
+		Vector2(cc_x + 8.0, cc_y + 35.0),
+		Vector2(cc_x + 5.0, cc_y - 5.0),
+		Vector2(cc_x - 5.0, cc_y - 40.0)
+	]
+
+	for pos in pot_positions:
+		var knob = MeshInstance3D.new()
+		var cyl = CylinderMesh.new()
+		cyl.top_radius = 0.009
+		cyl.bottom_radius = 0.011
+		cyl.height = 0.012
+		knob.mesh = cyl
+		knob.material_override = chrome_mat
+		knob.rotation.x = PI * 0.5
+		knob.position = to_world.call(pos.x, pos.y, 0.006)
+		knob_group.add_child(knob)
+
+func _create_jack_plate_visuals(to_world: Callable, scale_y: float):
+	var plate = MeshInstance3D.new()
+	var box = BoxMesh.new()
+	box.size = Vector3(0.024, 0.048, 0.0025)
+	plate.mesh = box
+	plate.material_override = chrome_mat
+	plate.position = to_world.call(140.0, 75.0, 0.0015)
+	plate.rotation = Vector3(deg_to_rad(-12.0), deg_to_rad(8.0), deg_to_rad(-45.0))
+	hardware_rig.add_child(plate)
+
 func _check_cli_capture():
 	var args = OS.get_cmdline_args() + OS.get_cmdline_user_args()
 	var should_exit = false
@@ -235,6 +559,29 @@ func _check_cli_capture():
 		should_exit = true
 	elif "--test-asym" in args:
 		check_symmetric.button_pressed = false
+		should_exit = true
+	elif "--test-hardware-front" in args:
+		option_pickups.selected = 1
+		body_mesh.pickup_config = 1
+		option_bridge.selected = 0
+		body_mesh.bridge_type = 0
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		should_exit = true
+	elif "--test-hardware-tremolo" in args:
+		option_pickups.selected = 2
+		body_mesh.pickup_config = 2
+		option_bridge.selected = 1
+		body_mesh.bridge_type = 1
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		should_exit = true
+	elif "--test-hardware-back" in args:
+		check_control_cavity.button_pressed = true
+		body_mesh.control_cavity_enabled = true
+		camera_pivot.rotation = Vector3(-0.25, PI + 0.4, 0.0)
 		should_exit = true
 
 	if should_exit or "--screenshot" in args or "--capture" in args:

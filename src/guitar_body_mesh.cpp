@@ -149,6 +149,77 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_neck_pocket_enabled"), &GuitarBodyMesh::get_neck_pocket_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "neck_pocket_enabled"), "set_neck_pocket_enabled", "get_neck_pocket_enabled");
 
+    ClassDB::bind_method(D_METHOD("set_neck_pocket_width", "val"), &GuitarBodyMesh::set_neck_pocket_width);
+    ClassDB::bind_method(D_METHOD("get_neck_pocket_width"), &GuitarBodyMesh::get_neck_pocket_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neck_pocket_width"), "set_neck_pocket_width", "get_neck_pocket_width");
+
+    ClassDB::bind_method(D_METHOD("set_neck_pocket_length", "val"), &GuitarBodyMesh::set_neck_pocket_length);
+    ClassDB::bind_method(D_METHOD("get_neck_pocket_length"), &GuitarBodyMesh::get_neck_pocket_length);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neck_pocket_length"), "set_neck_pocket_length", "get_neck_pocket_length");
+
+    ClassDB::bind_method(D_METHOD("set_neck_pocket_depth", "val"), &GuitarBodyMesh::set_neck_pocket_depth);
+    ClassDB::bind_method(D_METHOD("get_neck_pocket_depth"), &GuitarBodyMesh::get_neck_pocket_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neck_pocket_depth"), "set_neck_pocket_depth", "get_neck_pocket_depth");
+
+    // Pickups
+    ClassDB::bind_method(D_METHOD("set_pickup_config", "val"), &GuitarBodyMesh::set_pickup_config);
+    ClassDB::bind_method(D_METHOD("get_pickup_config"), &GuitarBodyMesh::get_pickup_config);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "pickup_config"), "set_pickup_config", "get_pickup_config");
+
+    ClassDB::bind_method(D_METHOD("set_bridge_pickup_y", "val"), &GuitarBodyMesh::set_bridge_pickup_y);
+    ClassDB::bind_method(D_METHOD("get_bridge_pickup_y"), &GuitarBodyMesh::get_bridge_pickup_y);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bridge_pickup_y"), "set_bridge_pickup_y", "get_bridge_pickup_y");
+
+    ClassDB::bind_method(D_METHOD("set_middle_pickup_y", "val"), &GuitarBodyMesh::set_middle_pickup_y);
+    ClassDB::bind_method(D_METHOD("get_middle_pickup_y"), &GuitarBodyMesh::get_middle_pickup_y);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "middle_pickup_y"), "set_middle_pickup_y", "get_middle_pickup_y");
+
+    ClassDB::bind_method(D_METHOD("set_neck_pickup_y", "val"), &GuitarBodyMesh::set_neck_pickup_y);
+    ClassDB::bind_method(D_METHOD("get_neck_pickup_y"), &GuitarBodyMesh::get_neck_pickup_y);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neck_pickup_y"), "set_neck_pickup_y", "get_neck_pickup_y");
+
+    ClassDB::bind_method(D_METHOD("set_bridge_pickup_slant", "val"), &GuitarBodyMesh::set_bridge_pickup_slant);
+    ClassDB::bind_method(D_METHOD("get_bridge_pickup_slant"), &GuitarBodyMesh::get_bridge_pickup_slant);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bridge_pickup_slant"), "set_bridge_pickup_slant", "get_bridge_pickup_slant");
+
+    ClassDB::bind_method(D_METHOD("set_pickup_clearance", "val"), &GuitarBodyMesh::set_pickup_clearance);
+    ClassDB::bind_method(D_METHOD("get_pickup_clearance"), &GuitarBodyMesh::get_pickup_clearance);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "pickup_clearance"), "set_pickup_clearance", "get_pickup_clearance");
+
+    ClassDB::bind_method(D_METHOD("set_pickup_depth", "val"), &GuitarBodyMesh::set_pickup_depth);
+    ClassDB::bind_method(D_METHOD("get_pickup_depth"), &GuitarBodyMesh::get_pickup_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "pickup_depth"), "set_pickup_depth", "get_pickup_depth");
+
+    // Bridge
+    ClassDB::bind_method(D_METHOD("set_bridge_enabled", "val"), &GuitarBodyMesh::set_bridge_enabled);
+    ClassDB::bind_method(D_METHOD("get_bridge_enabled"), &GuitarBodyMesh::get_bridge_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "bridge_enabled"), "set_bridge_enabled", "get_bridge_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_bridge_type", "val"), &GuitarBodyMesh::set_bridge_type);
+    ClassDB::bind_method(D_METHOD("get_bridge_type"), &GuitarBodyMesh::get_bridge_type);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "bridge_type"), "set_bridge_type", "get_bridge_type");
+
+    ClassDB::bind_method(D_METHOD("set_bridge_y", "val"), &GuitarBodyMesh::set_bridge_y);
+    ClassDB::bind_method(D_METHOD("get_bridge_y"), &GuitarBodyMesh::get_bridge_y);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bridge_y"), "set_bridge_y", "get_bridge_y");
+
+    // Control Cavity & Wiring
+    ClassDB::bind_method(D_METHOD("set_control_cavity_enabled", "val"), &GuitarBodyMesh::set_control_cavity_enabled);
+    ClassDB::bind_method(D_METHOD("get_control_cavity_enabled"), &GuitarBodyMesh::get_control_cavity_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "control_cavity_enabled"), "set_control_cavity_enabled", "get_control_cavity_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_control_cavity_rear", "val"), &GuitarBodyMesh::set_control_cavity_rear);
+    ClassDB::bind_method(D_METHOD("get_control_cavity_rear"), &GuitarBodyMesh::get_control_cavity_rear);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "control_cavity_rear"), "set_control_cavity_rear", "get_control_cavity_rear");
+
+    ClassDB::bind_method(D_METHOD("set_control_cavity_depth", "val"), &GuitarBodyMesh::set_control_cavity_depth);
+    ClassDB::bind_method(D_METHOD("get_control_cavity_depth"), &GuitarBodyMesh::get_control_cavity_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "control_cavity_depth"), "set_control_cavity_depth", "get_control_cavity_depth");
+
+    ClassDB::bind_method(D_METHOD("set_wiring_tunnels_enabled", "val"), &GuitarBodyMesh::set_wiring_tunnels_enabled);
+    ClassDB::bind_method(D_METHOD("get_wiring_tunnels_enabled"), &GuitarBodyMesh::get_wiring_tunnels_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "wiring_tunnels_enabled"), "set_wiring_tunnels_enabled", "get_wiring_tunnels_enabled");
+
     ClassDB::bind_method(D_METHOD("rebuild_mesh"), &GuitarBodyMesh::rebuild_mesh);
 }
 
@@ -389,6 +460,125 @@ void GuitarBodyMesh::set_forearm_bevel_length(double p_val) {
 void GuitarBodyMesh::set_neck_pocket_enabled(bool p_val) {
     if (neck_pocket_enabled != p_val) {
         neck_pocket_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_neck_pocket_width(double p_val) {
+    if (neck_pocket_width != p_val) {
+        neck_pocket_width = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_neck_pocket_length(double p_val) {
+    if (neck_pocket_length != p_val) {
+        neck_pocket_length = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_neck_pocket_depth(double p_val) {
+    if (neck_pocket_depth != p_val) {
+        neck_pocket_depth = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_pickup_config(int p_val) {
+    if (pickup_config != p_val) {
+        pickup_config = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bridge_pickup_y(double p_val) {
+    if (bridge_pickup_y != p_val) {
+        bridge_pickup_y = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_middle_pickup_y(double p_val) {
+    if (middle_pickup_y != p_val) {
+        middle_pickup_y = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_neck_pickup_y(double p_val) {
+    if (neck_pickup_y != p_val) {
+        neck_pickup_y = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bridge_pickup_slant(double p_val) {
+    if (bridge_pickup_slant != p_val) {
+        bridge_pickup_slant = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_pickup_clearance(double p_val) {
+    if (pickup_clearance != p_val) {
+        pickup_clearance = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_pickup_depth(double p_val) {
+    if (pickup_depth != p_val) {
+        pickup_depth = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bridge_enabled(bool p_val) {
+    if (bridge_enabled != p_val) {
+        bridge_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bridge_type(int p_val) {
+    if (bridge_type != p_val) {
+        bridge_type = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bridge_y(double p_val) {
+    if (bridge_y != p_val) {
+        bridge_y = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_control_cavity_enabled(bool p_val) {
+    if (control_cavity_enabled != p_val) {
+        control_cavity_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_control_cavity_rear(bool p_val) {
+    if (control_cavity_rear != p_val) {
+        control_cavity_rear = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_control_cavity_depth(double p_val) {
+    if (control_cavity_depth != p_val) {
+        control_cavity_depth = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_wiring_tunnels_enabled(bool p_val) {
+    if (wiring_tunnels_enabled != p_val) {
+        wiring_tunnels_enabled = p_val;
         rebuild_mesh();
     }
 }
@@ -758,17 +948,167 @@ void GuitarBodyMesh::rebuild_mesh() {
         body = body - forearm_cutter;
     }
 
-    // Standard Luthier Neck Pocket Mortise (56.5mm x 76.2mm x 16.0mm)
-    // Sits nested between the horns from Y = 399.7 - 76.2 to Y = 399.7
+    // Standard Luthier Neck Pocket Mortise
     if (neck_pocket_enabled) {
-        double pocket_w = 56.5; // Standard 56mm Fender heel + 0.5mm clearance
-        double pocket_len = 76.2; // 3 inches standard length
-        double pocket_depth = 16.0; // 5/8 inch standard depth
+        double pocket_w = neck_pocket_width;
+        double pocket_len = neck_pocket_length;
+        double pocket_depth = neck_pocket_depth;
         double pocket_top_y = 399.69 * scale_y;
 
-        Manifold neck_pocket = Manifold::Cube(vec3{ pocket_w, pocket_len + 10.0, pocket_depth + 4.0 }, false)
+        Manifold neck_pocket = Manifold::Cube(vec3{ pocket_w, pocket_len + 15.0, pocket_depth + 4.0 }, false)
             .Translate(vec3{ -pocket_w * 0.5, pocket_top_y - pocket_len, body_thickness - pocket_depth });
         body = body - neck_pocket;
+    }
+
+    // Procedural Pickup Cavity Generator
+    if (pickup_config > 0) {
+        auto make_pickup_cavity = [](bool is_hb, double clr, double depth) -> Manifold {
+            double w = (is_hb ? 70.0 : 70.0) + 2.0 * clr;
+            double l = (is_hb ? 38.0 : 18.0) + 2.0 * clr;
+            double w_ears = 84.0 + 2.0 * clr;
+            double l_ears = 16.0 + 2.0 * clr;
+            double ear_depth = depth + 4.0;
+
+            CrossSection cs_main = CrossSection::Square(vec2{ w, l }, true);
+            CrossSection cs_ears = CrossSection::Square(vec2{ w_ears, l_ears }, true);
+
+            Manifold m_main = Manifold::Extrude(cs_main.ToPolygons(), depth)
+                .Translate(vec3{ 0.0, 0.0, ear_depth - depth });
+            Manifold m_ears = Manifold::Extrude(cs_ears.ToPolygons(), ear_depth);
+
+            return (m_main + m_ears).Translate(vec3{ 0.0, 0.0, -ear_depth });
+        };
+
+        if (pickup_config == 1) { // SSS
+            // Bridge (single coil with optional slant)
+            Manifold bridge_cav = make_pickup_cavity(false, pickup_clearance, pickup_depth)
+                .Rotate(0.0, 0.0, bridge_pickup_slant)
+                .Translate(vec3{ 0.0, bridge_pickup_y * scale_y, body_thickness });
+            // Middle
+            Manifold mid_cav = make_pickup_cavity(false, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, middle_pickup_y * scale_y, body_thickness });
+            // Neck
+            Manifold neck_cav = make_pickup_cavity(false, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, neck_pickup_y * scale_y, body_thickness });
+            body = body - bridge_cav - mid_cav - neck_cav;
+        } else if (pickup_config == 2) { // HSS
+            // Bridge (Humbucker)
+            Manifold bridge_cav = make_pickup_cavity(true, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, bridge_pickup_y * scale_y, body_thickness });
+            // Middle (Single Coil)
+            Manifold mid_cav = make_pickup_cavity(false, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, middle_pickup_y * scale_y, body_thickness });
+            // Neck (Single Coil)
+            Manifold neck_cav = make_pickup_cavity(false, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, neck_pickup_y * scale_y, body_thickness });
+            body = body - bridge_cav - mid_cav - neck_cav;
+        } else if (pickup_config == 3) { // HH
+            // Bridge (Humbucker)
+            Manifold bridge_cav = make_pickup_cavity(true, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, bridge_pickup_y * scale_y, body_thickness });
+            // Neck (Humbucker)
+            Manifold neck_cav = make_pickup_cavity(true, pickup_clearance, pickup_depth)
+                .Translate(vec3{ 0.0, neck_pickup_y * scale_y, body_thickness });
+            body = body - bridge_cav - neck_cav;
+        }
+    }
+
+    // Bridge Routing & String Holes
+    if (bridge_enabled) {
+        double b_y = bridge_y * scale_y;
+        if (bridge_type == 0) { // Hardtail: 6 string-through ferrule holes
+            double spacing = 10.5; // 52.5mm standard E-to-E string spread
+            for (int i = 0; i < 6; ++i) {
+                double sx = -26.25 + i * spacing;
+                // String-through drill hole (3.5mm diameter)
+                Manifold string_hole = Manifold::Cylinder(body_thickness + 4.0, 1.75, 1.75, 16)
+                    .Translate(vec3{ sx, b_y, -2.0 });
+                // Rear ferrule counterbore (8.0mm diameter, 9mm depth from rear Z=0)
+                Manifold ferrule = Manifold::Cylinder(9.0, 4.0, 4.0, 20)
+                    .Translate(vec3{ sx, b_y, -1.0 });
+                body = body - string_hole - ferrule;
+            }
+        } else { // Tremolo: Through-body block slot + rear spring cavity
+            Manifold block_slot = Manifold::Cube(vec3{ 76.0, 20.0, body_thickness + 4.0 }, true)
+                .Translate(vec3{ 0.0, b_y, body_thickness * 0.5 });
+            Manifold spring_cavity = Manifold::Cube(vec3{ 54.0, 105.0, 19.0 }, true)
+                .Translate(vec3{ 0.0, b_y + 40.0 * scale_y, 8.5 });
+            body = body - block_slot - spring_cavity;
+        }
+    }
+
+    // Control Cavity & Potentiometer Shaft Holes
+    if (control_cavity_enabled) {
+        double cc_x = 55.0;
+        double cc_y = 150.0 * scale_y;
+        double pocket_depth = std::min(control_cavity_depth, body_thickness - 6.0);
+
+        SimplePolygon cc_pts = {
+            vec2{ -22.0, -50.0 },
+            vec2{  18.0, -45.0 },
+            vec2{  25.0,  10.0 },
+            vec2{  15.0,  55.0 },
+            vec2{ -15.0,  50.0 },
+            vec2{ -25.0,   0.0 }
+        };
+        CrossSection cs_cc(cc_pts, CrossSection::FillRule::Positive);
+        cs_cc = cs_cc.Offset(8.0, CrossSection::JoinType::Round).Offset(-2.0, CrossSection::JoinType::Round);
+
+        if (control_cavity_rear) {
+            Manifold main_pocket = Manifold::Extrude(cs_cc.ToPolygons(), pocket_depth + 2.0)
+                .Translate(vec3{ cc_x, cc_y, -1.0 });
+            CrossSection cs_lip = cs_cc.Offset(4.0, CrossSection::JoinType::Round);
+            Manifold lip_recess = Manifold::Extrude(cs_lip.ToPolygons(), 2.4)
+                .Translate(vec3{ cc_x, cc_y, -0.2 });
+            body = body - main_pocket - lip_recess;
+        } else {
+            Manifold front_pocket = Manifold::Extrude(cs_cc.ToPolygons(), pocket_depth + 2.0)
+                .Translate(vec3{ cc_x, cc_y, body_thickness - pocket_depth });
+            body = body - front_pocket;
+        }
+
+        // Potentiometer shaft holes (3 CTS 9.5mm holes for Vol, Tone1, Tone2)
+        std::vector<vec2> pot_positions = {
+            vec2{ cc_x + 8.0, cc_y + 35.0 },
+            vec2{ cc_x + 5.0, cc_y - 5.0 },
+            vec2{ cc_x - 5.0, cc_y - 40.0 }
+        };
+        for (const auto& pos : pot_positions) {
+            Manifold pot_hole = Manifold::Cylinder(body_thickness + 4.0, 4.8, 4.8, 20)
+                .Translate(vec3{ pos.x, pos.y, -2.0 });
+            body = body - pot_hole;
+        }
+    }
+
+    // Wiring Tunnels
+    if (wiring_tunnels_enabled) {
+        double cc_x = 55.0;
+        double cc_y = 170.0 * scale_y;
+        double drill_z = body_thickness * 0.45;
+
+        // Pickup to Control Cavity tunnel
+        vec3 p_start{ 0.0, 240.0 * scale_y, drill_z };
+        vec3 p_end{ cc_x, cc_y, drill_z };
+        double dist = std::hypot(p_end.x - p_start.x, p_end.y - p_start.y);
+        double angle = std::atan2(p_end.y - p_start.y, p_end.x - p_start.x) * 180.0 / 3.141592653589793;
+
+        Manifold wire_tunnel = Manifold::Cylinder(dist + 10.0, 3.5, 3.5, 16)
+            .Rotate(0.0, 90.0, 0.0)
+            .Rotate(0.0, 0.0, angle)
+            .Translate(p_start);
+        body = body - wire_tunnel;
+
+        // Output Jack tunnel
+        vec3 j_start{ cc_x, 110.0 * scale_y, drill_z };
+        vec3 j_end{ 145.0, 75.0 * scale_y, drill_z };
+        double j_dist = std::hypot(j_end.x - j_start.x, j_end.y - j_start.y);
+        double j_angle = std::atan2(j_end.y - j_start.y, j_end.x - j_start.x) * 180.0 / 3.141592653589793;
+
+        Manifold jack_tunnel = Manifold::Cylinder(j_dist + 15.0, 6.0, 6.0, 16)
+            .Rotate(0.0, 90.0, 0.0)
+            .Rotate(0.0, 0.0, j_angle)
+            .Translate(j_start);
+        body = body - jack_tunnel;
     }
 
     // Calculate Smooth Vertex Normals directly in Manifold (smooth up to 50 degree dihedral angle)

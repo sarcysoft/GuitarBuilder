@@ -48,7 +48,31 @@ private:
     double forearm_bevel_angle = 8.0;
     double forearm_bevel_length = 160.0;
 
-    bool neck_pocket_enabled = false;
+    // Neck pocket
+    bool neck_pocket_enabled = true;
+    double neck_pocket_width = 56.5;
+    double neck_pocket_length = 76.2;
+    double neck_pocket_depth = 16.0;
+
+    // Pickups
+    int pickup_config = 1; // 0: None, 1: SSS, 2: HSS, 3: HH
+    double bridge_pickup_y = 185.0;
+    double middle_pickup_y = 240.0;
+    double neck_pickup_y = 295.0;
+    double bridge_pickup_slant = 0.0;
+    double pickup_clearance = 1.5;
+    double pickup_depth = 18.0;
+
+    // Bridge & Tremolo
+    bool bridge_enabled = true;
+    int bridge_type = 0; // 0: Hardtail, 1: Tremolo
+    double bridge_y = 145.0;
+
+    // Control Cavity & Wiring
+    bool control_cavity_enabled = true;
+    bool control_cavity_rear = true;
+    double control_cavity_depth = 38.0;
+    bool wiring_tunnels_enabled = true;
 
 protected:
     static void _bind_methods();
@@ -154,6 +178,60 @@ public:
 
     void set_neck_pocket_enabled(bool p_val);
     bool get_neck_pocket_enabled() const { return neck_pocket_enabled; }
+
+    void set_neck_pocket_width(double p_val);
+    double get_neck_pocket_width() const { return neck_pocket_width; }
+
+    void set_neck_pocket_length(double p_val);
+    double get_neck_pocket_length() const { return neck_pocket_length; }
+
+    void set_neck_pocket_depth(double p_val);
+    double get_neck_pocket_depth() const { return neck_pocket_depth; }
+
+    // Pickups
+    void set_pickup_config(int p_val);
+    int get_pickup_config() const { return pickup_config; }
+
+    void set_bridge_pickup_y(double p_val);
+    double get_bridge_pickup_y() const { return bridge_pickup_y; }
+
+    void set_middle_pickup_y(double p_val);
+    double get_middle_pickup_y() const { return middle_pickup_y; }
+
+    void set_neck_pickup_y(double p_val);
+    double get_neck_pickup_y() const { return neck_pickup_y; }
+
+    void set_bridge_pickup_slant(double p_val);
+    double get_bridge_pickup_slant() const { return bridge_pickup_slant; }
+
+    void set_pickup_clearance(double p_val);
+    double get_pickup_clearance() const { return pickup_clearance; }
+
+    void set_pickup_depth(double p_val);
+    double get_pickup_depth() const { return pickup_depth; }
+
+    // Bridge & Tremolo
+    void set_bridge_enabled(bool p_val);
+    bool get_bridge_enabled() const { return bridge_enabled; }
+
+    void set_bridge_type(int p_val);
+    int get_bridge_type() const { return bridge_type; }
+
+    void set_bridge_y(double p_val);
+    double get_bridge_y() const { return bridge_y; }
+
+    // Control Cavity & Wiring
+    void set_control_cavity_enabled(bool p_val);
+    bool get_control_cavity_enabled() const { return control_cavity_enabled; }
+
+    void set_control_cavity_rear(bool p_val);
+    bool get_control_cavity_rear() const { return control_cavity_rear; }
+
+    void set_control_cavity_depth(double p_val);
+    double get_control_cavity_depth() const { return control_cavity_depth; }
+
+    void set_wiring_tunnels_enabled(bool p_val);
+    bool get_wiring_tunnels_enabled() const { return wiring_tunnels_enabled; }
 
     // Core Manifold rebuild routine
     void rebuild_mesh();
