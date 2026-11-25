@@ -5,6 +5,7 @@
 
 #include "manifold/manifold.h"
 #include "manifold/cross_section.h"
+#include "manifold/polygon.h"
 
 #include <cmath>
 #include <vector>
@@ -282,8 +283,120 @@ void GuitarBodyMesh::rebuild_mesh() {
     // Create 2D CrossSection
     CrossSection cs(contour, CrossSection::FillRule::Positive);
 
-    // Extrude 2D silhouette to 3D Solid along Z (from Z=0 back to Z=body_thickness front)
-    Manifold body = Manifold::Extrude(cs.ToPolygons(), body_thickness);
+    Manifold body;
+    double r = std::min(edge_radius, body_thickness * 0.45);
+
+    if (r <= 0.1) {
+        // Flat sharp extrusion if edge_radius is effectively zero
+        body = Manifold::Extrude(cs.ToPolygons(), body_thickness);
+    } else {
+        // Multi-ring 3D roundover fillet mesh
+        size_t M = contour.size();
+
+        // 1. Compute 2D outward unit normals for each contour vertex
+        std::vector<vec2> normals(M);
+        for (size_t i = 0; i < M; ++i) {
+            vec2 prev_p = contour[(i + M - 1) % M];
+            vec2 next_p = contour[(i + 1) % M];
+            double dx = next_p.x - prev_p.x;
+            double dy = next_p.y - prev_p.y;
+            double len = std::hypot(dx, dy);
+            if (len > 1e-9) {
+                normals[i] = vec2{ dy / len, -dx / len }; // CCW outward normal
+            } else {
+                normals[i] = vec2{ 0.0, 1.0 };
+            }
+        }
+
+        // 2. Define roundover profile rings
+        // Bottom roundover: 3 steps, straight side wall: 1 step, Top roundover: 3 steps -> 8 rings total
+        const int S = 3;
+        const double PI_2 = 1.5707963267948966;
+
+        struct RingDef {
+            double z;
+            double inset;
+        };
+        std::vector<RingDef> ring_defs;
+
+        // Bottom roundover rings (from z = 0, inset = r up to z = r, inset = 0)
+        for (int s = 0; s <= S; ++s) {
+            double alpha = (double)s / (double)S * PI_2;
+            double z = r * (1.0 - std::cos(alpha));
+            double inset = r * (1.0 - std::sin(alpha));
+            ring_defs.push_back({ z, inset });
+        }
+
+        // Top edge of straight side wall (z = body_thickness - r, inset = 0)
+        ring_defs.push_back({ body_thickness - r, 0.0 });
+
+        // Top roundover rings (from z = body_thickness - r, inset = 0 up to z = body_thickness, inset = r)
+        for (int s = 1; s <= S; ++s) {
+            double beta = (double)s / (double)S * PI_2;
+            double z = (body_thickness - r) + r * std::sin(beta);
+            double inset = r * (1.0 - std::cos(beta));
+            ring_defs.push_back({ z, inset });
+        }
+
+        size_t num_rings = ring_defs.size();
+
+        // 3. Generate vertices for all rings
+        MeshGL mgl;
+        mgl.numProp = 3;
+        mgl.vertProperties.reserve(num_rings * M * 3);
+
+        for (size_t ring = 0; ring < num_rings; ++ring) {
+            double z = ring_defs[ring].z;
+            double inset = ring_defs[ring].inset;
+            for (size_t i = 0; i < M; ++i) {
+                double vx = contour[i].x - normals[i].x * inset;
+                double vy = contour[i].y - normals[i].y * inset;
+                mgl.vertProperties.push_back((float)vx);
+                mgl.vertProperties.push_back((float)vy);
+                mgl.vertProperties.push_back((float)z);
+            }
+        }
+
+        // 4. Generate side wall and fillet triangles connecting adjacent rings
+        for (size_t ring = 0; ring < num_rings - 1; ++ring) {
+            for (size_t i = 0; i < M; ++i) {
+                size_t i_next = (i + 1) % M;
+                uint32_t a = (uint32_t)(ring * M + i);
+                uint32_t b = (uint32_t)(ring * M + i_next);
+                uint32_t c = (uint32_t)((ring + 1) * M + i_next);
+                uint32_t d = (uint32_t)((ring + 1) * M + i);
+
+                // CCW triangles viewed from outside:
+                mgl.triVerts.push_back(a);
+                mgl.triVerts.push_back(b);
+                mgl.triVerts.push_back(c);
+
+                mgl.triVerts.push_back(a);
+                mgl.triVerts.push_back(c);
+                mgl.triVerts.push_back(d);
+            }
+        }
+
+        // 5. Triangulate top and bottom caps using Manifold's Triangulate
+        std::vector<ivec3> cap_tris = Triangulate(cs.ToPolygons());
+
+        // Bottom cap (z = 0, ring 0): normal points down (-Z), so reverse winding
+        for (const ivec3& t : cap_tris) {
+            mgl.triVerts.push_back((uint32_t)t[0]);
+            mgl.triVerts.push_back((uint32_t)t[2]);
+            mgl.triVerts.push_back((uint32_t)t[1]);
+        }
+
+        // Top cap (z = body_thickness, last ring): normal points up (+Z), CCW
+        uint32_t top_base = (uint32_t)((num_rings - 1) * M);
+        for (const ivec3& t : cap_tris) {
+            mgl.triVerts.push_back(top_base + (uint32_t)t[0]);
+            mgl.triVerts.push_back(top_base + (uint32_t)t[1]);
+            mgl.triVerts.push_back(top_base + (uint32_t)t[2]);
+        }
+
+        body = Manifold(mgl);
+    }
 
     // Ergonomic Cut 1: Belly Cut (Tummy contour on rear waist Z=0, bass side only)
     if (belly_cut_enabled) {
