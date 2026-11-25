@@ -78,6 +78,26 @@ extends Node3D
 @onready var btn_export_dxf = $UI/Panel/Scroll/VBox/SlicingControls/ExportButtons/BtnExportDXF
 @onready var lbl_export_status = $UI/Panel/Scroll/VBox/SlicingControls/LblExportStatus
 
+# Mode Navigation & Section Groups
+@onready var btn_tab_body = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabBody
+@onready var btn_tab_hardware = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabHardware
+@onready var btn_tab_slicing = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabSlicing
+@onready var btn_quick_slicing = $UI/BtnQuickSlicing
+@onready var hsep_mode = $UI/Panel/Scroll/VBox/HSeparatorMode
+@onready var lbl_global = $UI/Panel/Scroll/VBox/LblGlobal
+@onready var grid_global = $UI/Panel/Scroll/VBox/GridGlobal
+@onready var hsep_sym = $UI/Panel/Scroll/VBox/HSeparator2
+@onready var hsep_cuts = $UI/Panel/Scroll/VBox/HSeparator3
+@onready var lbl_ergo = $UI/Panel/Scroll/VBox/LblErgo
+@onready var hsep_hw = $UI/Panel/Scroll/VBox/HSeparator4
+@onready var lbl_hw = $UI/Panel/Scroll/VBox/LblHardware
+@onready var grid_hw = $UI/Panel/Scroll/VBox/GridHardware
+@onready var hsep_cam = $UI/Panel/Scroll/VBox/HSeparatorCAM
+@onready var lbl_cam = $UI/Panel/Scroll/VBox/LblCAM
+@onready var lbl_cam_sub = $UI/Panel/Scroll/VBox/LblCAMSub
+
+var current_ui_mode: int = 0
+
 # Materials for Hardware & Slices
 var body_mat: StandardMaterial3D
 var chrome_mat: StandardMaterial3D
@@ -97,6 +117,7 @@ func _ready():
 	_sync_ui_from_mesh()
 	_connect_signals()
 	_update_hardware_visuals()
+	_switch_ui_mode(0)
 	_check_cli_capture()
 
 func _setup_materials():
@@ -361,9 +382,20 @@ func _connect_signals():
 	# CAM Slicing
 	check_slicing.toggled.connect(func(v):
 		body_mesh.slicing_enabled = v
-		slicing_controls.visible = v
+		btn_quick_slicing.button_pressed = v
+		btn_quick_slicing.text = "🪚 Slicing Mode: ON" if v else "🪚 Slicing Mode: OFF"
+		slicing_controls.visible = (current_ui_mode == 2) and v
 		_update_slice_visuals()
 	)
+	btn_quick_slicing.toggled.connect(func(v):
+		check_slicing.button_pressed = v
+		if v:
+			_switch_ui_mode(2)
+	)
+	btn_tab_body.pressed.connect(func(): _switch_ui_mode(0))
+	btn_tab_hardware.pressed.connect(func(): _switch_ui_mode(1))
+	btn_tab_slicing.pressed.connect(func(): _switch_ui_mode(2))
+
 	option_grid.item_selected.connect(func(idx):
 		body_mesh.slice_grid_type = 1 if idx == 0 else 2
 		_update_slice_visuals()
@@ -382,6 +414,36 @@ func _connect_signals():
 	btn_export_stl.pressed.connect(_on_export_stl_pressed)
 	btn_export_3mf.pressed.connect(_on_export_3mf_pressed)
 	btn_export_dxf.pressed.connect(_on_export_dxf_pressed)
+
+func _switch_ui_mode(mode: int):
+	current_ui_mode = mode
+	if is_instance_valid(btn_tab_body): btn_tab_body.button_pressed = (mode == 0)
+	if is_instance_valid(btn_tab_hardware): btn_tab_hardware.button_pressed = (mode == 1)
+	if is_instance_valid(btn_tab_slicing): btn_tab_slicing.button_pressed = (mode == 2)
+
+	# Body section
+	for n in [lbl_global, grid_global, hsep_sym, check_symmetric, hsep_cuts, lbl_ergo, check_belly, check_forearm]:
+		if is_instance_valid(n): n.visible = (mode == 0)
+	if mode == 0 and is_instance_valid(body_mesh):
+		symmetric_controls.visible = body_mesh.symmetric_mode
+		asymmetric_controls.visible = not body_mesh.symmetric_mode
+		belly_controls.visible = body_mesh.belly_cut_enabled
+		forearm_controls.visible = body_mesh.forearm_bevel_enabled
+	else:
+		if is_instance_valid(symmetric_controls): symmetric_controls.visible = false
+		if is_instance_valid(asymmetric_controls): asymmetric_controls.visible = false
+		if is_instance_valid(belly_controls): belly_controls.visible = false
+		if is_instance_valid(forearm_controls): forearm_controls.visible = false
+
+	# Hardware section
+	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models]:
+		if is_instance_valid(n): n.visible = (mode == 1)
+
+	# Slicing section
+	for n in [hsep_cam, lbl_cam, lbl_cam_sub, check_slicing]:
+		if is_instance_valid(n): n.visible = (mode == 2)
+	if is_instance_valid(slicing_controls) and is_instance_valid(check_slicing):
+		slicing_controls.visible = (mode == 2) and check_slicing.button_pressed
 
 func _update_hardware_visuals():
 	if not is_instance_valid(hardware_rig) or not is_instance_valid(body_mesh):
@@ -847,6 +909,7 @@ func _check_cli_capture():
 		camera.position.z = 0.85
 		should_exit = true
 	elif "--test-slices-8way" in args:
+		_switch_ui_mode(2)
 		check_slicing.button_pressed = true
 		body_mesh.slicing_enabled = true
 		option_grid.selected = 1
@@ -859,6 +922,10 @@ func _check_cli_capture():
 		_update_slice_visuals()
 		camera_pivot.rotation = Vector3(-0.45, 0.55, 0.0)
 		camera.position.z = 1.30
+		should_exit = true
+	elif "--test-ui-default" in args:
+		_switch_ui_mode(0)
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
 		should_exit = true
 	elif "--test-slices-4way" in args:
 		check_slicing.button_pressed = true

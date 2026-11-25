@@ -1442,90 +1442,101 @@ void GuitarBodyMesh::rebuild_slices() {
 
     std::vector<Manifold> parts;
 
-    if (slice_grid_type == 1) { // 4-Piece Grid (2x2)
-        auto [left, right] = current_body.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, 0.0);
-        double split_y = 220.0 * scale_y;
-        auto [p0, p2] = left.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -split_y);
-        auto [p1, p3] = right.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -split_y);
+    // --- Structural 8-Piece Cutting Strategy (matches original Python PoC) ---
+    // 1. Cut 1: Horizontal cut below the bridge (preserving unified bridge and ferrules)
+    double y_bridge_cut = 110.0 * scale_y;
+    // Normal {0, -1, 0} at -y_bridge_cut:
+    // first has -y > -y_bridge_cut => y < y_bridge_cut (Bottom)
+    // second has y > y_bridge_cut (Top)
+    auto [body_bottom, body_top] = current_body.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_bridge_cut);
 
-        parts = { p0, p1, p2, p3 };
-        slice_directions = {
-            Vector3(-0.707f, -0.707f, 0.0f),
-            Vector3( 0.707f, -0.707f, 0.0f),
-            Vector3(-0.707f,  0.707f, 0.0f),
-            Vector3( 0.707f,  0.707f, 0.0f)
-        };
-    } else { // 8-Piece Production Grid (2x4)
-        auto [left, right] = current_body.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, 0.0);
-        double y1 = 110.0 * scale_y;
-        double y2 = 220.0 * scale_y;
-        double y3 = 330.0 * scale_y;
+    // 2. Cut 2: Bottom part cut in half vertically along centerline X = 0
+    // first: -x > 0 => x < 0 (Bot Left)
+    // second: x > 0 (Bot Right)
+    auto [part_bot_left, part_bot_right] = body_bottom.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, 0.0);
 
-        auto [left_lower, left_upper] = left.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y2);
-        auto [right_lower, right_upper] = right.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y2);
+    // 3. Cut 3 & 4: Top half cut vertically either side of neck/bridge
+    // Center block width: 100mm (from X = -50 to X = +50)
+    // Encompasses entire neck pocket (56mm), pickups (70-84mm), and bridge (76-84mm)
+    double center_x = 50.0;
+    // Split at X = -50:
+    // first: -x > 50 => x < -50 (Left Wing)
+    // second: x > -50 (Center Core + Right Wing)
+    auto [wing_left, center_and_right] = body_top.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, center_x);
 
-        auto [p0, p2] = left_lower.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y1);
-        auto [p1, p3] = right_lower.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y1);
+    // Split at X = +50:
+    // first: -x > -50 => x < 50 (Center Core: -50 <= x <= 50)
+    // second: x > 50 (Right Wing)
+    auto [center_core, wing_right] = center_and_right.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, -center_x);
 
-        auto [p4, p6] = left_upper.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y3);
-        auto [p5, p7] = right_upper.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y3);
+    // 4. Cut 5, 6, 7: Cut the 3 resultant parts horizontally once each in sensible places
+    // Wing cuts at waist/chest horizontal line (Y = 260mm)
+    double y_wing_cut = 260.0 * scale_y;
+    auto [part_mid_left, part_top_left] = wing_left.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_wing_cut);
+    auto [part_mid_right, part_top_right] = wing_right.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_wing_cut);
 
-        parts = { p0, p1, p2, p3, p4, p5, p6, p7 };
-        slice_directions = {
-            Vector3(-0.707f, -0.707f, 0.0f),
-            Vector3( 0.707f, -0.707f, 0.0f),
-            Vector3(-1.0f,   -0.25f,  0.0f),
-            Vector3( 1.0f,   -0.25f,  0.0f),
-            Vector3(-1.0f,    0.25f,  0.0f),
-            Vector3( 1.0f,    0.25f,  0.0f),
-            Vector3(-0.707f,  0.707f, 0.0f),
-            Vector3( 0.707f,  0.707f, 0.0f)
-        };
-    }
+    // Center Core cut between pickups and neck pocket (Y = 290mm)
+    // Keeps bridge & pickups in Mid, and neck pocket in Top Mid without cutting centerline!
+    double y_center_cut = 290.0 * scale_y;
+    auto [part_mid, part_top_mid] = center_core.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_center_cut);
 
-    // Dowel Pin Specs (pos, axis) in model mm
+    // 8 distinct parts
+    parts = {
+        part_bot_left,   // 0: Bot Left
+        part_bot_right,  // 1: Bot Right
+        part_mid_left,   // 2: Mid Left Wing
+        part_top_left,   // 3: Top Left Horn
+        part_mid_right,  // 4: Mid Right Wing
+        part_top_right,  // 5: Top Right Horn
+        part_mid,        // 6: Center Mid (Unified Bridge, Saddles & Pickups)
+        part_top_mid     // 7: Center Top Mid (Unified Neck Pocket Mortise)
+    };
+
+    slice_directions = {
+        Vector3(-0.707f, -0.707f, 0.0f), // 0: Bot Left
+        Vector3( 0.707f, -0.707f, 0.0f), // 1: Bot Right
+        Vector3(-1.000f, -0.100f, 0.0f), // 2: Mid Left
+        Vector3(-0.707f,  0.707f, 0.0f), // 3: Top Left Horn
+        Vector3( 1.000f, -0.100f, 0.0f), // 4: Mid Right
+        Vector3( 0.707f,  0.707f, 0.0f), // 5: Top Right Horn
+        Vector3( 0.000f, -0.350f, 0.0f), // 6: Center Bridge block
+        Vector3( 0.000f,  0.850f, 0.0f)  // 7: Center Neck block
+    };
+
+    // Dowel Pin Specs (pos, axis) in model mm (Matching SEAM_PINS from setup_scene.py)
     struct DowelSpec {
         vec3 pos;
         vec3 axis;
     };
     std::vector<DowelSpec> specs;
+    double mid_z = body_thickness * 0.5;
 
-    if (slice_grid_type == 2) { // 8-Piece dowels
-        double mid_z = body_thickness * 0.5;
-        double y1 = 110.0 * scale_y;
-        double y2 = 220.0 * scale_y;
-        double y3 = 330.0 * scale_y;
+    // 1. Bot_Left <-> Bot_Right (centerline below bridge)
+    specs.push_back({ vec3{ 0.0, 50.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } });
 
-        // Vertical centerline pins (axis along X)
-        specs.push_back({ vec3{ 0.0,  55.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Tail
-        specs.push_back({ vec3{ 0.0, 165.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Waist mid
-        specs.push_back({ vec3{ 0.0, 268.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Upper mid
-        specs.push_back({ vec3{ 0.0, 360.0 * scale_y, 7.5   }, vec3{ 1.0, 0.0, 0.0 } }); // Neck heel base
+    // 2. Horizontal seam below bridge (Y = y_bridge_cut)
+    specs.push_back({ vec3{ -95.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Left <-> Mid_Left
+    specs.push_back({ vec3{ -25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Left <-> Mid
+    specs.push_back({ vec3{  25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Right <-> Mid
+    specs.push_back({ vec3{  95.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Right <-> Mid_Right
 
-        // Horizontal seams (axis along Y)
-        // Y1 seam
-        specs.push_back({ vec3{ -80.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{ -35.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{  28.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{ 110.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+    // 3. Vertical seams between wings and center core (X = -50 and X = +50)
+    specs.push_back({ vec3{ -center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Left <-> Mid
+    specs.push_back({ vec3{ -center_x, 210.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Left <-> Mid
+    specs.push_back({ vec3{  center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Right <-> Mid
+    specs.push_back({ vec3{  center_x, 210.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Right <-> Mid
 
-        // Y2 seam
-        specs.push_back({ vec3{ -75.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{ -35.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{  35.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{  80.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+    // 4. Horizontal seams on wings (Y = y_wing_cut)
+    specs.push_back({ vec3{ -90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid_Left <-> Top_Left
+    specs.push_back({ vec3{  90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid_Right <-> Top_Right
 
-        // Y3 seam (Horns)
-        specs.push_back({ vec3{ -80.0, y3, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{  80.0, y3, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-    } else { // 4-Piece dowels
-        double mid_z = body_thickness * 0.5;
-        double split_y = 220.0 * scale_y;
-        specs.push_back({ vec3{ 0.0,  90.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } });
-        specs.push_back({ vec3{ 0.0, 310.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } });
-        specs.push_back({ vec3{ -80.0, split_y, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-        specs.push_back({ vec3{  80.0, split_y, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
-    }
+    // 5. Vertical seams on horns to top center (X = -50 and X = +50)
+    specs.push_back({ vec3{ -center_x, 310.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Top_Left <-> Top_Mid
+    specs.push_back({ vec3{  center_x, 310.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Top_Right <-> Top_Mid
+
+    // 6. Horizontal seam in center core (Y = y_center_cut)
+    specs.push_back({ vec3{ -25.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid <-> Top_Mid
+    specs.push_back({ vec3{  25.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid <-> Top_Mid
 
     // Drill blind dowel holes and store dowel transforms
     double hole_rad = (dowel_diameter + dowel_clearance) * 0.5;
@@ -1587,9 +1598,23 @@ bool GuitarBodyMesh::export_slices_stl(const String& p_dirpath) {
     if (current_slices.empty()) {
         rebuild_slices();
     }
+    std::vector<String> part_tags = {
+        "bot_left",
+        "bot_right",
+        "mid_left",
+        "top_left_horn",
+        "mid_right",
+        "top_right_horn",
+        "center_bridge",
+        "center_neck"
+    };
     for (size_t i = 0; i < current_slices.size(); ++i) {
-        String fname = p_dirpath.path_join("guitar_body_part_" + String::num_int64(i + 1) + ".stl");
-        write_binary_stl(fname, current_slices[i].GetMeshGL(), 1.0f, 0.0f, 0.0f);
+        String num_name = p_dirpath.path_join("guitar_body_part_" + String::num_int64(i + 1) + ".stl");
+        write_binary_stl(num_name, current_slices[i].GetMeshGL(), 1.0f, 0.0f, 0.0f);
+        if (i < part_tags.size()) {
+            String desc_name = p_dirpath.path_join("guitar_body_part_" + String::num_int64(i + 1) + "_" + part_tags[i] + ".stl");
+            write_binary_stl(desc_name, current_slices[i].GetMeshGL(), 1.0f, 0.0f, 0.0f);
+        }
     }
     // Export 6mm dowel pin
     SimplePolygon pin_pts = {
