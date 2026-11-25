@@ -53,6 +53,8 @@ light_energy = 0.8
 
 [node name="HardwareRig" type="Node3D" parent="."]
 
+[node name="SliceRig" type="Node3D" parent="."]
+
 [node name="CameraPivot" type="Node3D" parent="."]
 transform = Transform3D(0.92388, 0.0667652, -0.376815, 0, 0.984808, 0.174311, 0.382683, -0.161043, 0.909844, 0, 0, 0)
 
@@ -589,6 +591,87 @@ text = "Rear Control Cavity + Pots"
 layout_mode = 2
 button_pressed = true
 text = "Render Chrome Hardware"
+
+[node name="HSeparatorCAM" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+
+[node name="LblCAM" type="Label" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "CAM & Multi-Part Slicing"
+
+[node name="CheckSlicing" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Enable 3D Print Slicing"
+
+[node name="SlicingControls" type="VBoxContainer" parent="UI/Panel/Scroll/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="GridSlicing" type="GridContainer" parent="UI/Panel/Scroll/VBox/SlicingControls"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblGridType" type="Label" parent="UI/Panel/Scroll/VBox/SlicingControls/GridSlicing"]
+layout_mode = 2
+text = "Slicing Grid"
+
+[node name="OptionGrid" type="OptionButton" parent="UI/Panel/Scroll/VBox/SlicingControls/GridSlicing"]
+layout_mode = 2
+selected = 1
+item_count = 2
+popup/item_0/text = "4-Piece Grid (2x2)"
+popup/item_0/id = 1
+popup/item_1/text = "8-Piece Production Grid (2x4)"
+popup/item_1/id = 2
+
+[node name="LblExplode" type="Label" parent="UI/Panel/Scroll/VBox/SlicingControls/GridSlicing"]
+layout_mode = 2
+text = "Exploded View (mm)"
+
+[node name="SliderExplode" type="HSlider" parent="UI/Panel/Scroll/VBox/SlicingControls/GridSlicing"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 0.0
+max_value = 60.0
+step = 1.0
+value = 0.0
+
+[node name="CheckColorSlices" type="CheckBox" parent="UI/Panel/Scroll/VBox/SlicingControls"]
+layout_mode = 2
+button_pressed = true
+text = "Color-Code Segments"
+
+[node name="CheckDowelPins" type="CheckBox" parent="UI/Panel/Scroll/VBox/SlicingControls"]
+layout_mode = 2
+button_pressed = true
+text = "Render Alignment Dowels"
+
+[node name="ExportButtons" type="VBoxContainer" parent="UI/Panel/Scroll/VBox/SlicingControls"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="BtnExportSTL" type="Button" parent="UI/Panel/Scroll/VBox/SlicingControls/ExportButtons"]
+layout_mode = 2
+text = "Export Slices (STL Package)"
+
+[node name="BtnExport3MF" type="Button" parent="UI/Panel/Scroll/VBox/SlicingControls/ExportButtons"]
+layout_mode = 2
+text = "Export Multi-Body 3MF"
+
+[node name="BtnExportDXF" type="Button" parent="UI/Panel/Scroll/VBox/SlicingControls/ExportButtons"]
+layout_mode = 2
+text = "Export 2D Templates (DXF)"
+
+[node name="LblExportStatus" type="Label" parent="UI/Panel/Scroll/VBox/SlicingControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.9, 0.5, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
 
 [node name="HSeparator5" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2

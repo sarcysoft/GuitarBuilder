@@ -2,6 +2,8 @@
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/dir_access.hpp>
 
 #include "manifold/manifold.h"
 #include "manifold/cross_section.h"
@@ -220,6 +222,49 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_wiring_tunnels_enabled"), &GuitarBodyMesh::get_wiring_tunnels_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "wiring_tunnels_enabled"), "set_wiring_tunnels_enabled", "get_wiring_tunnels_enabled");
 
+    // Phase 3: CAM Slicing, Dowels & Production Export
+    ClassDB::bind_method(D_METHOD("set_slicing_enabled", "val"), &GuitarBodyMesh::set_slicing_enabled);
+    ClassDB::bind_method(D_METHOD("get_slicing_enabled"), &GuitarBodyMesh::get_slicing_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "slicing_enabled"), "set_slicing_enabled", "get_slicing_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_slice_grid_type", "val"), &GuitarBodyMesh::set_slice_grid_type);
+    ClassDB::bind_method(D_METHOD("get_slice_grid_type"), &GuitarBodyMesh::get_slice_grid_type);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "slice_grid_type"), "set_slice_grid_type", "get_slice_grid_type");
+
+    ClassDB::bind_method(D_METHOD("set_explode_distance", "val"), &GuitarBodyMesh::set_explode_distance);
+    ClassDB::bind_method(D_METHOD("get_explode_distance"), &GuitarBodyMesh::get_explode_distance);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "explode_distance"), "set_explode_distance", "get_explode_distance");
+
+    ClassDB::bind_method(D_METHOD("set_show_dowel_pins", "val"), &GuitarBodyMesh::set_show_dowel_pins);
+    ClassDB::bind_method(D_METHOD("get_show_dowel_pins"), &GuitarBodyMesh::get_show_dowel_pins);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_dowel_pins"), "set_show_dowel_pins", "get_show_dowel_pins");
+
+    ClassDB::bind_method(D_METHOD("set_dowel_diameter", "val"), &GuitarBodyMesh::set_dowel_diameter);
+    ClassDB::bind_method(D_METHOD("get_dowel_diameter"), &GuitarBodyMesh::get_dowel_diameter);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "dowel_diameter"), "set_dowel_diameter", "get_dowel_diameter");
+
+    ClassDB::bind_method(D_METHOD("set_dowel_length", "val"), &GuitarBodyMesh::set_dowel_length);
+    ClassDB::bind_method(D_METHOD("get_dowel_length"), &GuitarBodyMesh::get_dowel_length);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "dowel_length"), "set_dowel_length", "get_dowel_length");
+
+    ClassDB::bind_method(D_METHOD("set_dowel_clearance", "val"), &GuitarBodyMesh::set_dowel_clearance);
+    ClassDB::bind_method(D_METHOD("get_dowel_clearance"), &GuitarBodyMesh::get_dowel_clearance);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "dowel_clearance"), "set_dowel_clearance", "get_dowel_clearance");
+
+    ClassDB::bind_method(D_METHOD("get_slice_count"), &GuitarBodyMesh::get_slice_count);
+    ClassDB::bind_method(D_METHOD("get_slice_mesh", "idx"), &GuitarBodyMesh::get_slice_mesh);
+    ClassDB::bind_method(D_METHOD("get_slice_direction", "idx"), &GuitarBodyMesh::get_slice_direction);
+
+    ClassDB::bind_method(D_METHOD("get_dowel_pin_count"), &GuitarBodyMesh::get_dowel_pin_count);
+    ClassDB::bind_method(D_METHOD("get_dowel_pin_transform", "idx"), &GuitarBodyMesh::get_dowel_pin_transform);
+    ClassDB::bind_method(D_METHOD("get_dowel_pin_mesh"), &GuitarBodyMesh::get_dowel_pin_mesh);
+
+    ClassDB::bind_method(D_METHOD("export_full_stl", "filepath"), &GuitarBodyMesh::export_full_stl);
+    ClassDB::bind_method(D_METHOD("export_slices_stl", "dirpath"), &GuitarBodyMesh::export_slices_stl);
+    ClassDB::bind_method(D_METHOD("export_2d_dxf", "filepath"), &GuitarBodyMesh::export_2d_dxf);
+    ClassDB::bind_method(D_METHOD("export_3mf", "filepath"), &GuitarBodyMesh::export_3mf);
+
+    ClassDB::bind_method(D_METHOD("rebuild_slices"), &GuitarBodyMesh::rebuild_slices);
     ClassDB::bind_method(D_METHOD("rebuild_mesh"), &GuitarBodyMesh::rebuild_mesh);
 }
 
@@ -583,6 +628,84 @@ void GuitarBodyMesh::set_wiring_tunnels_enabled(bool p_val) {
     }
 }
 
+void GuitarBodyMesh::set_slicing_enabled(bool p_val) {
+    if (slicing_enabled != p_val) {
+        slicing_enabled = p_val;
+        if (slicing_enabled) {
+            rebuild_slices();
+        }
+    }
+}
+
+void GuitarBodyMesh::set_slice_grid_type(int p_val) {
+    if (slice_grid_type != p_val) {
+        slice_grid_type = p_val;
+        if (slicing_enabled) {
+            rebuild_slices();
+        }
+    }
+}
+
+void GuitarBodyMesh::set_explode_distance(double p_val) {
+    if (explode_distance != p_val) {
+        explode_distance = p_val;
+    }
+}
+
+void GuitarBodyMesh::set_show_dowel_pins(bool p_val) {
+    if (show_dowel_pins != p_val) {
+        show_dowel_pins = p_val;
+    }
+}
+
+void GuitarBodyMesh::set_dowel_diameter(double p_val) {
+    if (dowel_diameter != p_val) {
+        dowel_diameter = p_val;
+        if (slicing_enabled) {
+            rebuild_slices();
+        }
+    }
+}
+
+void GuitarBodyMesh::set_dowel_length(double p_val) {
+    if (dowel_length != p_val) {
+        dowel_length = p_val;
+        if (slicing_enabled) {
+            rebuild_slices();
+        }
+    }
+}
+
+void GuitarBodyMesh::set_dowel_clearance(double p_val) {
+    if (dowel_clearance != p_val) {
+        dowel_clearance = p_val;
+        if (slicing_enabled) {
+            rebuild_slices();
+        }
+    }
+}
+
+Ref<ArrayMesh> GuitarBodyMesh::get_slice_mesh(int p_idx) const {
+    if (p_idx >= 0 && p_idx < (int)slice_meshes.size()) {
+        return slice_meshes[p_idx];
+    }
+    return Ref<ArrayMesh>();
+}
+
+Vector3 GuitarBodyMesh::get_slice_direction(int p_idx) const {
+    if (p_idx >= 0 && p_idx < (int)slice_directions.size()) {
+        return slice_directions[p_idx];
+    }
+    return Vector3();
+}
+
+Transform3D GuitarBodyMesh::get_dowel_pin_transform(int p_idx) const {
+    if (p_idx >= 0 && p_idx < (int)dowel_transforms.size()) {
+        return dowel_transforms[p_idx];
+    }
+    return Transform3D();
+}
+
 // Centripetal Catmull-Rom spline (alpha = 0.5): guarantees no cusps, loops, or overshoot
 static inline double get_cr_t(double t, double alpha, const manifold::vec2& p0, const manifold::vec2& p1) {
     double d = std::hypot(p1.x - p0.x, p1.y - p0.y);
@@ -630,6 +753,134 @@ static manifold::vec2 catmull_rom(
         ((t2 - u) * b1.x + (u - t1) * b2.x) / (t2 - t1),
         ((t2 - u) * b1.y + (u - t1) * b2.y) / (t2 - t1)
     };
+}
+
+static Ref<ArrayMesh> convert_mesh_gl_to_godot(
+    const manifold::MeshGL& mesh_gl,
+    float scale_factor,
+    float center_y,
+    float center_z,
+    double total_hip = 318.0,
+    double L = 446.0,
+    double b_hip = 159.0
+) {
+    size_t num_verts = mesh_gl.NumVert();
+    int num_props = mesh_gl.numProp;
+    if (num_verts == 0) return Ref<ArrayMesh>();
+
+    PackedVector3Array vertices;
+    PackedVector3Array normals;
+    PackedVector2Array uvs;
+    PackedInt32Array indices;
+
+    vertices.resize((int64_t)num_verts);
+    normals.resize((int64_t)num_verts);
+    uvs.resize((int64_t)num_verts);
+
+    for (size_t v = 0; v < num_verts; ++v) {
+        float px = mesh_gl.vertProperties[v * num_props + 0] * scale_factor;
+        float py = mesh_gl.vertProperties[v * num_props + 1] * scale_factor;
+        float pz = mesh_gl.vertProperties[v * num_props + 2] * scale_factor;
+
+        vertices[(int64_t)v] = Vector3(px, py - center_y, pz - center_z);
+
+        if (num_props >= 6) {
+            float nx = mesh_gl.vertProperties[v * num_props + 3];
+            float ny = mesh_gl.vertProperties[v * num_props + 4];
+            float nz = mesh_gl.vertProperties[v * num_props + 5];
+            normals[(int64_t)v] = Vector3(nx, ny, nz);
+        } else {
+            normals[(int64_t)v] = Vector3(0, 0, 1);
+        }
+
+        float u = (px + (float)b_hip * scale_factor) / (float)(total_hip * scale_factor);
+        float v_coord = py / (float)(L * scale_factor);
+        uvs[(int64_t)v] = Vector2(u, v_coord);
+    }
+
+    size_t num_indices = mesh_gl.triVerts.size();
+    indices.resize((int64_t)num_indices);
+    for (size_t t = 0; t < num_indices / 3; ++t) {
+        indices[(int64_t)(t * 3 + 0)] = (int32_t)mesh_gl.triVerts[t * 3 + 0];
+        indices[(int64_t)(t * 3 + 1)] = (int32_t)mesh_gl.triVerts[t * 3 + 2];
+        indices[(int64_t)(t * 3 + 2)] = (int32_t)mesh_gl.triVerts[t * 3 + 1];
+    }
+
+    Array arrays;
+    arrays.resize(Mesh::ARRAY_MAX);
+    arrays[Mesh::ARRAY_VERTEX] = vertices;
+    if (num_props >= 6) {
+        arrays[Mesh::ARRAY_NORMAL] = normals;
+    }
+    arrays[Mesh::ARRAY_TEX_UV] = uvs;
+    arrays[Mesh::ARRAY_INDEX] = indices;
+
+    Ref<ArrayMesh> godot_mesh;
+    godot_mesh.instantiate();
+    godot_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+    return godot_mesh;
+}
+
+static bool write_binary_stl(const String& p_filepath, const manifold::MeshGL& mesh_gl, float scale_factor, float center_y, float center_z) {
+    Ref<FileAccess> file = FileAccess::open(p_filepath, FileAccess::WRITE);
+    if (!file.is_valid()) {
+        return false;
+    }
+    uint8_t header[80] = {0};
+    const char* title = "GuitarBuilder 3D Production - Watertight Manifold";
+    memcpy(header, title, std::min((size_t)80, strlen(title)));
+    file->store_buffer(header, 80);
+
+    size_t num_indices = mesh_gl.triVerts.size();
+    uint32_t num_triangles = (uint32_t)(num_indices / 3);
+    file->store_32(num_triangles);
+
+    int num_props = mesh_gl.numProp;
+    for (size_t t = 0; t < num_triangles; ++t) {
+        uint32_t i0 = mesh_gl.triVerts[t * 3 + 0];
+        uint32_t i1 = mesh_gl.triVerts[t * 3 + 1];
+        uint32_t i2 = mesh_gl.triVerts[t * 3 + 2];
+
+        float v0x = mesh_gl.vertProperties[i0 * num_props + 0] * scale_factor;
+        float v0y = mesh_gl.vertProperties[i0 * num_props + 1] * scale_factor - center_y;
+        float v0z = mesh_gl.vertProperties[i0 * num_props + 2] * scale_factor - center_z;
+
+        float v1x = mesh_gl.vertProperties[i1 * num_props + 0] * scale_factor;
+        float v1y = mesh_gl.vertProperties[i1 * num_props + 1] * scale_factor - center_y;
+        float v1z = mesh_gl.vertProperties[i1 * num_props + 2] * scale_factor - center_z;
+
+        float v2x = mesh_gl.vertProperties[i2 * num_props + 0] * scale_factor;
+        float v2y = mesh_gl.vertProperties[i2 * num_props + 1] * scale_factor - center_y;
+        float v2z = mesh_gl.vertProperties[i2 * num_props + 2] * scale_factor - center_z;
+
+        float e1x = v1x - v0x, e1y = v1y - v0y, e1z = v1z - v0z;
+        float e2x = v2x - v0x, e2y = v2y - v0y, e2z = v2z - v0z;
+        float nx = e1y * e2z - e1z * e2y;
+        float ny = e1z * e2x - e1x * e2z;
+        float nz = e1x * e2y - e1y * e2x;
+        float nlen = std::sqrt(nx * nx + ny * ny + nz * nz);
+        if (nlen > 1e-6f) { nx /= nlen; ny /= nlen; nz /= nlen; }
+
+        file->store_float(nx);
+        file->store_float(ny);
+        file->store_float(nz);
+
+        file->store_float(v0x);
+        file->store_float(v0y);
+        file->store_float(v0z);
+
+        file->store_float(v1x);
+        file->store_float(v1y);
+        file->store_float(v1z);
+
+        file->store_float(v2x);
+        file->store_float(v2y);
+        file->store_float(v2z);
+
+        file->store_16(0);
+    }
+    file->close();
+    return true;
 }
 
 void GuitarBodyMesh::rebuild_mesh() {
@@ -1159,65 +1410,370 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     // Scale from mm to meters for Godot physical units (1 unit = 1 meter)
     const float scale_factor = 0.001f;
-    int num_props = mesh_gl.numProp;
-    size_t num_verts = mesh_gl.NumVert();
-
-    // Center body origin at waist / bridge reference
     float center_y = (float)(240.0 * scale_y * scale_factor);
     float center_z = (float)(body_thickness * 0.5 * scale_factor);
 
-    PackedVector3Array vertices;
-    PackedVector3Array normals;
-    PackedVector2Array uvs;
-    PackedInt32Array indices;
+    current_body = body;
+    Ref<ArrayMesh> godot_mesh = convert_mesh_gl_to_godot(mesh_gl, scale_factor, center_y, center_z, (float)(t_hip + b_hip), (float)L, (float)b_hip);
+    set_mesh(godot_mesh);
 
-    vertices.resize((int64_t)num_verts);
-    normals.resize((int64_t)num_verts);
-    uvs.resize((int64_t)num_verts);
+    if (slicing_enabled) {
+        rebuild_slices();
+    }
+}
 
-    for (size_t v = 0; v < num_verts; ++v) {
-        float px = mesh_gl.vertProperties[v * num_props + 0] * scale_factor;
-        float py = mesh_gl.vertProperties[v * num_props + 1] * scale_factor;
-        float pz = mesh_gl.vertProperties[v * num_props + 2] * scale_factor;
+void GuitarBodyMesh::rebuild_slices() {
+    using namespace manifold;
 
-        // Godot coordinates: X = right, Y = up, Z = towards viewer
-        vertices[(int64_t)v] = Vector3(px, py - center_y, pz - center_z);
+    slice_meshes.clear();
+    current_slices.clear();
+    slice_directions.clear();
+    dowel_transforms.clear();
 
-        if (num_props >= 6) {
-            float nx = mesh_gl.vertProperties[v * num_props + 3];
-            float ny = mesh_gl.vertProperties[v * num_props + 4];
-            float nz = mesh_gl.vertProperties[v * num_props + 5];
-            normals[(int64_t)v] = Vector3(nx, ny, nz);
-        } else {
-            normals[(int64_t)v] = Vector3(0, 0, 1);
+    if (current_body.IsEmpty()) {
+        return;
+    }
+
+    double L = body_length;
+    double scale_y = L / 446.0;
+    float scale_factor = 0.001f;
+    float center_y = (float)(240.0 * scale_y * scale_factor);
+    float center_z = (float)(body_thickness * 0.5 * scale_factor);
+
+    std::vector<Manifold> parts;
+
+    if (slice_grid_type == 1) { // 4-Piece Grid (2x2)
+        auto [left, right] = current_body.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, 0.0);
+        double split_y = 220.0 * scale_y;
+        auto [p0, p2] = left.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -split_y);
+        auto [p1, p3] = right.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -split_y);
+
+        parts = { p0, p1, p2, p3 };
+        slice_directions = {
+            Vector3(-0.707f, -0.707f, 0.0f),
+            Vector3( 0.707f, -0.707f, 0.0f),
+            Vector3(-0.707f,  0.707f, 0.0f),
+            Vector3( 0.707f,  0.707f, 0.0f)
+        };
+    } else { // 8-Piece Production Grid (2x4)
+        auto [left, right] = current_body.SplitByPlane(vec3{ -1.0, 0.0, 0.0 }, 0.0);
+        double y1 = 110.0 * scale_y;
+        double y2 = 220.0 * scale_y;
+        double y3 = 330.0 * scale_y;
+
+        auto [left_lower, left_upper] = left.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y2);
+        auto [right_lower, right_upper] = right.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y2);
+
+        auto [p0, p2] = left_lower.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y1);
+        auto [p1, p3] = right_lower.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y1);
+
+        auto [p4, p6] = left_upper.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y3);
+        auto [p5, p7] = right_upper.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y3);
+
+        parts = { p0, p1, p2, p3, p4, p5, p6, p7 };
+        slice_directions = {
+            Vector3(-0.707f, -0.707f, 0.0f),
+            Vector3( 0.707f, -0.707f, 0.0f),
+            Vector3(-1.0f,   -0.25f,  0.0f),
+            Vector3( 1.0f,   -0.25f,  0.0f),
+            Vector3(-1.0f,    0.25f,  0.0f),
+            Vector3( 1.0f,    0.25f,  0.0f),
+            Vector3(-0.707f,  0.707f, 0.0f),
+            Vector3( 0.707f,  0.707f, 0.0f)
+        };
+    }
+
+    // Dowel Pin Specs (pos, axis) in model mm
+    struct DowelSpec {
+        vec3 pos;
+        vec3 axis;
+    };
+    std::vector<DowelSpec> specs;
+
+    if (slice_grid_type == 2) { // 8-Piece dowels
+        double mid_z = body_thickness * 0.5;
+        double y1 = 110.0 * scale_y;
+        double y2 = 220.0 * scale_y;
+        double y3 = 330.0 * scale_y;
+
+        // Vertical centerline pins (axis along X)
+        specs.push_back({ vec3{ 0.0,  55.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Tail
+        specs.push_back({ vec3{ 0.0, 165.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Waist mid
+        specs.push_back({ vec3{ 0.0, 268.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Upper mid
+        specs.push_back({ vec3{ 0.0, 360.0 * scale_y, 7.5   }, vec3{ 1.0, 0.0, 0.0 } }); // Neck heel base
+
+        // Horizontal seams (axis along Y)
+        // Y1 seam
+        specs.push_back({ vec3{ -80.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{ -35.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{  28.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{ 110.0, y1, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+
+        // Y2 seam
+        specs.push_back({ vec3{ -75.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{ -35.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{  35.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{  80.0, y2, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+
+        // Y3 seam (Horns)
+        specs.push_back({ vec3{ -80.0, y3, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{  80.0, y3, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+    } else { // 4-Piece dowels
+        double mid_z = body_thickness * 0.5;
+        double split_y = 220.0 * scale_y;
+        specs.push_back({ vec3{ 0.0,  90.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } });
+        specs.push_back({ vec3{ 0.0, 310.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } });
+        specs.push_back({ vec3{ -80.0, split_y, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+        specs.push_back({ vec3{  80.0, split_y, mid_z }, vec3{ 0.0, 1.0, 0.0 } });
+    }
+
+    // Drill blind dowel holes and store dowel transforms
+    double hole_rad = (dowel_diameter + dowel_clearance) * 0.5;
+    for (const auto& sp : specs) {
+        Manifold hole = Manifold::Cylinder(dowel_length, hole_rad, hole_rad, 20)
+            .Translate(vec3{ 0.0, 0.0, -dowel_length * 0.5 });
+        Basis b;
+        if (std::abs(sp.axis.x) > 0.9) {
+            hole = hole.Rotate(0.0, 90.0, 0.0);
+            b = Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0));
+        } else if (std::abs(sp.axis.y) > 0.9) {
+            hole = hole.Rotate(-90.0, 0.0, 0.0);
+            b = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0));
+        }
+        hole = hole.Translate(sp.pos);
+
+        for (auto& p : parts) {
+            p = p - hole;
         }
 
-        float total_hip = (float)(t_hip + b_hip);
-        float u = (px + (float)b_hip * scale_factor) / (total_hip * scale_factor);
-        float v_coord = py / ((float)L * scale_factor);
-        uvs[(int64_t)v] = Vector2(u, v_coord);
+        Vector3 w_pos(sp.pos.x * scale_factor, sp.pos.y * scale_factor - center_y, sp.pos.z * scale_factor - center_z);
+        dowel_transforms.push_back(Transform3D(b, w_pos));
     }
 
-    size_t num_indices = mesh_gl.triVerts.size();
-    indices.resize((int64_t)num_indices);
-    // Convert Manifold's CCW triangle winding to Godot's CW front-facing winding by swapping indices 1 and 2
-    for (size_t t = 0; t < num_indices / 3; ++t) {
-        indices[(int64_t)(t * 3 + 0)] = (int32_t)mesh_gl.triVerts[t * 3 + 0];
-        indices[(int64_t)(t * 3 + 1)] = (int32_t)mesh_gl.triVerts[t * 3 + 2];
-        indices[(int64_t)(t * 3 + 2)] = (int32_t)mesh_gl.triVerts[t * 3 + 1];
+    // Create printable chamfered dowel pin mesh
+    SimplePolygon pin_pts = {
+        vec2{ 0.0, -dowel_length * 0.5 },
+        vec2{ dowel_diameter * 0.5 - 0.8, -dowel_length * 0.5 },
+        vec2{ dowel_diameter * 0.5, -dowel_length * 0.5 + 0.8 },
+        vec2{ dowel_diameter * 0.5,  dowel_length * 0.5 - 0.8 },
+        vec2{ dowel_diameter * 0.5 - 0.8,  dowel_length * 0.5 },
+        vec2{ 0.0,  dowel_length * 0.5 }
+    };
+    CrossSection cs_pin(pin_pts, CrossSection::FillRule::Positive);
+    Manifold m_pin = Manifold::Revolve(cs_pin.ToPolygons(), 24);
+    dowel_pin_mesh = convert_mesh_gl_to_godot(m_pin.CalculateNormals(0, 45.0).GetMeshGL(), scale_factor, 0.0f, 0.0f);
+
+    // Save current slices and convert to ArrayMesh
+    current_slices = parts;
+    for (auto& p : parts) {
+        p = p.CalculateNormals(0, 45.0);
+        Ref<ArrayMesh> am = convert_mesh_gl_to_godot(p.GetMeshGL(), scale_factor, center_y, center_z);
+        slice_meshes.push_back(am);
+    }
+}
+
+bool GuitarBodyMesh::export_full_stl(const String& p_filepath) {
+    using namespace manifold;
+    if (current_body.IsEmpty()) return false;
+    return write_binary_stl(p_filepath, current_body.GetMeshGL(), 1.0f, 0.0f, 0.0f);
+}
+
+bool GuitarBodyMesh::export_slices_stl(const String& p_dirpath) {
+    using namespace manifold;
+    Ref<DirAccess> dir = DirAccess::open(p_dirpath);
+    if (!dir.is_valid()) {
+        DirAccess::make_dir_recursive_absolute(p_dirpath);
+    }
+    if (current_slices.empty()) {
+        rebuild_slices();
+    }
+    for (size_t i = 0; i < current_slices.size(); ++i) {
+        String fname = p_dirpath.path_join("guitar_body_part_" + String::num_int64(i + 1) + ".stl");
+        write_binary_stl(fname, current_slices[i].GetMeshGL(), 1.0f, 0.0f, 0.0f);
+    }
+    // Export 6mm dowel pin
+    SimplePolygon pin_pts = {
+        vec2{ 0.0, -dowel_length * 0.5 },
+        vec2{ dowel_diameter * 0.5 - 0.8, -dowel_length * 0.5 },
+        vec2{ dowel_diameter * 0.5, -dowel_length * 0.5 + 0.8 },
+        vec2{ dowel_diameter * 0.5,  dowel_length * 0.5 - 0.8 },
+        vec2{ dowel_diameter * 0.5 - 0.8,  dowel_length * 0.5 },
+        vec2{ 0.0,  dowel_length * 0.5 }
+    };
+    CrossSection cs_pin(pin_pts, CrossSection::FillRule::Positive);
+    manifold::Manifold m_pin = manifold::Manifold::Revolve(cs_pin.ToPolygons(), 24);
+    String pin_fname = p_dirpath.path_join("dowel_pin_6mm.stl");
+    write_binary_stl(pin_fname, m_pin.GetMeshGL(), 1.0f, 0.0f, 0.0f);
+    return true;
+}
+
+bool GuitarBodyMesh::export_2d_dxf(const String& p_filepath) {
+    using namespace manifold;
+    Ref<FileAccess> file = FileAccess::open(p_filepath, FileAccess::WRITE);
+    if (!file.is_valid()) return false;
+
+    // Header & Tables
+    file->store_string("0\nSECTION\n2\nHEADER\n0\nENDSEC\n");
+    file->store_string("0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n5\n");
+    auto write_layer = [&](const char* name, int color) {
+        file->store_string("0\nLAYER\n2\n");
+        file->store_string(name);
+        file->store_string("\n70\n0\n62\n");
+        file->store_string(String::num_int64(color) + "\n6\nCONTINUOUS\n");
+    };
+    write_layer("PERIMETER", 1);       // Red
+    write_layer("CONTROL_CAVITY", 3);  // Green
+    write_layer("NECK_POCKET", 5);     // Blue
+    write_layer("PICKUPS", 4);         // Cyan
+    write_layer("BRIDGE_HOLES", 2);    // Yellow
+    file->store_string("0\nENDTAB\n0\nENDSEC\n");
+
+    // Entities
+    file->store_string("0\nSECTION\n2\nENTITIES\n");
+
+    auto write_poly = [&](const std::vector<manifold::vec2>& pts, const char* layer, bool closed) {
+        file->store_string("0\nPOLYLINE\n8\n");
+        file->store_string(layer);
+        file->store_string("\n66\n1\n70\n");
+        file->store_string(closed ? "1\n" : "0\n");
+        for (const auto& pt : pts) {
+            file->store_string("0\nVERTEX\n8\n");
+            file->store_string(layer);
+            file->store_string("\n10\n" + String::num_real(pt.x) + "\n20\n" + String::num_real(pt.y) + "\n30\n0.0\n");
+        }
+        file->store_string("0\nSEQEND\n");
+    };
+
+    auto write_circ = [&](double cx, double cy, double rad, const char* layer) {
+        file->store_string("0\nCIRCLE\n8\n");
+        file->store_string(layer);
+        file->store_string("\n10\n" + String::num_real(cx) + "\n20\n" + String::num_real(cy) + "\n30\n0.0\n");
+        file->store_string("40\n" + String::num_real(rad) + "\n");
+    };
+
+    double scale_y = body_length / 446.0;
+
+    // 1. Neck Pocket Box
+    if (neck_pocket_enabled) {
+        double nw = neck_pocket_width * 0.5;
+        double ny_start = (399.7 - neck_pocket_length) * scale_y;
+        double ny_end = 399.7 * scale_y;
+        std::vector<manifold::vec2> np_pts = {
+            manifold::vec2{ -nw, ny_start }, manifold::vec2{ nw, ny_start },
+            manifold::vec2{ nw, ny_end }, manifold::vec2{ -nw, ny_end }
+        };
+        write_poly(np_pts, "NECK_POCKET", true);
     }
 
-    Array arrays;
-    arrays.resize(Mesh::ARRAY_MAX);
-    arrays[Mesh::ARRAY_VERTEX] = vertices;
-    if (num_props >= 6) {
-        arrays[Mesh::ARRAY_NORMAL] = normals;
-    }
-    arrays[Mesh::ARRAY_TEX_UV] = uvs;
-    arrays[Mesh::ARRAY_INDEX] = indices;
+    // 2. Pickups
+    auto write_pickup = [&](double py, bool is_hum, double slant) {
+        double w = is_hum ? 84.0 : 70.0;
+        double l = is_hum ? 38.0 : 18.0;
+        double cos_a = std::cos(slant * 3.141592653589793 / 180.0);
+        double sin_a = std::sin(slant * 3.141592653589793 / 180.0);
+        std::vector<manifold::vec2> box = {
+            manifold::vec2{ -w * 0.5, -l * 0.5 }, manifold::vec2{ w * 0.5, -l * 0.5 },
+            manifold::vec2{  w * 0.5,  l * 0.5 }, manifold::vec2{ -w * 0.5,  l * 0.5 }
+        };
+        std::vector<manifold::vec2> rot_box;
+        for (const auto& b : box) {
+            rot_box.push_back(manifold::vec2{ b.x * cos_a - b.y * sin_a, py + b.x * sin_a + b.y * cos_a });
+        }
+        write_poly(rot_box, "PICKUPS", true);
+    };
 
-    Ref<ArrayMesh> godot_mesh;
-    godot_mesh.instantiate();
-    godot_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
-    set_mesh(godot_mesh);
+    if (pickup_config == 1) { // SSS
+        write_pickup(bridge_pickup_y * scale_y, false, bridge_pickup_slant);
+        write_pickup(middle_pickup_y * scale_y, false, 0.0);
+        write_pickup(neck_pickup_y * scale_y, false, 0.0);
+    } else if (pickup_config == 2) { // HSS
+        write_pickup(bridge_pickup_y * scale_y, true, 0.0);
+        write_pickup(middle_pickup_y * scale_y, false, 0.0);
+        write_pickup(neck_pickup_y * scale_y, false, 0.0);
+    } else if (pickup_config == 3) { // HH
+        write_pickup(bridge_pickup_y * scale_y, true, 0.0);
+        write_pickup(neck_pickup_y * scale_y, true, 0.0);
+    }
+
+    // 3. Bridge string holes / ferrules
+    if (bridge_enabled) {
+        double by = bridge_y * scale_y;
+        for (int i = 0; i < 6; ++i) {
+            double sx = -26.25 + i * 10.5;
+            write_circ(sx, by, 1.75, "BRIDGE_HOLES");
+            write_circ(sx, by, 4.0, "BRIDGE_HOLES");
+        }
+    }
+
+    // 4. Control Cavity
+    if (control_cavity_enabled) {
+        double cc_x = 68.0;
+        double cc_y = 138.0 * scale_y;
+        manifold::SimplePolygon cc_pts = {
+            manifold::vec2{ -14.0, -70.0 }, manifold::vec2{  14.0, -68.0 }, manifold::vec2{  20.0, -35.0 },
+            manifold::vec2{  24.0,  10.0 }, manifold::vec2{  14.0,  52.0 }, manifold::vec2{ -14.0,  50.0 },
+            manifold::vec2{ -14.0,   5.0 }
+        };
+        manifold::CrossSection cs_cc(cc_pts, manifold::CrossSection::FillRule::Positive);
+        cs_cc = cs_cc.Offset(8.0, manifold::CrossSection::JoinType::Round).Offset(-2.0, manifold::CrossSection::JoinType::Round);
+        for (const auto& poly : cs_cc.ToPolygons()) {
+            std::vector<manifold::vec2> cc_world;
+            for (const auto& pt : poly) {
+                cc_world.push_back(manifold::vec2{ cc_x + pt.x, cc_y + pt.y });
+            }
+            write_poly(cc_world, "CONTROL_CAVITY", true);
+        }
+        write_circ(cc_x + 2.0, cc_y + 36.0, 4.75, "CONTROL_CAVITY");
+        write_circ(cc_x + 6.0, cc_y - 4.0, 4.75, "CONTROL_CAVITY");
+        write_circ(cc_x - 2.0, cc_y - 42.0, 4.75, "CONTROL_CAVITY");
+    }
+
+    file->store_string("0\nENDSEC\n0\nEOF\n");
+    file->close();
+    return true;
+}
+
+bool GuitarBodyMesh::export_3mf(const String& p_filepath) {
+    Ref<FileAccess> file = FileAccess::open(p_filepath, FileAccess::WRITE);
+    if (!file.is_valid()) return false;
+
+    if (current_slices.empty()) {
+        rebuild_slices();
+    }
+
+    file->store_string("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    file->store_string("<model unit=\"millimeter\" xml:lang=\"en-US\" xmlns=\"http://schemas.microsoft.com/3dmanufacturing/core/2015/02\">\n");
+    file->store_string("  <metadata name=\"Title\">GuitarBuilder Production Slices</metadata>\n");
+    file->store_string("  <resources>\n");
+
+    for (size_t i = 0; i < current_slices.size(); ++i) {
+        manifold::MeshGL gl = current_slices[i].GetMeshGL();
+        file->store_string("    <object id=\"" + String::num_int64(i + 1) + "\" type=\"model\">\n");
+        file->store_string("      <mesh>\n        <vertices>\n");
+        size_t n_verts = gl.NumVert();
+        int n_props = gl.numProp;
+        for (size_t v = 0; v < n_verts; ++v) {
+            float x = gl.vertProperties[v * n_props + 0];
+            float y = gl.vertProperties[v * n_props + 1];
+            float z = gl.vertProperties[v * n_props + 2];
+            file->store_string("          <vertex x=\"" + String::num_real(x) + "\" y=\"" + String::num_real(y) + "\" z=\"" + String::num_real(z) + "\" />\n");
+        }
+        file->store_string("        </vertices>\n        <triangles>\n");
+        size_t n_tris = gl.triVerts.size() / 3;
+        for (size_t t = 0; t < n_tris; ++t) {
+            uint32_t v1 = gl.triVerts[t * 3 + 0];
+            uint32_t v2 = gl.triVerts[t * 3 + 1];
+            uint32_t v3 = gl.triVerts[t * 3 + 2];
+            file->store_string("          <triangle v1=\"" + String::num_int64(v1) + "\" v2=\"" + String::num_int64(v2) + "\" v3=\"" + String::num_int64(v3) + "\" />\n");
+        }
+        file->store_string("        </triangles>\n      </mesh>\n    </object>\n");
+    }
+
+    file->store_string("  </resources>\n  <build>\n");
+    for (size_t i = 0; i < current_slices.size(); ++i) {
+        file->store_string("    <item objectid=\"" + String::num_int64(i + 1) + "\" />\n");
+    }
+    file->store_string("  </build>\n</model>\n");
+    file->close();
+    return true;
 }

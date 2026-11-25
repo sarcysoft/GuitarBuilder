@@ -5,6 +5,9 @@
 #include <godot_cpp/classes/surface_tool.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
+#include "manifold/manifold.h"
+#include <vector>
+
 namespace godot {
 
 class GuitarBodyMesh : public MeshInstance3D {
@@ -73,6 +76,23 @@ private:
     bool control_cavity_rear = true;
     double control_cavity_depth = 38.0;
     bool wiring_tunnels_enabled = true;
+
+    // Phase 3: CAM Slicing, Dowels & Production Export
+    bool slicing_enabled = false;
+    int slice_grid_type = 2; // 1: 4-Piece [2x2], 2: 8-Piece [2x4]
+    double explode_distance = 0.0;
+    bool show_dowel_pins = true;
+    double dowel_diameter = 6.0;
+    double dowel_length = 16.0;
+    double dowel_clearance = 0.3;
+
+    // Internal Manifold storage
+    manifold::Manifold current_body;
+    std::vector<manifold::Manifold> current_slices;
+    std::vector<Ref<ArrayMesh>> slice_meshes;
+    std::vector<Vector3> slice_directions;
+    std::vector<Transform3D> dowel_transforms;
+    Ref<ArrayMesh> dowel_pin_mesh;
 
 protected:
     static void _bind_methods();
@@ -232,6 +252,44 @@ public:
 
     void set_wiring_tunnels_enabled(bool p_val);
     bool get_wiring_tunnels_enabled() const { return wiring_tunnels_enabled; }
+
+    // Phase 3: CAM Slicing, Dowels & Production Export
+    void set_slicing_enabled(bool p_val);
+    bool get_slicing_enabled() const { return slicing_enabled; }
+
+    void set_slice_grid_type(int p_val);
+    int get_slice_grid_type() const { return slice_grid_type; }
+
+    void set_explode_distance(double p_val);
+    double get_explode_distance() const { return explode_distance; }
+
+    void set_show_dowel_pins(bool p_val);
+    bool get_show_dowel_pins() const { return show_dowel_pins; }
+
+    void set_dowel_diameter(double p_val);
+    double get_dowel_diameter() const { return dowel_diameter; }
+
+    void set_dowel_length(double p_val);
+    double get_dowel_length() const { return dowel_length; }
+
+    void set_dowel_clearance(double p_val);
+    double get_dowel_clearance() const { return dowel_clearance; }
+
+    int get_slice_count() const { return (int)slice_meshes.size(); }
+    Ref<ArrayMesh> get_slice_mesh(int p_idx) const;
+    Vector3 get_slice_direction(int p_idx) const;
+
+    int get_dowel_pin_count() const { return (int)dowel_transforms.size(); }
+    Transform3D get_dowel_pin_transform(int p_idx) const;
+    Ref<ArrayMesh> get_dowel_pin_mesh() const { return dowel_pin_mesh; }
+
+    // Production export functions
+    bool export_full_stl(const String& p_filepath);
+    bool export_slices_stl(const String& p_dirpath);
+    bool export_2d_dxf(const String& p_filepath);
+    bool export_3mf(const String& p_filepath);
+
+    void rebuild_slices();
 
     // Core Manifold rebuild routine
     void rebuild_mesh();

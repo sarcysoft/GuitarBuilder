@@ -65,10 +65,26 @@ extends Node3D
 @onready var check_control_cavity = $UI/Panel/Scroll/VBox/CheckControlCavity
 @onready var check_hardware_models = $UI/Panel/Scroll/VBox/CheckHardwareModels
 
-# Materials for Hardware
+# CAM Slicing Controls
+@onready var slice_rig = $SliceRig
+@onready var check_slicing = $UI/Panel/Scroll/VBox/CheckSlicing
+@onready var slicing_controls = $UI/Panel/Scroll/VBox/SlicingControls
+@onready var option_grid = $UI/Panel/Scroll/VBox/SlicingControls/GridSlicing/OptionGrid
+@onready var slider_explode = $UI/Panel/Scroll/VBox/SlicingControls/GridSlicing/SliderExplode
+@onready var check_color_slices = $UI/Panel/Scroll/VBox/SlicingControls/CheckColorSlices
+@onready var check_dowel_pins = $UI/Panel/Scroll/VBox/SlicingControls/CheckDowelPins
+@onready var btn_export_stl = $UI/Panel/Scroll/VBox/SlicingControls/ExportButtons/BtnExportSTL
+@onready var btn_export_3mf = $UI/Panel/Scroll/VBox/SlicingControls/ExportButtons/BtnExport3MF
+@onready var btn_export_dxf = $UI/Panel/Scroll/VBox/SlicingControls/ExportButtons/BtnExportDXF
+@onready var lbl_export_status = $UI/Panel/Scroll/VBox/SlicingControls/LblExportStatus
+
+# Materials for Hardware & Slices
+var body_mat: StandardMaterial3D
 var chrome_mat: StandardMaterial3D
 var black_plastic_mat: StandardMaterial3D
 var cream_mat: StandardMaterial3D
+var dowel_mat: StandardMaterial3D
+var slice_materials: Array[StandardMaterial3D] = []
 
 # Camera navigation state
 var is_orbiting = false
@@ -86,15 +102,15 @@ func _ready():
 func _setup_materials():
 	if not body_mesh:
 		return
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.85, 0.14, 0.16) # Candy Apple Fiesta Red
-	mat.metallic = 0.15
-	mat.roughness = 0.22
-	mat.clearcoat_enabled = true
-	mat.clearcoat = 0.9
-	mat.clearcoat_roughness = 0.08
-	mat.cull_mode = BaseMaterial3D.CULL_BACK
-	body_mesh.material_override = mat
+	body_mat = StandardMaterial3D.new()
+	body_mat.albedo_color = Color(0.85, 0.14, 0.16) # Candy Apple Fiesta Red
+	body_mat.metallic = 0.15
+	body_mat.roughness = 0.22
+	body_mat.clearcoat_enabled = true
+	body_mat.clearcoat = 0.9
+	body_mat.clearcoat_roughness = 0.08
+	body_mat.cull_mode = BaseMaterial3D.CULL_BACK
+	body_mesh.material_override = body_mat
 
 	chrome_mat = StandardMaterial3D.new()
 	chrome_mat.albedo_color = Color(0.96, 0.97, 0.99)
@@ -116,6 +132,32 @@ func _setup_materials():
 	cream_mat.metallic = 0.05
 	cream_mat.roughness = 0.38
 	cream_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	dowel_mat = StandardMaterial3D.new()
+	dowel_mat.albedo_color = Color(0.88, 0.74, 0.48) # Hardwood Dowel Pin
+	dowel_mat.roughness = 0.45
+	dowel_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	var colors = [
+		Color(0.25, 0.82, 0.65), # Mint Green
+		Color(0.95, 0.45, 0.45), # Coral Pink
+		Color(0.70, 0.55, 0.95), # Lavender
+		Color(0.95, 0.75, 0.25), # Amber Gold
+		Color(0.35, 0.75, 0.95), # Sky Blue
+		Color(0.95, 0.58, 0.38), # Peach
+		Color(0.20, 0.75, 0.78), # Teal
+		Color(0.90, 0.35, 0.65)  # Rose
+	]
+	slice_materials.clear()
+	for c in colors:
+		var sm = StandardMaterial3D.new()
+		sm.albedo_color = c
+		sm.metallic = 0.10
+		sm.roughness = 0.28
+		sm.clearcoat_enabled = true
+		sm.clearcoat = 0.5
+		sm.cull_mode = BaseMaterial3D.CULL_BACK
+		slice_materials.append(sm)
 
 func _sync_ui_from_mesh():
 	if not body_mesh:
@@ -166,6 +208,13 @@ func _sync_ui_from_mesh():
 	slider_cavity_depth.value = body_mesh.pickup_depth
 	check_neck_pocket.button_pressed = body_mesh.neck_pocket_enabled
 	check_control_cavity.button_pressed = body_mesh.control_cavity_enabled
+
+	# CAM & Slicing
+	check_slicing.button_pressed = body_mesh.slicing_enabled
+	slicing_controls.visible = body_mesh.slicing_enabled
+	option_grid.selected = 0 if body_mesh.slice_grid_type == 1 else 1
+	slider_explode.value = body_mesh.explode_distance
+	check_dowel_pins.button_pressed = body_mesh.show_dowel_pins
 
 func _connect_signals():
 	# View presets
@@ -308,6 +357,31 @@ func _connect_signals():
 	check_hardware_models.toggled.connect(func(v):
 		hardware_rig.visible = v
 	)
+
+	# CAM Slicing
+	check_slicing.toggled.connect(func(v):
+		body_mesh.slicing_enabled = v
+		slicing_controls.visible = v
+		_update_slice_visuals()
+	)
+	option_grid.item_selected.connect(func(idx):
+		body_mesh.slice_grid_type = 1 if idx == 0 else 2
+		_update_slice_visuals()
+	)
+	slider_explode.value_changed.connect(func(v):
+		body_mesh.explode_distance = v
+		_update_slice_transforms()
+	)
+	check_color_slices.toggled.connect(func(_v):
+		_update_slice_visuals()
+	)
+	check_dowel_pins.toggled.connect(func(v):
+		body_mesh.show_dowel_pins = v
+		_update_slice_visuals()
+	)
+	btn_export_stl.pressed.connect(_on_export_stl_pressed)
+	btn_export_3mf.pressed.connect(_on_export_3mf_pressed)
+	btn_export_dxf.pressed.connect(_on_export_dxf_pressed)
 
 func _update_hardware_visuals():
 	if not is_instance_valid(hardware_rig) or not is_instance_valid(body_mesh):
@@ -615,6 +689,86 @@ func _create_jack_plate_visuals(to_world: Callable, scale_y: float):
 		screw.material_override = chrome_mat
 		jack_group.add_child(screw)
 
+func _update_slice_visuals():
+	if not is_instance_valid(slice_rig) or not is_instance_valid(body_mesh):
+		return
+	for c in slice_rig.get_children():
+		c.queue_free()
+
+	if not body_mesh.slicing_enabled:
+		body_mesh.visible = true
+		hardware_rig.visible = check_hardware_models.button_pressed
+		return
+
+	body_mesh.visible = false
+	hardware_rig.visible = false
+
+	var n = body_mesh.get_slice_count()
+	var explode_dist = body_mesh.explode_distance * 0.001
+	for i in range(n):
+		var m = body_mesh.get_slice_mesh(i)
+		if m:
+			var mi = MeshInstance3D.new()
+			mi.mesh = m
+			mi.name = "SlicePart_%d" % i
+			if check_color_slices.button_pressed:
+				mi.material_override = slice_materials[i % slice_materials.size()]
+			else:
+				mi.material_override = body_mat
+			var dir: Vector3 = body_mesh.get_slice_direction(i)
+			mi.position = dir * explode_dist
+			mi.set_meta("slice_dir", dir)
+			slice_rig.add_child(mi)
+
+	if body_mesh.show_dowel_pins:
+		var pin_mesh = body_mesh.get_dowel_pin_mesh()
+		var pin_count = body_mesh.get_dowel_pin_count()
+		for p in range(pin_count):
+			var xf: Transform3D = body_mesh.get_dowel_pin_transform(p)
+			var pi = MeshInstance3D.new()
+			pi.mesh = pin_mesh
+			pi.transform = xf
+			pi.material_override = dowel_mat
+			pi.name = "DowelPin_%d" % p
+			slice_rig.add_child(pi)
+
+func _update_slice_transforms():
+	if not is_instance_valid(slice_rig) or not is_instance_valid(body_mesh):
+		return
+	var explode_dist = body_mesh.explode_distance * 0.001
+	for c in slice_rig.get_children():
+		if c.has_meta("slice_dir"):
+			var dir: Vector3 = c.get_meta("slice_dir")
+			c.position = dir * explode_dist
+
+func _on_export_stl_pressed():
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://export"))
+	var full_ok = body_mesh.export_full_stl("res://export/guitar_body_full.stl")
+	var slices_ok = body_mesh.export_slices_stl("res://export")
+	if slices_ok:
+		lbl_export_status.text = "STLs exported to res://export/"
+		print("[GuitarBuilder] STLs exported to res://export/")
+	else:
+		lbl_export_status.text = "STL export failed!"
+
+func _on_export_3mf_pressed():
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://export"))
+	var res = body_mesh.export_3mf("res://export/guitar_body_slices.3mf")
+	if res:
+		lbl_export_status.text = "3MF exported to res://export/guitar_body_slices.3mf"
+		print("[GuitarBuilder] 3MF exported to res://export/guitar_body_slices.3mf")
+	else:
+		lbl_export_status.text = "3MF export failed!"
+
+func _on_export_dxf_pressed():
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://export"))
+	var res = body_mesh.export_2d_dxf("res://export/guitar_templates.dxf")
+	if res:
+		lbl_export_status.text = "DXF exported to res://export/guitar_templates.dxf"
+		print("[GuitarBuilder] DXF exported to res://export/guitar_templates.dxf")
+	else:
+		lbl_export_status.text = "DXF export failed!"
+
 func _check_cli_capture():
 	var args = OS.get_cmdline_args() + OS.get_cmdline_user_args()
 	var should_exit = false
@@ -691,6 +845,41 @@ func _check_cli_capture():
 		_update_hardware_visuals()
 		camera_pivot.rotation = Vector3(-0.15, 1.25, 0.0)
 		camera.position.z = 0.85
+		should_exit = true
+	elif "--test-slices-8way" in args:
+		check_slicing.button_pressed = true
+		body_mesh.slicing_enabled = true
+		option_grid.selected = 1
+		body_mesh.slice_grid_type = 2
+		slider_explode.value = 25.0
+		body_mesh.explode_distance = 25.0
+		check_dowel_pins.button_pressed = true
+		body_mesh.show_dowel_pins = true
+		check_color_slices.button_pressed = true
+		_update_slice_visuals()
+		camera_pivot.rotation = Vector3(-0.45, 0.55, 0.0)
+		camera.position.z = 1.30
+		should_exit = true
+	elif "--test-slices-4way" in args:
+		check_slicing.button_pressed = true
+		body_mesh.slicing_enabled = true
+		option_grid.selected = 0
+		body_mesh.slice_grid_type = 1
+		slider_explode.value = 25.0
+		body_mesh.explode_distance = 25.0
+		check_dowel_pins.button_pressed = true
+		body_mesh.show_dowel_pins = true
+		check_color_slices.button_pressed = true
+		_update_slice_visuals()
+		camera_pivot.rotation = Vector3(-0.45, 0.55, 0.0)
+		camera.position.z = 1.30
+		should_exit = true
+	elif "--test-export" in args:
+		body_mesh.slicing_enabled = true
+		body_mesh.slice_grid_type = 2
+		_on_export_stl_pressed()
+		_on_export_3mf_pressed()
+		_on_export_dxf_pressed()
 		should_exit = true
 
 	if should_exit or "--screenshot" in args or "--capture" in args:

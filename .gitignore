@@ -36,6 +36,7 @@ debug/
 project/.godot/
 *.translation
 project/preview.png
+project/export/
 project/bin/*.dll
 project/bin/Release/
 
