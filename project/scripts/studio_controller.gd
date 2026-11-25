@@ -258,4 +258,4 @@ func _unhandled_input(event):
 		var delta = event.position - last_mouse_pos
 		last_mouse_pos = event.position
 		camera_pivot.rotation.y -= delta.x * orbit_speed
-		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x + delta.y * orbit_speed, -1.4, 1.4)
+		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x - delta.y * orbit_speed, -1.4, 1.4)
