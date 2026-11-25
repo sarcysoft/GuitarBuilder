@@ -243,16 +243,66 @@ class ProjectManager:
         actual_no_pins = bool(no_pins if no_pins is not None else slicing.get("no_pins", False))
 
         mods = project_data.get("modifiers", {})
+        hw_variant = str(hardware.get("variant", "standard")).strip().lower()
+        elec_variant = str(hardware.get("electronics", "auto")).strip().lower()
+        if elec_variant == "auto":
+            c_name = str(body_model).strip().lower()
+            if "flying_v" in c_name or "sarcy_v" in c_name:
+                elec_variant = "flying_v"
+            elif "les_paul" in c_name or "sg" in c_name or "single_cut" in c_name:
+                elec_variant = "les_paul"
+            else:
+                elec_variant = "sarcaster"
+
+        # Capture file fingerprints (size and mtime) for active hardware & electronics SCAD and STL assets
+        asset_fingerprints = {}
+        scad_hw_dir = os.path.join(self.repo_dir, "models", "scad", "hardware", hw_variant)
+        scad_elec_dir = os.path.join(self.repo_dir, "models", "scad", "electronics", elec_variant)
+        stl_dir = os.path.join(self.repo_dir, "models", "stl")
+
+        for s_dir, prefix in [(scad_hw_dir, f"hw_scad_{hw_variant}"), (scad_elec_dir, f"elec_scad_{elec_variant}")]:
+            if os.path.exists(s_dir):
+                for f in sorted(os.listdir(s_dir)):
+                    if f.endswith(".scad"):
+                        fp = os.path.join(s_dir, f)
+                        try:
+                            st = os.stat(fp)
+                            asset_fingerprints[f"{prefix}_{f}"] = f"{st.st_size}_{int(st.st_mtime)}"
+                        except Exception:
+                            pass
+
+        if os.path.exists(stl_dir):
+            target_stls = [
+                f"hardware_cutout_{hw_variant}.stl",
+                f"hardware_physical_{hw_variant}.stl",
+                f"backplate_{hw_variant}.stl",
+                f"backplate_mask_{hw_variant}.stl",
+                f"backplate_fixings_{hw_variant}.stl",
+                f"electronics_{elec_variant}.stl",
+                f"elec_backplate_{elec_variant}.stl",
+                f"elec_backplate_mask_{elec_variant}.stl",
+                f"elec_backplate_fixings_{elec_variant}.stl"
+            ]
+            for sname in target_stls:
+                fp = os.path.join(stl_dir, sname)
+                if os.path.exists(fp):
+                    try:
+                        st = os.stat(fp)
+                        asset_fingerprints[f"stl_{sname}"] = f"{st.st_size}_{int(st.st_mtime)}"
+                    except Exception:
+                        pass
+
         relevant_spec = {
             "body_model": str(body_model).strip().lower(),
             "body_dimensions": {str(k): round(float(v), 4) if isinstance(v, (int, float)) else str(v) for k, v in sorted(body_dims.items())},
-            "hardware_variant": str(hardware.get("variant", "standard")).strip().lower(),
-            "electronics": str(hardware.get("electronics", "auto")).strip().lower(),
+            "hardware_variant": hw_variant,
+            "electronics": elec_variant,
             "cut_type": actual_cut_type,
             "no_pins": actual_no_pins,
             "pin_diameter": round(float(slicing.get("pin_diameter", 6.0)), 2),
             "pin_length": round(float(slicing.get("pin_length", 16.0)), 2),
             "no_cut": bool(slicing.get("no_cut", False)),
+            "asset_fingerprints": asset_fingerprints,
             "modifiers": {
                 "enabled": bool(mods.get("enabled", False)),
                 "spheres": mods.get("spheres", {}),

@@ -475,6 +475,9 @@ def parse_wrapper_args(argv):
             i += 1
         elif arg in ["--slice-only", "--slice_only", "--slice", "--cut-only", "--cut_only"]:
             slice_only = True
+            render = False
+            animate = False
+            preview = False
             i += 1
         elif arg in ["--sliced", "--slice-render"]:
             uncut = False
@@ -702,7 +705,7 @@ def run_wrapper_mode():
      guitar_rot, animate, no_render_anim, preview, dynamic_zoom, seed, project_dir, slice_only) = parse_wrapper_args(sys.argv[1:])
     
     # Case 0: Rendering Mode (Runs background render script on previously generated STL/OBJ files)
-    if render or animate or no_render_anim or preview:
+    if not slice_only and (render or animate or no_render_anim or preview):
         print("Launching background rendering pipeline...")
         if project_dir:
             config_dir = project_dir

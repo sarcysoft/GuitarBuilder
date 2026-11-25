@@ -1507,7 +1507,7 @@ class GuitarBuilderGUI:
         )
 
     def _on_compile_scad_success(self):
-        """Refreshes hardware and electronics dropdowns after SCAD recompilation."""
+        """Refreshes hardware and electronics dropdowns and prompts to re-slice after SCAD recompilation."""
         hw_base = os.path.join(self.repo_dir, "models", "scad", "hardware")
         hw_variants = [d for d in sorted(os.listdir(hw_base)) if os.path.isdir(os.path.join(hw_base, d))] if os.path.exists(hw_base) else ["standard", "piezo"]
         self.combo_hardware["values"] = hw_variants
@@ -1520,7 +1520,15 @@ class GuitarBuilderGUI:
             elec_variants += ["sarcaster", "flying_v", "les_paul"]
         self.combo_electronics["values"] = elec_variants
 
-        messagebox.showinfo("Compilation Complete", "OpenSCAD models successfully recompiled to STLs in models/stl/!")
+        self._update_slice_status_badge()
+        ans = messagebox.askyesno(
+            "Recompile Complete",
+            "OpenSCAD models successfully recompiled to STLs in models/stl/!\n\n"
+            "Hardware/electronics geometries have been updated on disk.\n"
+            "Would you like to re-slice the body parts for the active project now to apply the new cutouts?"
+        )
+        if ans:
+            self._action_slice_body(on_success=self._load_project_preview_image)
 
     def _action_generate_stls(self):
         """Runs complete STL generation pipeline for active project."""
