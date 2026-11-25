@@ -516,13 +516,13 @@ func _create_knob_visuals(to_world: Callable, scale_y: float):
 	knob_group.name = "KnobsRig"
 	hardware_rig.add_child(knob_group)
 
-	var cc_x = 55.0
-	var cc_y = 150.0
+	var cc_x = 68.0
+	var cc_y = 138.0
 
 	var pot_positions = [
-		Vector2(cc_x + 8.0, cc_y + 35.0),
-		Vector2(cc_x + 5.0, cc_y - 5.0),
-		Vector2(cc_x - 5.0, cc_y - 40.0)
+		Vector2(cc_x + 2.0, cc_y + 36.0),
+		Vector2(cc_x + 6.0, cc_y - 4.0),
+		Vector2(cc_x - 2.0, cc_y - 42.0)
 	]
 
 	for pos in pot_positions:
@@ -654,6 +654,16 @@ func _check_cli_capture():
 		check_hardware_models.button_pressed = true
 		_update_hardware_visuals()
 		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		should_exit = true
+	elif "--test-cavities-wiring" in args:
+		option_pickups.selected = 1
+		body_mesh.pickup_config = 1
+		option_bridge.selected = 0
+		body_mesh.bridge_type = 0
+		check_hardware_models.button_pressed = false
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		camera.position.z = 0.95
 		should_exit = true
 	elif "--test-hardware-tremolo" in args:
 		option_pickups.selected = 2

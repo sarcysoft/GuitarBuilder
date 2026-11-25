@@ -1038,18 +1038,22 @@ void GuitarBodyMesh::rebuild_mesh() {
     }
 
     // Control Cavity & Potentiometer Shaft Holes
+    // Placed at cc_x = 68.0, cc_y = 138.0 to guarantee ample clearance (> 15mm)
+    // from the high-E string-through hole (sx = +26.25, by = 145.0) and ferrule counterbore.
+    double cc_x = 68.0;
+    double cc_y = 138.0 * scale_y;
+
     if (control_cavity_enabled) {
-        double cc_x = 55.0;
-        double cc_y = 150.0 * scale_y;
         double pocket_depth = std::min(control_cavity_depth, body_thickness - 6.0);
 
+        // Organic control cavity polygon in lower treble bout
         SimplePolygon cc_pts = {
-            vec2{ -22.0, -50.0 },
-            vec2{  18.0, -45.0 },
-            vec2{  25.0,  10.0 },
-            vec2{  15.0,  55.0 },
-            vec2{ -15.0,  50.0 },
-            vec2{ -25.0,   0.0 }
+            vec2{ -14.0, -45.0 },
+            vec2{  18.0, -40.0 },
+            vec2{  24.0,  10.0 },
+            vec2{  12.0,  52.0 },
+            vec2{ -14.0,  50.0 },
+            vec2{ -14.0,   5.0 }
         };
         CrossSection cs_cc(cc_pts, CrossSection::FillRule::Positive);
         cs_cc = cs_cc.Offset(8.0, CrossSection::JoinType::Round).Offset(-2.0, CrossSection::JoinType::Round);
@@ -1069,9 +1073,9 @@ void GuitarBodyMesh::rebuild_mesh() {
 
         // Potentiometer shaft holes (3 CTS 9.5mm holes for Vol, Tone1, Tone2)
         std::vector<vec2> pot_positions = {
-            vec2{ cc_x + 8.0, cc_y + 35.0 },
-            vec2{ cc_x + 5.0, cc_y - 5.0 },
-            vec2{ cc_x - 5.0, cc_y - 40.0 }
+            vec2{ cc_x + 2.0, cc_y + 36.0 },
+            vec2{ cc_x + 6.0, cc_y - 4.0 },
+            vec2{ cc_x - 2.0, cc_y - 42.0 }
         };
         for (const auto& pos : pot_positions) {
             Manifold pot_hole = Manifold::Cylinder(body_thickness + 4.0, 4.8, 4.8, 20)
@@ -1082,33 +1086,61 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     // Wiring Tunnels
     if (wiring_tunnels_enabled) {
-        double cc_x = 55.0;
-        double cc_y = 170.0 * scale_y;
-        double drill_z = body_thickness * 0.45;
+        // Tunnel drill height: breaks cleanly through the bottom of the pickup cavities into control pocket
+        double drill_z = std::max(12.0, body_thickness - pickup_depth - 1.5);
 
-        // Pickup to Control Cavity tunnel
-        vec3 p_start{ 0.0, 240.0 * scale_y, drill_z };
-        vec3 p_end{ cc_x, cc_y, drill_z };
-        double dist = std::hypot(p_end.x - p_start.x, p_end.y - p_start.y);
-        double angle = std::atan2(p_end.y - p_start.y, p_end.x - p_start.x) * 180.0 / 3.141592653589793;
+        // Helper lambda for straight cylindrical tunnels between two 3D points
+        auto make_tunnel = [](const vec3& start, const vec3& end, double radius) -> Manifold {
+            vec3 dir{ end.x - start.x, end.y - start.y, end.z - start.z };
+            double len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+            if (len < 1e-3) return Manifold();
+            double pitch_deg = -std::asin(dir.z / len) * 180.0 / 3.141592653589793;
+            double yaw_deg = std::atan2(dir.y, dir.x) * 180.0 / 3.141592653589793;
+            return Manifold::Cylinder(len + 4.0, radius, radius, 16)
+                .Translate(vec3{ 0.0, 0.0, -2.0 })
+                .Rotate(0.0, 90.0, 0.0)
+                .Rotate(0.0, pitch_deg, yaw_deg)
+                .Translate(start);
+        };
 
-        Manifold wire_tunnel = Manifold::Cylinder(dist + 10.0, 3.5, 3.5, 16)
-            .Rotate(0.0, 90.0, 0.0)
-            .Rotate(0.0, 0.0, angle)
-            .Translate(p_start);
-        body = body - wire_tunnel;
+        // 1. Pickup Inter-Pocket Tunnels (treble side channel at X = 22.0)
+        double p_channel_x = 22.0;
 
-        // Output Jack tunnel
-        vec3 j_start{ cc_x, 110.0 * scale_y, drill_z };
-        vec3 j_end{ 145.0, 75.0 * scale_y, drill_z };
-        double j_dist = std::hypot(j_end.x - j_start.x, j_end.y - j_start.y);
-        double j_angle = std::atan2(j_end.y - j_start.y, j_end.x - j_start.x) * 180.0 / 3.141592653589793;
+        if (pickup_config == 1 || pickup_config == 2) { // SSS or HSS
+            // Neck to Middle tunnel (8.0mm diameter)
+            vec3 p_neck{ p_channel_x, neck_pickup_y * scale_y, drill_z };
+            vec3 p_mid{ p_channel_x, middle_pickup_y * scale_y, drill_z };
+            body = body - make_tunnel(p_neck, p_mid, 4.0);
 
-        Manifold jack_tunnel = Manifold::Cylinder(j_dist + 15.0, 6.0, 6.0, 16)
-            .Rotate(0.0, 90.0, 0.0)
-            .Rotate(0.0, 0.0, j_angle)
-            .Translate(j_start);
-        body = body - jack_tunnel;
+            // Middle to Bridge tunnel (8.0mm diameter)
+            vec3 p_brg{ p_channel_x, bridge_pickup_y * scale_y, drill_z };
+            body = body - make_tunnel(p_mid, p_brg, 4.0);
+
+            // Bridge to Control Cavity main harness tunnel (9.0mm diameter)
+            vec3 p_cc{ cc_x - 10.0, cc_y + 25.0 * scale_y, drill_z };
+            body = body - make_tunnel(p_brg, p_cc, 4.5);
+        } else if (pickup_config == 3) { // HH
+            // Direct Neck to Bridge tunnel (8.0mm diameter)
+            vec3 p_neck{ p_channel_x, neck_pickup_y * scale_y, drill_z };
+            vec3 p_brg{ p_channel_x, bridge_pickup_y * scale_y, drill_z };
+            body = body - make_tunnel(p_neck, p_brg, 4.0);
+
+            // Bridge to Control Cavity tunnel (9.0mm diameter)
+            vec3 p_cc{ cc_x - 10.0, cc_y + 25.0 * scale_y, drill_z };
+            body = body - make_tunnel(p_brg, p_cc, 4.5);
+        }
+
+        // 2. Bridge Ground Wire Tunnel (4.0mm diameter)
+        // Drilled from bridge position into the control cavity
+        vec3 gnd_start{ 14.0, bridge_y * scale_y, body_thickness - 2.0 };
+        vec3 gnd_end{ cc_x - 14.0, cc_y + 5.0 * scale_y, drill_z };
+        body = body - make_tunnel(gnd_start, gnd_end, 2.0);
+
+        // 3. Output Jack Tunnel (12.0mm diameter)
+        // Drilled from control cavity to the side rim at waypoint 4
+        vec3 j_start{ cc_x, cc_y - 25.0 * scale_y, drill_z };
+        vec3 j_end{ 145.13 * (t_hip / 159.0), 72.89 * scale_y, drill_z };
+        body = body - make_tunnel(j_start, j_end, 6.0);
     }
 
     // Calculate Smooth Vertex Normals directly in Manifold (smooth up to 50 degree dihedral angle)
