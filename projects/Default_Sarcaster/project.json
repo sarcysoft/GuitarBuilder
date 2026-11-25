@@ -2,7 +2,7 @@
     "name": "Default_Sarcaster",
     "version": "1.0",
     "created_at": "2026-11-24T10:57:32.338833",
-    "updated_at": "2026-11-24T14:13:56.434260",
+    "updated_at": "2026-11-25T10:35:23.094752",
     "body_model": "sarcaster",
     "body_dimensions": {
         "Offset Scale": 4.0,
@@ -56,18 +56,51 @@
         "pin_length": 16.0,
         "no_pins": false,
         "no_cut": false,
-        "last_slice_signature": "5ea7e912134eef5b",
+        "last_slice_signature": "072994b646e40c7e",
         "last_cut_type": "flat"
     },
     "visuals": {
         "presentation_mode": "sliced",
-        "body_material": "chrome:random",
+        "body_material": "glass:random",
         "backplate_material": "gloss:black",
         "lighting": "studio",
         "engine": "eevee",
-        "angle": "angled",
+        "angle": "back",
         "animate": false,
         "dynamic_zoom": true,
-        "seed": 459052
+        "seed": 600912
+    },
+    "modifiers": {
+        "enabled": true,
+        "spheres": {
+            "enabled": false,
+            "count": 15,
+            "min_radius": 1.2,
+            "max_radius": 2.6,
+            "placement": "mixed",
+            "seed": 42
+        },
+        "cylinders": {
+            "enabled": false,
+            "count": 12,
+            "min_radius": 0.4,
+            "max_radius": 0.8,
+            "radius": 0.6,
+            "max_angle": 25.0,
+            "style": "random",
+            "seed": 42
+        },
+        "edge_frame": {
+            "enabled": true,
+            "wall_thickness": 1.2,
+            "style": "through",
+            "floor_thickness": 0.4,
+            "apply_to": "outer_wings"
+        },
+        "keepout": {
+            "core_width": 11.0,
+            "margin": 1.2,
+            "rim_margin": 0.8
+        }
     }
 }

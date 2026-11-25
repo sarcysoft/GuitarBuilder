@@ -1,5 +1,5 @@
 // Import the rounded_poly module
-use <_rounded_poly.scad>
+use <../../common/_rounded_poly.scad>
 $fn=128;
 
 module pickup() {

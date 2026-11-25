@@ -1,6 +1,6 @@
 // Les Paul Style Guitar Neck
 // 24.75" scale length (62.865 cm), 22 frets, 14-degree tilted 3x3 open-book headstock
-include <_fret_calc.scad>
+include <../../common/_fret_calc.scad>
 
 part = "all"; // Options: "all", "shaft", "fretboard", "frets", "nut", "tuners"
 $fn = 36;

@@ -298,6 +298,10 @@ Slicing & Geometry:
   --electronics <variant>              Electronics cavity and backplate variant (e.g. 'sarcaster', 'les_paul')
   --neck <style>                       Neck model: 'strat', 'les_paul', or 'auto'
 
+3D Modifiers (Artistic Non-Structural Mods):
+  --modifiers                          Enable configured 3D artistic body modifiers
+  --no-modifiers                       Disable 3D modifiers (solid body)
+
 Rendering & Studio:
   --render                             Execute background rendering studio
   --sliced                             Render multi-part sliced body with joint seams
@@ -971,7 +975,7 @@ def run_wrapper_mode():
         if neck:
             setup_args.extend(["--neck", neck])
         if project_dir:
-            setup_args.extend(["--output-dir", os.path.join(project_dir, "stl")])
+            setup_args.extend(["--project-dir", project_dir, "--output-dir", os.path.join(project_dir, "stl")])
             
         cmd2 = [
             blender_exe,
@@ -1011,7 +1015,7 @@ def run_wrapper_mode():
         if neck:
             setup_args.extend(["--neck", neck])
         if project_dir:
-            setup_args.extend(["--output-dir", os.path.join(project_dir, "stl")])
+            setup_args.extend(["--project-dir", project_dir, "--output-dir", os.path.join(project_dir, "stl")])
             
         cmd2 = [
             blender_exe,

@@ -114,6 +114,39 @@ class ProjectManager:
                 "no_pins": False,
                 "no_cut": False
             },
+            "modifiers": {
+                "enabled": False,
+                "spheres": {
+                    "enabled": False,
+                    "count": 35,
+                    "min_radius": 1.2,
+                    "max_radius": 2.6,
+                    "placement": "surface",
+                    "seed": 42
+                },
+                "cylinders": {
+                    "enabled": False,
+                    "count": 25,
+                    "min_radius": 0.4,
+                    "max_radius": 0.8,
+                    "radius": 0.6,
+                    "max_angle": 25.0,
+                    "style": "random",
+                    "seed": 42
+                },
+                "edge_frame": {
+                    "enabled": False,
+                    "wall_thickness": 1.2,
+                    "style": "through",
+                    "floor_thickness": 0.4,
+                    "apply_to": "outer_wings"
+                },
+                "keepout": {
+                    "core_width": 11.0,
+                    "margin": 1.2,
+                    "rim_margin": 0.8
+                }
+            },
             "visuals": {
                 "body_material": "sunburst",
                 "backplate_material": "gloss:black",
@@ -152,6 +185,14 @@ class ProjectManager:
             data["hardware"] = {"variant": "standard", "electronics": "auto"}
         if "slicing" not in data:
             data["slicing"] = {"cut_type": "textured", "pin_diameter": 6.0, "pin_length": 16.0, "no_pins": False, "no_cut": False}
+        if "modifiers" not in data:
+            data["modifiers"] = {
+                "enabled": False,
+                "spheres": {"enabled": False, "count": 35, "min_radius": 1.2, "max_radius": 2.6, "placement": "surface", "seed": 42},
+                "cylinders": {"enabled": False, "count": 25, "radius": 0.6, "max_angle": 25.0, "style": "random", "seed": 42},
+                "edge_frame": {"enabled": False, "wall_thickness": 1.2, "style": "through", "floor_thickness": 0.4, "apply_to": "outer_wings"},
+                "keepout": {"core_width": 11.0, "margin": 1.2, "rim_margin": 0.8}
+            }
         if "visuals" not in data:
             data["visuals"] = {"body_material": "sunburst", "backplate_material": "gloss:black", "lighting": "studio", "engine": "eevee", "angle": "angled", "animate": False, "dynamic_zoom": True, "seed": None}
 
@@ -201,6 +242,7 @@ class ProjectManager:
         actual_cut_type = str(cut_type if cut_type is not None else slicing.get("cut_type", "textured")).strip().lower()
         actual_no_pins = bool(no_pins if no_pins is not None else slicing.get("no_pins", False))
 
+        mods = project_data.get("modifiers", {})
         relevant_spec = {
             "body_model": str(body_model).strip().lower(),
             "body_dimensions": {str(k): round(float(v), 4) if isinstance(v, (int, float)) else str(v) for k, v in sorted(body_dims.items())},
@@ -210,7 +252,14 @@ class ProjectManager:
             "no_pins": actual_no_pins,
             "pin_diameter": round(float(slicing.get("pin_diameter", 6.0)), 2),
             "pin_length": round(float(slicing.get("pin_length", 16.0)), 2),
-            "no_cut": bool(slicing.get("no_cut", False))
+            "no_cut": bool(slicing.get("no_cut", False)),
+            "modifiers": {
+                "enabled": bool(mods.get("enabled", False)),
+                "spheres": mods.get("spheres", {}),
+                "cylinders": mods.get("cylinders", {}),
+                "edge_frame": mods.get("edge_frame", {}),
+                "keepout": mods.get("keepout", {})
+            }
         }
         spec_json = json.dumps(relevant_spec, sort_keys=True)
         return hashlib.sha256(spec_json.encode("utf-8")).hexdigest()[:16]

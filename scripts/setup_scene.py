@@ -299,8 +299,13 @@ SEAM_PINS = [
 ]
 
 
-def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None, neck = 'auto', custom_output_dir = None):
+def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diameter = 6.0, pin_length = 16.0, no_pins = False, hardware = None, electronics = None, neck = 'auto', custom_output_dir = None, project_dir = None, modifiers_cfg = None):
     print("Starting Scene Setup...")
+    
+    import sys
+    this_script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+    if this_script_dir not in sys.path:
+        sys.path.insert(0, this_script_dir)
     
     # Initialize progress bar
     wm = bpy.context.window_manager
@@ -362,10 +367,33 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
     if not os.path.exists(debug_dir):
         os.makedirs(debug_dir)
             
+    body_model_name = None
+    if project_dir and os.path.exists(os.path.join(project_dir, "project.json")):
+        try:
+            with open(os.path.join(project_dir, "project.json"), "r", encoding="utf-8") as f:
+                pj = json.load(f)
+                body_model_name = pj.get("body_model")
+        except Exception:
+            pass
+
+    cand_filenames = []
+    if body_model_name:
+        cand_filenames.append(f"{body_model_name}.obj")
     if config_name and config_name != "default":
-        guitar_obj_filename = f"{config_name}.obj"
-    else:
-        guitar_obj_filename = "guitar.obj"
+        cand_filenames.append(f"{config_name}.obj")
+    cand_filenames.extend(["sarcaster.obj", "les_paul.obj", "flying_v.obj", "guitar.obj"])
+
+    guitar_path = None
+    guitar_obj_filename = cand_filenames[0]
+    for cfn in cand_filenames:
+        cp = os.path.join(obj_dir, cfn)
+        if os.path.exists(cp):
+            guitar_path = cp
+            guitar_obj_filename = cfn
+            break
+    if not guitar_path:
+        guitar_path = os.path.join(obj_dir, guitar_obj_filename)
+
     neck_obj_filename = "NeckAmericanStandard.obj"
     
     guitar_path = os.path.join(obj_dir, guitar_obj_filename)
@@ -582,6 +610,48 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
 
     guitar_body = bpy.data.objects.get("Guitar_Body")
 
+    # Resolve modifiers configuration if project_dir or custom_output_dir is provided
+    if modifiers_cfg is None:
+        p_dir = project_dir
+        if not p_dir and custom_output_dir:
+            parent = os.path.dirname(os.path.abspath(custom_output_dir))
+            if os.path.exists(os.path.join(parent, "project.json")):
+                p_dir = parent
+        if p_dir:
+            p_json = os.path.join(p_dir, "project.json")
+            if os.path.exists(p_json):
+                try:
+                    with open(p_json, "r", encoding="utf-8") as f:
+                        p_data = json.load(f)
+                        modifiers_cfg = p_data.get("modifiers", {})
+                except Exception as e:
+                    print(f"Warning: Could not read modifiers from {p_json}: {e}")
+
+    # Determine if any modifier is enabled
+    is_mod_enabled = bool(modifiers_cfg and (
+        modifiers_cfg.get("enabled", False) or
+        modifiers_cfg.get("spheres", {}).get("enabled", False) or
+        modifiers_cfg.get("cylinders", {}).get("enabled", False) or
+        modifiers_cfg.get("edge_frame", {}).get("enabled", False)
+    ))
+
+    # Apply Pre-Slice Modifiers (Sphere chunks & Cylinder perforations)
+    if is_mod_enabled:
+        try:
+            import modifiers
+            # Extract dynamic cavity exclusion zones from backplates in the scene
+            cavity_margin = float(modifiers_cfg.get("keepout", {}).get("margin", 1.2))
+            cavity_boxes = modifiers.extract_cavity_exclusion_boxes(margin=cavity_margin)
+            if "keepout" not in modifiers_cfg:
+                modifiers_cfg["keepout"] = {}
+            modifiers_cfg["keepout"]["exclusion_boxes"] = cavity_boxes
+            print(f"Applying pre-slice 3D modifiers (Spheres / Cylinders) with {len(cavity_boxes)} backplate exclusion zones...")
+            modifiers.apply_pre_slice_modifiers(guitar_body, modifiers_cfg)
+        except Exception as e:
+            print(f"Warning: Failed to apply pre-slice modifiers: {e}")
+            import traceback
+            traceback.print_exc()
+
     if no_cut:
         print("no_cut is True. Exporting Guitar_Full_Body to STL...")
         export_full_body_stl(guitar_body, output_dir)
@@ -684,6 +754,23 @@ def setup_scene(no_cut = False, config_name = None, cut_type = 'flat', pin_diame
             return
         
         print("All cuts completed successfully!")
+
+        # Apply Post-Slice Modifiers (Edge Frame / Exoskeleton)
+        if is_mod_enabled and modifiers_cfg.get("edge_frame", {}).get("enabled", False):
+            try:
+                import modifiers
+                all_parts = [
+                    "Guitar_Bot_Left", "Guitar_Bot_Right",
+                    "Guitar_Mid_Left", "Guitar_Mid_Right",
+                    "Guitar_Top_Left", "Guitar_Top_Right",
+                    "Guitar_Mid", "Guitar_Top_Mid"
+                ]
+                print("Applying post-slice 3D modifiers (Edge Frame)...")
+                modifiers.apply_post_slice_modifiers(all_parts, modifiers_cfg)
+            except Exception as e:
+                print(f"Warning: Failed to apply post-slice modifiers: {e}")
+                import traceback
+                traceback.print_exc()
 
         # Apply locator pin holes to mating faces for vertical print assembly
         if cut_type == "flat" and not no_pins:
@@ -813,6 +900,8 @@ if __name__ == "__main__":
     electronics_val = None
     neck_val = "auto"
     custom_output_dir_val = None
+    project_dir_val = None
+    modifiers_cfg_val = None
     
     args = []
     if "--" in sys.argv:
@@ -883,7 +972,27 @@ if __name__ == "__main__":
         elif arg in ["--neck", "--neck_style"] and i + 1 < len(args):
             neck_val = args[i + 1]
             i += 2
+        elif arg.startswith("--project-dir=") or arg.startswith("--project="):
+            project_dir_val = arg.split("=", 1)[1]
+            i += 1
+        elif arg in ["--project-dir", "--project"] and i + 1 < len(args):
+            project_dir_val = args[i + 1]
+            i += 2
+        elif arg.startswith("--modifiers-json="):
+            try:
+                import json
+                modifiers_cfg_val = json.loads(arg.split("=", 1)[1])
+            except Exception:
+                pass
+            i += 1
+        elif arg == "--modifiers-json" and i + 1 < len(args):
+            try:
+                import json
+                modifiers_cfg_val = json.loads(args[i + 1])
+            except Exception:
+                pass
+            i += 2
         else:
             i += 1
                 
-    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val, neck_val, custom_output_dir_val)
+    setup_scene(no_cut_val, config_name_val, cut_type_val, pin_diameter_val, pin_length_val, no_pins_val, hardware_val, electronics_val, neck_val, custom_output_dir_val, project_dir=project_dir_val, modifiers_cfg=modifiers_cfg_val)

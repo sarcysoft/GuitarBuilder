@@ -1,5 +1,5 @@
 // Import the rounded_poly module
-include <_electronics_layout.scad>
+include <../../common/_electronics_layout.scad>
 $fn=128;
 
 module screw()

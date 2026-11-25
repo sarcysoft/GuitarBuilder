@@ -1,6 +1,6 @@
 // Import the rounded_poly module
-use <_rounded_poly.scad>
-include <_electronics_layout.scad>
+use <../../common/_rounded_poly.scad>
+include <../../common/_electronics_layout.scad>
 $fn=128;
 
 module elec_backplate_mask()

@@ -69,18 +69,18 @@ class GuitarBuilderGUI:
         self.root = root
         self.root.title("GuitarBuilder Studio")
         
-        # Responsive initial window size based on screen resolution
+        # Responsive initial window size based on screen resolution (widened by ~20%)
         try:
             screen_w = self.root.winfo_screenwidth()
             screen_h = self.root.winfo_screenheight()
-            target_w = min(1400, max(1160, int(screen_w * 0.88)))
+            target_w = min(screen_w - 40, max(1180, min(1680, int(screen_w * 0.92))))
             target_h = min(1000, max(820, int(screen_h * 0.88)))
             pos_x = max(0, (screen_w - target_w) // 2)
             pos_y = max(0, (screen_h - target_h) // 2)
             self.root.geometry(f"{target_w}x{target_h}+{pos_x}+{pos_y}")
         except Exception:
-            self.root.geometry("1240x880")
-        self.root.minsize(980, 640)
+            self.root.geometry("1490x880")
+        self.root.minsize(1180, 640)
 
         # Base directories & Project Manager
         self.repo_dir = os.path.dirname(os.path.abspath(__file__))
@@ -146,7 +146,35 @@ class GuitarBuilderGUI:
         self.var_hardware = tk.StringVar(value="standard")
         self.var_electronics = tk.StringVar(value="auto")
 
-        # 2. Visuals & Finish
+        # 2. Modifiers
+        self.var_modifiers_enabled = tk.BooleanVar(value=False)
+        self.var_mod_spheres_enabled = tk.BooleanVar(value=False)
+        self.var_mod_spheres_count = tk.IntVar(value=35)
+        self.var_mod_spheres_min_r = tk.DoubleVar(value=12.0)  # mm
+        self.var_mod_spheres_max_r = tk.DoubleVar(value=26.0)  # mm
+        self.var_mod_spheres_placement = tk.StringVar(value="surface")
+        self.var_mod_spheres_seed = tk.StringVar(value="42")
+
+        self.var_mod_cylinders_enabled = tk.BooleanVar(value=False)
+        self.var_mod_cylinders_count = tk.IntVar(value=25)
+        self.var_mod_cylinders_min_r = tk.DoubleVar(value=4.0)  # mm (0.4cm)
+        self.var_mod_cylinders_max_r = tk.DoubleVar(value=8.0)  # mm (0.8cm)
+        self.var_mod_cylinders_radius = tk.DoubleVar(value=6.0)  # mm radius (12mm diameter fallback)
+        self.var_mod_cylinders_angle = tk.DoubleVar(value=25.0)  # degrees
+        self.var_mod_cylinders_style = tk.StringVar(value="random")
+        self.var_mod_cylinders_seed = tk.StringVar(value="42")
+
+        self.var_mod_frame_enabled = tk.BooleanVar(value=False)
+        self.var_mod_frame_thickness = tk.DoubleVar(value=12.0)  # mm
+        self.var_mod_frame_style = tk.StringVar(value="through")
+        self.var_mod_frame_floor = tk.DoubleVar(value=4.0)  # mm
+        self.var_mod_frame_apply = tk.StringVar(value="outer_wings")
+
+        self.var_mod_core_width = tk.DoubleVar(value=110.0)  # mm
+        self.var_mod_margin = tk.DoubleVar(value=12.0)  # mm
+        self.var_mod_rim_margin = tk.DoubleVar(value=8.0)  # mm
+
+        # 3. Visuals & Finish
         self.var_presentation_mode = tk.StringVar(value="sliced")  # "sliced", "uncut", "exploded"
         self.var_finish_mode = tk.StringVar(value="uniform")  # "uniform", "random_parts"
         self.var_random_style = tk.StringVar(value="gloss:random")
@@ -254,18 +282,21 @@ class GuitarBuilderGUI:
         self.notebook = ttk.Notebook(self.notebook_frame)
         self.notebook.pack(fill="both", expand=True)
 
-        # Build 3-Step Journey Tabs + Gallery
+        # Build 4-Step Journey Tabs + Gallery
         self.tab_spec = ttk.Frame(self.notebook)
+        self.tab_modifiers = ttk.Frame(self.notebook)
         self.tab_finish = ttk.Frame(self.notebook)
         self.tab_slicing = ttk.Frame(self.notebook)
         self.tab_gallery = ttk.Frame(self.notebook, padding=10)
 
         self.notebook.add(self.tab_spec, text="  🎸 1. Design & Spec  ")
-        self.notebook.add(self.tab_finish, text="  🎨 2. Visuals & Finish  ")
-        self.notebook.add(self.tab_slicing, text="  ✂ 3. Slicing & 3D Print  ")
+        self.notebook.add(self.tab_modifiers, text="  ✨ 2. Modifiers  ")
+        self.notebook.add(self.tab_finish, text="  🎨 3. Visuals & Finish  ")
+        self.notebook.add(self.tab_slicing, text="  ✂ 4. Slicing & 3D Print  ")
         self.notebook.add(self.tab_gallery, text="  🖼 Project Gallery  ")
 
         self._build_tab_spec()
+        self._build_tab_modifiers()
         self._build_tab_finish()
         self._build_tab_slicing()
         self._build_tab_gallery()
@@ -498,7 +529,360 @@ class GuitarBuilderGUI:
         self._update_slice_status_badge()
 
     # =========================================================================
-    # TAB 2: Visuals & Finish (with Quick Preview)
+    # TAB 2: 3D Modifiers (Artistic Non-Structural Modifications)
+    # =========================================================================
+    def _build_tab_modifiers(self):
+        scroll = ScrollableFrame(self.tab_modifiers)
+        scroll.pack(fill="both", expand=True)
+        container = scroll.scrollable_content
+
+        # Master Enable & Status Banner
+        card_master = ttk.LabelFrame(container, text=" 3D Body Modifiers (Artistic Non-Structural Features) ", padding=12)
+        card_master.pack(fill="x", pady=(0, 8))
+
+        row_top = ttk.Frame(card_master)
+        row_top.pack(fill="x")
+
+        chk_master = ttk.Checkbutton(
+            row_top,
+            text="⚡ Enable 3D Artistic Modifiers on Body",
+            variable=self.var_modifiers_enabled,
+            command=self._on_modifier_changed
+        )
+        chk_master.pack(side="left", padx=(0, 16))
+
+        self.lbl_mod_status_summary = ttk.Label(
+            row_top,
+            text="Status: Modifiers Disabled",
+            font=("Segoe UI", 9, "bold"),
+            foreground="#64748b"
+        )
+        self.lbl_mod_status_summary.pack(side="left", padx=(0, 16))
+
+        self.lbl_slice_status_tab_mod = ttk.Label(row_top, text="○ Slices: Unknown", font=("Segoe UI", 9, "bold"))
+        self.lbl_slice_status_tab_mod.pack(side="left", padx=(0, 16))
+
+        btn_slice_mod = ttk.Button(row_top, text="✂️ Slice / Re-Cut Body", command=self._action_slice_body)
+        btn_slice_mod.pack(side="right", padx=(4, 0))
+
+        btn_prev_mod = ttk.Button(row_top, text="👁️ Quick Preview", command=self._action_quick_preview)
+        btn_prev_mod.pack(side="right")
+
+        lbl_desc = ttk.Label(
+            card_master,
+            text="ℹ Modifiers apply to the non-structural wings of the body. Structural integrity zones (under the bridge,\nstrings, pickups, neck pocket, and hardware/electronics cavities) are automatically protected from all cuts.",
+            foreground="#475569"
+        )
+        lbl_desc.pack(anchor="w", pady=(8, 0))
+
+        # Quick Presets Bar
+        card_presets = ttk.LabelFrame(container, text=" Quick Artistic Modifier Presets ", padding=10)
+        card_presets.pack(fill="x", pady=(0, 8))
+
+        row_p = ttk.Frame(card_presets)
+        row_p.pack(fill="x")
+
+        ttk.Button(row_p, text="🧀 Organic Swiss Cheese", command=lambda: self._apply_mod_preset("swiss_cheese")).pack(side="left", padx=(0, 8))
+        ttk.Button(row_p, text="🌀 Aerodynamic Perforations", command=lambda: self._apply_mod_preset("perforations")).pack(side="left", padx=(0, 8))
+        ttk.Button(row_p, text="🔲 Exoskeleton Frame", command=lambda: self._apply_mod_preset("frame")).pack(side="left", padx=(0, 8))
+        ttk.Button(row_p, text="🚀 Sci-Fi Hybrid", command=lambda: self._apply_mod_preset("hybrid")).pack(side="left", padx=(0, 8))
+        ttk.Button(row_p, text="🔄 Reset / Solid Body", command=lambda: self._apply_mod_preset("reset")).pack(side="right")
+
+        # Two-Column Layout for Modifiers
+        col_container = ttk.Frame(container)
+        col_container.pack(fill="both", expand=True, pady=(0, 8))
+
+        left_col = ttk.Frame(col_container)
+        left_col.pack(side="left", fill="both", expand=True, padx=(0, 6))
+
+        right_col = ttk.Frame(col_container)
+        right_col.pack(side="right", fill="both", expand=True, padx=(6, 0))
+
+        # LEFT COLUMN:
+        # Card 1: Sphere Chunks Cutout
+        card_spheres = ttk.LabelFrame(left_col, text=" 1. Sphere Chunks Cutout (Organic Crater / Cellular) ", padding=10)
+        card_spheres.pack(fill="x", pady=(0, 8))
+
+        chk_sph = ttk.Checkbutton(
+            card_spheres,
+            text="Enable Random Sphere Chunks Cutout",
+            variable=self.var_mod_spheres_enabled,
+            command=self._on_modifier_changed
+        )
+        chk_sph.pack(anchor="w", pady=(0, 6))
+
+        grid_sph = ttk.Frame(card_spheres)
+        grid_sph.pack(fill="x")
+
+        ttk.Label(grid_sph, text="Sphere Count:").grid(row=0, column=0, sticky="w", pady=4)
+        sp_cnt = ttk.Spinbox(grid_sph, from_=5, to=100, textvariable=self.var_mod_spheres_count, width=12)
+        sp_cnt.grid(row=0, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_cnt.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_sph, text="Placement:").grid(row=0, column=2, sticky="w", pady=4)
+        cb_sph_place = ttk.Combobox(
+            grid_sph,
+            textvariable=self.var_mod_spheres_placement,
+            values=["surface", "through", "mixed"],
+            width=14,
+            state="readonly"
+        )
+        cb_sph_place.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        cb_sph_place.bind("<<ComboboxSelected>>", self._on_modifier_changed)
+
+        ttk.Label(grid_sph, text="Min Radius (mm):").grid(row=1, column=0, sticky="w", pady=4)
+        sp_min_r = ttk.Entry(grid_sph, textvariable=self.var_mod_spheres_min_r, width=12)
+        sp_min_r.grid(row=1, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_min_r.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_sph, text="Max Radius (mm):").grid(row=1, column=2, sticky="w", pady=4)
+        sp_max_r = ttk.Entry(grid_sph, textvariable=self.var_mod_spheres_max_r, width=12)
+        sp_max_r.grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+        sp_max_r.bind("<FocusOut>", self._on_modifier_changed)
+
+        row_seed_s = ttk.Frame(card_spheres)
+        row_seed_s.pack(fill="x", pady=(6, 0))
+        ttk.Label(row_seed_s, text="Random Seed:").pack(side="left", padx=(0, 6))
+        ent_s_seed = ttk.Entry(row_seed_s, textvariable=self.var_mod_spheres_seed, width=12)
+        ent_s_seed.pack(side="left", padx=(0, 6))
+        ent_s_seed.bind("<FocusOut>", self._on_modifier_changed)
+        ttk.Button(row_seed_s, text="🎲 Roll Seed", command=self._roll_spheres_seed).pack(side="left")
+
+        ttk.Label(
+            card_spheres,
+            text="• Surface: Carves smooth craters into front & back faces.\n• Through: Bores organic voids through the body thickness.\n• Mixed: Combines surface craters and through-holes.",
+            foreground="#64748b"
+        ).pack(anchor="w", pady=(6, 0))
+
+        # Card 2: Angled Cylinders Cutout
+        card_cyls = ttk.LabelFrame(left_col, text=" 2. Angled Cylinders Cutout (Perforated / Lattice / Tunnels) ", padding=10)
+        card_cyls.pack(fill="x", pady=(0, 8))
+
+        chk_cyl = ttk.Checkbutton(
+            card_cyls,
+            text="Enable Angled Cylinders Cutout",
+            variable=self.var_mod_cylinders_enabled,
+            command=self._on_modifier_changed
+        )
+        chk_cyl.pack(anchor="w", pady=(0, 6))
+
+        grid_cyl = ttk.Frame(card_cyls)
+        grid_cyl.pack(fill="x")
+
+        ttk.Label(grid_cyl, text="Hole Count:").grid(row=0, column=0, sticky="w", pady=4)
+        sp_cyl_cnt = ttk.Spinbox(grid_cyl, from_=5, to=80, textvariable=self.var_mod_cylinders_count, width=12)
+        sp_cyl_cnt.grid(row=0, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_cyl_cnt.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_cyl, text="Angle Style:").grid(row=0, column=2, sticky="w", pady=4)
+        cb_cyl_style = ttk.Combobox(
+            grid_cyl,
+            textvariable=self.var_mod_cylinders_style,
+            values=["random", "vertical", "fan"],
+            width=14,
+            state="readonly"
+        )
+        cb_cyl_style.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        cb_cyl_style.bind("<<ComboboxSelected>>", self._on_modifier_changed)
+
+        ttk.Label(grid_cyl, text="Min Radius (mm):").grid(row=1, column=0, sticky="w", pady=4)
+        sp_cyl_min_r = ttk.Entry(grid_cyl, textvariable=self.var_mod_cylinders_min_r, width=12)
+        sp_cyl_min_r.grid(row=1, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_cyl_min_r.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_cyl, text="Max Radius (mm):").grid(row=1, column=2, sticky="w", pady=4)
+        sp_cyl_max_r = ttk.Entry(grid_cyl, textvariable=self.var_mod_cylinders_max_r, width=12)
+        sp_cyl_max_r.grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+        sp_cyl_max_r.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_cyl, text="Max Tilt Angle (°):").grid(row=2, column=0, sticky="w", pady=4)
+        sp_cyl_ang = ttk.Entry(grid_cyl, textvariable=self.var_mod_cylinders_angle, width=12)
+        sp_cyl_ang.grid(row=2, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_cyl_ang.bind("<FocusOut>", self._on_modifier_changed)
+
+        row_seed_c = ttk.Frame(card_cyls)
+        row_seed_c.pack(fill="x", pady=(6, 0))
+        ttk.Label(row_seed_c, text="Random Seed:").pack(side="left", padx=(0, 6))
+        ent_c_seed = ttk.Entry(row_seed_c, textvariable=self.var_mod_cylinders_seed, width=12)
+        ent_c_seed.pack(side="left", padx=(0, 6))
+        ent_c_seed.bind("<FocusOut>", self._on_modifier_changed)
+        ttk.Button(row_seed_c, text="🎲 Roll Seed", command=self._roll_cylinders_seed).pack(side="left")
+
+        ttk.Label(
+            card_cyls,
+            text="• Random: 3D tilted tunnels through the body wings (size randomized between min & max).\n• Vertical: Clean perpendicular 90° cylindrical bores.\n• Fan: Angled outward away from the guitar centerline.",
+            foreground="#64748b"
+        ).pack(anchor="w", pady=(6, 0))
+
+        # RIGHT COLUMN:
+        # Card 3: Post-Split Edge Frame Cutout
+        card_frame = ttk.LabelFrame(right_col, text=" 3. Post-Split Edge Frame (Cut-out with Strong Frame) ", padding=10)
+        card_frame.pack(fill="x", pady=(0, 8))
+
+        chk_frm = ttk.Checkbutton(
+            card_frame,
+            text="Enable Post-Split Edge Frame (Strong Perimeter Frame)",
+            variable=self.var_mod_frame_enabled,
+            command=self._on_modifier_changed
+        )
+        chk_frm.pack(anchor="w", pady=(0, 6))
+
+        grid_frm = ttk.Frame(card_frame)
+        grid_frm.pack(fill="x")
+
+        ttk.Label(grid_frm, text="Wall Width (mm):").grid(row=0, column=0, sticky="w", pady=4)
+        sp_f_w = ttk.Entry(grid_frm, textvariable=self.var_mod_frame_thickness, width=12)
+        sp_f_w.grid(row=0, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_f_w.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_frm, text="Cutout Style:").grid(row=0, column=2, sticky="w", pady=4)
+        cb_f_style = ttk.Combobox(
+            grid_frm,
+            textvariable=self.var_mod_frame_style,
+            values=["through", "pocket"],
+            width=14,
+            state="readonly"
+        )
+        cb_f_style.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        cb_f_style.bind("<<ComboboxSelected>>", self._on_modifier_changed)
+
+        ttk.Label(grid_frm, text="Floor Thick (mm):").grid(row=1, column=0, sticky="w", pady=4)
+        sp_f_fl = ttk.Entry(grid_frm, textvariable=self.var_mod_frame_floor, width=12)
+        sp_f_fl.grid(row=1, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_f_fl.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_frm, text="Target Pieces:").grid(row=1, column=2, sticky="w", pady=4)
+        cb_f_tgt = ttk.Combobox(
+            grid_frm,
+            textvariable=self.var_mod_frame_apply,
+            values=["outer_wings", "all_wings"],
+            width=14,
+            state="readonly"
+        )
+        cb_f_tgt.grid(row=1, column=3, sticky="w", padx=(6, 0), pady=4)
+        cb_f_tgt.bind("<<ComboboxSelected>>", self._on_modifier_changed)
+
+        ttk.Label(
+            card_frame,
+            text="• Removes all but the edge region of post-split pieces viewed from above.\n• Outer Wings (default): Frames lower & mid wings while keeping the upper\n  shoulder cutaways and neck joint completely solid for maximum strength.\n• All Wings: Frames all wings while strictly enforcing a reinforced solid\n  barrier (>=25mm) around the shoulder cutouts and neck joint.\n• Through: Full open window cut. Pocket: Leaves solid back floor.",
+            foreground="#64748b"
+        ).pack(anchor="w", pady=(6, 0))
+
+        # Card 4: Structural Keep-Out & Safety Clearance
+        card_keepout = ttk.LabelFrame(right_col, text=" 4. Structural Core Keep-Out & Cavity Clearance ", padding=10)
+        card_keepout.pack(fill="x", pady=(0, 8))
+
+        grid_k = ttk.Frame(card_keepout)
+        grid_k.pack(fill="x")
+
+        ttk.Label(grid_k, text="Spine Width (mm):").grid(row=0, column=0, sticky="w", pady=4)
+        sp_k_core = ttk.Entry(grid_k, textvariable=self.var_mod_core_width, width=12)
+        sp_k_core.grid(row=0, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_k_core.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_k, text="Cavity Buffer (mm):").grid(row=0, column=2, sticky="w", pady=4)
+        sp_k_cav = ttk.Entry(grid_k, textvariable=self.var_mod_margin, width=12)
+        sp_k_cav.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        sp_k_cav.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(grid_k, text="Rim Margin (mm):").grid(row=1, column=0, sticky="w", pady=4)
+        sp_k_rim = ttk.Entry(grid_k, textvariable=self.var_mod_rim_margin, width=12)
+        sp_k_rim.grid(row=1, column=1, sticky="w", padx=(6, 16), pady=4)
+        sp_k_rim.bind("<FocusOut>", self._on_modifier_changed)
+
+        ttk.Label(
+            card_keepout,
+            text="ℹ Hardware & Electronics Exclusion Zones:\n  • Dynamically calculated from actual backplates in the scene\n    with your configurable safety margin to guarantee cavity fit.\n  • Central spine (neck pocket, strings, pickups, bridge) kept 100% solid.\n  • Shoulder cutaway scoops reinforced with minimum 25mm solid beams.",
+            foreground="#64748b"
+        ).pack(anchor="w", pady=(6, 0))
+
+    def _on_modifier_changed(self, *args):
+        # Auto-sync master switch if individual modifiers are toggled
+        any_mod = (
+            self.var_mod_spheres_enabled.get() or
+            self.var_mod_cylinders_enabled.get() or
+            self.var_mod_frame_enabled.get()
+        )
+        if any_mod and not self.var_modifiers_enabled.get():
+            self.var_modifiers_enabled.set(True)
+
+        self._update_modifier_status_summary()
+        self._action_save_project()
+        self._update_command_preview()
+        self._update_slice_status_badge()
+
+    def _update_modifier_status_summary(self):
+        lbl = getattr(self, "lbl_mod_status_summary", None)
+        if not lbl:
+            return
+        if not self.var_modifiers_enabled.get():
+            lbl.configure(text="Status: Modifiers Disabled", foreground="#64748b")
+        else:
+            active = []
+            if self.var_mod_spheres_enabled.get():
+                active.append("Spheres")
+            if self.var_mod_cylinders_enabled.get():
+                active.append("Cylinders")
+            if self.var_mod_frame_enabled.get():
+                active.append("Frame")
+            if active:
+                lbl.configure(text=f"Status: Active ({', '.join(active)})", foreground="#2563eb")
+            else:
+                lbl.configure(text="Status: Enabled (None Selected)", foreground="#d97706")
+
+    def _roll_spheres_seed(self):
+        import random
+        self.var_mod_spheres_seed.set(str(random.randint(1000, 999999)))
+        self._on_modifier_changed()
+
+    def _roll_cylinders_seed(self):
+        import random
+        self.var_mod_cylinders_seed.set(str(random.randint(1000, 999999)))
+        self._on_modifier_changed()
+
+    def _apply_mod_preset(self, preset_name):
+        if preset_name == "swiss_cheese":
+            self.var_modifiers_enabled.set(True)
+            self.var_mod_spheres_enabled.set(True)
+            self.var_mod_spheres_count.set(40)
+            self.var_mod_spheres_placement.set("mixed")
+            self.var_mod_cylinders_enabled.set(False)
+            self.var_mod_frame_enabled.set(False)
+        elif preset_name == "perforations":
+            self.var_modifiers_enabled.set(True)
+            self.var_mod_spheres_enabled.set(False)
+            self.var_mod_cylinders_enabled.set(True)
+            self.var_mod_cylinders_count.set(30)
+            self.var_mod_cylinders_min_r.set(4.0)
+            self.var_mod_cylinders_max_r.set(8.0)
+            self.var_mod_cylinders_angle.set(25.0)
+            self.var_mod_cylinders_style.set("random")
+            self.var_mod_frame_enabled.set(False)
+        elif preset_name == "frame":
+            self.var_modifiers_enabled.set(True)
+            self.var_mod_spheres_enabled.set(False)
+            self.var_mod_cylinders_enabled.set(False)
+            self.var_mod_frame_enabled.set(True)
+            self.var_mod_frame_thickness.set(12.0)
+            self.var_mod_frame_style.set("through")
+        elif preset_name == "hybrid":
+            self.var_modifiers_enabled.set(True)
+            self.var_mod_spheres_enabled.set(False)
+            self.var_mod_cylinders_enabled.set(True)
+            self.var_mod_cylinders_count.set(20)
+            self.var_mod_cylinders_min_r.set(4.0)
+            self.var_mod_cylinders_max_r.set(7.0)
+            self.var_mod_frame_enabled.set(True)
+            self.var_mod_frame_thickness.set(14.0)
+        elif preset_name == "reset":
+            self.var_modifiers_enabled.set(False)
+            self.var_mod_spheres_enabled.set(False)
+            self.var_mod_cylinders_enabled.set(False)
+            self.var_mod_frame_enabled.set(False)
+        self._on_modifier_changed()
+
+    # =========================================================================
+    # TAB 3: Visuals & Finish (with Quick Preview)
     # =========================================================================
     def _build_tab_finish(self):
         scroll = ScrollableFrame(self.tab_finish)
@@ -867,7 +1251,7 @@ class GuitarBuilderGUI:
             text = "○ Slices: Not Sliced (Uncut)"
             fg = "#64748b"
 
-        for attr in ["lbl_slice_status", "lbl_slice_status_tab2", "lbl_slice_status_tab3"]:
+        for attr in ["lbl_slice_status", "lbl_slice_status_tab_mod", "lbl_slice_status_tab2", "lbl_slice_status_tab3"]:
             lbl = getattr(self, attr, None)
             if lbl:
                 try:
@@ -1298,7 +1682,53 @@ class GuitarBuilderGUI:
             self.var_hardware.set(hw.get("variant", "standard"))
             self.var_electronics.set(hw.get("electronics", "auto"))
 
-            # 2. Visuals
+            # 2. Modifiers
+            mods = self.active_project_data.get("modifiers", {})
+            self.var_modifiers_enabled.set(mods.get("enabled", False))
+
+            sph = mods.get("spheres", {})
+            self.var_mod_spheres_enabled.set(sph.get("enabled", False))
+            self.var_mod_spheres_count.set(int(sph.get("count", 35)))
+            s_min_r = float(sph.get("min_radius", 1.2))
+            self.var_mod_spheres_min_r.set(s_min_r * 10.0 if s_min_r < 6.0 else s_min_r)
+            s_max_r = float(sph.get("max_radius", 2.6))
+            self.var_mod_spheres_max_r.set(s_max_r * 10.0 if s_max_r < 6.0 else s_max_r)
+            self.var_mod_spheres_placement.set(sph.get("placement", "surface"))
+            self.var_mod_spheres_seed.set(str(sph.get("seed", 42)))
+
+            cyl = mods.get("cylinders", {})
+            self.var_mod_cylinders_enabled.set(cyl.get("enabled", False))
+            self.var_mod_cylinders_count.set(int(cyl.get("count", 25)))
+            c_min_r = float(cyl.get("min_radius", cyl.get("radius", 0.4)))
+            self.var_mod_cylinders_min_r.set(c_min_r * 10.0 if c_min_r < 4.0 else c_min_r)
+            c_max_r = float(cyl.get("max_radius", cyl.get("radius", 0.8)))
+            self.var_mod_cylinders_max_r.set(c_max_r * 10.0 if c_max_r < 4.0 else c_max_r)
+            c_rad = float(cyl.get("radius", 0.6))
+            self.var_mod_cylinders_radius.set(c_rad * 10.0 if c_rad < 4.0 else c_rad)
+            self.var_mod_cylinders_angle.set(float(cyl.get("max_angle", 25.0)))
+            self.var_mod_cylinders_style.set(cyl.get("style", "random"))
+            self.var_mod_cylinders_seed.set(str(cyl.get("seed", 42)))
+
+            frm = mods.get("edge_frame", {})
+            self.var_mod_frame_enabled.set(frm.get("enabled", False))
+            f_thick = float(frm.get("wall_thickness", 1.2))
+            self.var_mod_frame_thickness.set(f_thick * 10.0 if f_thick < 6.0 else f_thick)
+            self.var_mod_frame_style.set(frm.get("style", "through"))
+            f_floor = float(frm.get("floor_thickness", 0.4))
+            self.var_mod_frame_floor.set(f_floor * 10.0 if f_floor < 3.0 else f_floor)
+            self.var_mod_frame_apply.set(frm.get("apply_to", "outer_wings"))
+
+            kout = mods.get("keepout", {})
+            k_core = float(kout.get("core_width", 11.0))
+            self.var_mod_core_width.set(k_core * 10.0 if k_core < 30.0 else k_core)
+            k_marg = float(kout.get("margin", 1.2))
+            self.var_mod_margin.set(k_marg * 10.0 if k_marg < 6.0 else k_marg)
+            k_rim = float(kout.get("rim_margin", 0.8))
+            self.var_mod_rim_margin.set(k_rim * 10.0 if k_rim < 5.0 else k_rim)
+
+            self._update_modifier_status_summary()
+
+            # 3. Visuals
             vis = self.active_project_data.get("visuals", {})
             bmat = vis.get("body_material", "sunburst")
             self.var_material.set(bmat)
@@ -1390,6 +1820,51 @@ class GuitarBuilderGUI:
             "animate": self.var_animate.get(),
             "dynamic_zoom": self.var_dynamic_zoom.get(),
             "seed": seed_val
+        }
+
+        # Modifiers
+        try:
+            s_seed = int(self.var_mod_spheres_seed.get().strip())
+        except ValueError:
+            s_seed = 42
+
+        try:
+            c_seed = int(self.var_mod_cylinders_seed.get().strip())
+        except ValueError:
+            c_seed = 42
+
+        self.active_project_data["modifiers"] = {
+            "enabled": self.var_modifiers_enabled.get(),
+            "spheres": {
+                "enabled": self.var_mod_spheres_enabled.get(),
+                "count": self.var_mod_spheres_count.get(),
+                "min_radius": round(self.var_mod_spheres_min_r.get() / 10.0, 3),
+                "max_radius": round(self.var_mod_spheres_max_r.get() / 10.0, 3),
+                "placement": self.var_mod_spheres_placement.get().split(":")[0].strip(),
+                "seed": s_seed
+            },
+            "cylinders": {
+                "enabled": self.var_mod_cylinders_enabled.get(),
+                "count": self.var_mod_cylinders_count.get(),
+                "min_radius": round(self.var_mod_cylinders_min_r.get() / 10.0, 3),
+                "max_radius": round(self.var_mod_cylinders_max_r.get() / 10.0, 3),
+                "radius": round((self.var_mod_cylinders_min_r.get() + self.var_mod_cylinders_max_r.get()) / 20.0, 3),
+                "max_angle": self.var_mod_cylinders_angle.get(),
+                "style": self.var_mod_cylinders_style.get().split(":")[0].strip(),
+                "seed": c_seed
+            },
+            "edge_frame": {
+                "enabled": self.var_mod_frame_enabled.get(),
+                "wall_thickness": round(self.var_mod_frame_thickness.get() / 10.0, 3),
+                "style": self.var_mod_frame_style.get().split(":")[0].strip(),
+                "floor_thickness": round(self.var_mod_frame_floor.get() / 10.0, 3),
+                "apply_to": self.var_mod_frame_apply.get().split(":")[0].strip()
+            },
+            "keepout": {
+                "core_width": round(self.var_mod_core_width.get() / 10.0, 3),
+                "margin": round(self.var_mod_margin.get() / 10.0, 3),
+                "rim_margin": round(self.var_mod_rim_margin.get() / 10.0, 3)
+            }
         }
 
         # Slicing
@@ -1534,6 +2009,9 @@ class GuitarBuilderGUI:
         seed = self.var_seed.get().strip()
         if seed:
             cmd.extend(["--seed", seed])
+
+        if self.var_modifiers_enabled.get():
+            cmd.append("--modifiers")
 
         self.var_cmd_preview.set(" ".join(cmd))
         return cmd

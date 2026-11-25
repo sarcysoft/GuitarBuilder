@@ -2227,24 +2227,40 @@ def run_rendering():
             subtract_stl(emask_stl, off_x=0, off_y=0, off_z=2)
             subtract_stl(efix_stl, off_x=0, off_y=0, off_z=2)
 
+        # Apply 3D Modifiers if configured in project.json
+        proj_json = os.path.join(args.config_dir, "project.json")
+        if os.path.exists(proj_json):
+            try:
+                import json
+                with open(proj_json, "r", encoding="utf-8") as f:
+                    pdata = json.load(f)
+                    mod_cfg = pdata.get("modifiers", {})
+                    if mod_cfg and (mod_cfg.get("enabled", False) or mod_cfg.get("spheres", {}).get("enabled", False) or mod_cfg.get("cylinders", {}).get("enabled", False)):
+                        this_script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+                        if this_script_dir not in sys.path:
+                            sys.path.insert(0, this_script_dir)
+                        import modifiers
+                        cav_margin = float(mod_cfg.get("keepout", {}).get("margin", 1.2))
+                        mod_cfg.setdefault("keepout", {})["exclusion_boxes"] = modifiers.extract_cavity_exclusion_boxes(margin=cav_margin)
+                        print("Applying dynamic 3D modifiers (Spheres / Cylinders) to preview uncut body...")
+                        modifiers.apply_pre_slice_modifiers(body_obj, mod_cfg)
+            except Exception as e:
+                print(f"Warning: Failed to apply dynamic modifiers to preview body: {e}")
+
     def find_uncut_body():
-        # In fast preview mode, prefer base body OBJ so active hardware/electronics cutouts apply dynamically
-        if args.preview and body_model_name:
-            p = os.path.join(models_dir, "obj", f"{body_model_name}.obj")
-            if os.path.exists(p):
-                return p
         candidates = [
             os.path.join(args.config_dir, "Guitar_Full_Body.stl"),
             os.path.join(args.config_dir, "stl", "Guitar_Full_Body.stl"),
             os.path.join(args.config_dir, "stl", "body", "Guitar_Full_Body.stl"),
         ]
-        if body_model_name:
-            candidates.append(os.path.join(models_dir, "obj", f"{body_model_name}.obj"))
-        candidates.append(os.path.join(models_dir, "obj", "guitar.obj"))
         for cp in candidates:
             if os.path.exists(cp):
                 return cp
-        return None
+        if body_model_name:
+            p = os.path.join(models_dir, "obj", f"{body_model_name}.obj")
+            if os.path.exists(p):
+                return p
+        return os.path.join(models_dir, "obj", "guitar.obj")
 
     def load_uncut_body_obj(body_path, mat):
         """Loads base body OBJ and transforms it to exact setup_scene alignment."""

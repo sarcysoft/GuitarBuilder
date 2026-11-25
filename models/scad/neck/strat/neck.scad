@@ -1,6 +1,6 @@
 // Stratocaster Style Guitar Neck
 // 25.5" scale length (64.77 cm), 22 frets, flat stepped 6-in-line headstock
-include <_fret_calc.scad>
+include <../../common/_fret_calc.scad>
 
 part = "all"; // Options: "all", "shaft", "fretboard", "frets", "nut", "tuners"
 $fn = 36;
