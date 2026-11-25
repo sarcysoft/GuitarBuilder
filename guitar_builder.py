@@ -281,6 +281,7 @@ Usage:
 Modes & General:
   --project <name_or_path>             Load settings and save outputs to specific project folder
   --gui                                Launch the graphical user interface frontend
+  --compile-scad                       Compile all OpenSCAD hardware, electronics, and neck models into STLs
   -h, --help                           Show this help message and exit
   --config <name>                      Preset configuration profile (e.g. 'sarcaster', 'les_paul', 'flying_v')
   --generate                           Generate and export OBJ mesh from guitar.blend
@@ -1136,6 +1137,11 @@ def main():
             except Exception as e:
                 print(f"Error launching GUI: {e}")
                 sys.exit(1)
+        if any(arg in ["--compile-scad", "-compile-scad"] for arg in sys.argv[1:]):
+            import subprocess
+            scad_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "compile_scad.py")
+            res = subprocess.run([sys.executable, scad_script])
+            sys.exit(res.returncode)
         run_wrapper_mode()
     else:
         run_internal_mode()

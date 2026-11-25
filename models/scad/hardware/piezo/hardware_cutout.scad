@@ -30,7 +30,7 @@ union()
     translate([-3.35 ,24.4 ,0]) cylinder(2.5,0.2,0.2);
     translate([3.35 ,24.4 ,0]) cylinder(2.5,0.2,0.2);
     
-    translate([-3.5,16.2,-3])
-        cylinder_path([[0, 0],[7.0, 0],[7.0, 10.7],[0, 10.7]],
+    translate([-3.5,24.4,-3])
+        cylinder_path([[0, 0],[7.0, 0],[7.0, 2.5],[0, 2.5]],
                         radius=0.8, height=3.1, fill_polygon=true);
 }    

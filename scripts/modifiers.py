@@ -368,6 +368,197 @@ def apply_pre_slice_modifiers(guitar_body, modifiers_cfg):
             bpy.data.objects.remove(cutter, do_unlink=True)
 
 
+def keep_largest_component(obj):
+    """
+    Cleans up any detached loose floating artifacts directly in-place in obj.data,
+    guaranteeing obj remains a single connected manifold mesh without creating
+    or deleting Blender objects.
+    """
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    visited = set()
+    islands = []
+    for v in bm.verts:
+        if v not in visited:
+            island = []
+            queue = [v]
+            visited.add(v)
+            while queue:
+                curr = queue.pop()
+                island.append(curr)
+                for edge in curr.link_edges:
+                    other = edge.other_vert(curr)
+                    if other not in visited:
+                        visited.add(other)
+                        queue.append(other)
+            islands.append(island)
+
+    if len(islands) > 1:
+        islands.sort(key=len, reverse=True)
+        verts_to_delete = []
+        for small_island in islands[1:]:
+            verts_to_delete.extend(small_island)
+        bmesh.ops.delete(bm, geom=verts_to_delete, context='VERTS')
+        bm.to_mesh(obj.data)
+        obj.data.update()
+        log(f"Cleaned up {len(islands)-1} detached loose islands ({len(verts_to_delete)} vertices) from {obj.name}.")
+    bm.free()
+
+
+def create_organic_profile_cutter(obj, wall_thickness=1.2, is_shoulder_piece=False, style="through", floor_thickness=0.4):
+    """
+    Creates an organic extruded prism cutter following the exact 2D perimeter of the piece,
+    enforcing true 2D Euclidean clearance against the boundary to ensure structural integrity
+    at cutaway dips, neck joint cantilevers, and thin horn areas.
+    """
+    bbox = [obj.matrix_world @ Vector(v) for v in obj.bound_box]
+    min_x, max_x = min(v.x for v in bbox), max(v.x for v in bbox)
+    min_y, max_y = min(v.y for v in bbox), max(v.y for v in bbox)
+    min_z, max_z = min(v.z for v in bbox), max(v.z for v in bbox)
+    dx = max_x - min_x
+    dy = max_y - min_y
+    cz = (min_z + max_z) / 2.0
+
+    if dx <= wall_thickness * 2.2 or dy <= wall_thickness * 2.2:
+        return None
+
+    # Sample 2D perimeter at Z=cz
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    local_zno = (obj.matrix_world.inverted().to_3x3() @ Vector((0, 0, 1.0))).normalized()
+    res = bmesh.ops.bisect_plane(
+        bm,
+        geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
+        plane_co=obj.matrix_world.inverted() @ Vector((0, 0, cz)),
+        plane_no=local_zno
+    )
+    cut_edges = [e for e in res['geom_cut'] if isinstance(e, bmesh.types.BMEdge)]
+    boundary_pts = []
+    for e in cut_edges:
+        for v in e.verts:
+            p = obj.matrix_world @ v.co
+            boundary_pts.append((p.x, p.y))
+    bm.free()
+
+    if not boundary_pts:
+        return None
+
+    # Margins: shoulder cutaway dips require >= 1.8cm clearance for structural integrity
+    if is_shoulder_piece:
+        dip_margin = max(wall_thickness, 1.8)
+        outer_margin = wall_thickness
+        min_cut_y = min_y + wall_thickness
+        max_cut_y = min(max_y - 2.0, 38.0)  # Keep upper horn tip 100% solid
+    else:
+        dip_margin = wall_thickness
+        outer_margin = wall_thickness
+        min_cut_y = min_y + wall_thickness
+        max_cut_y = max_y - wall_thickness
+
+    if max_cut_y <= min_cut_y:
+        return None
+
+    import numpy as np
+    y_samples = np.linspace(min_cut_y, max_cut_y, 50)
+    left_pts = []
+    right_pts = []
+
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+
+    for y_val in y_samples:
+        local_pt = obj.matrix_world.inverted() @ Vector((0, y_val, 0))
+        local_no = (obj.matrix_world.inverted().to_3x3() @ Vector((0, 1.0, 0))).normalized()
+        res = bmesh.ops.bisect_plane(
+            bm,
+            geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
+            plane_co=local_pt,
+            plane_no=local_no
+        )
+        c_edges = [e for e in res['geom_cut'] if isinstance(e, bmesh.types.BMEdge)]
+        if not c_edges:
+            continue
+        xs = [(obj.matrix_world @ v.co).x for e in c_edges for v in e.verts]
+        if not xs:
+            continue
+        x_min, x_max = min(xs), max(xs)
+        xl = x_min + outer_margin
+        xr = x_max - outer_margin
+        xc = (x_min + x_max) / 2.0
+
+        for bx, by in boundary_pts:
+            dy_pt = abs(y_val - by)
+            if obj.name == "Guitar_Top_Left":
+                # Inner dip is on right (bx > xc, towards center)
+                if bx > xc and dy_pt < dip_margin:
+                    needed_dx = math.sqrt(dip_margin**2 - dy_pt**2)
+                    limit_x = bx - needed_dx
+                    if limit_x < xr:
+                        xr = limit_x
+                # Outer contour is on left (bx < xc)
+                elif bx < xc and dy_pt < outer_margin:
+                    needed_dx = math.sqrt(outer_margin**2 - dy_pt**2)
+                    limit_x = bx + needed_dx
+                    if limit_x > xl:
+                        xl = limit_x
+            elif obj.name == "Guitar_Top_Right":
+                # Inner dip is on left (bx < xc, towards center)
+                if bx < xc and dy_pt < dip_margin:
+                    needed_dx = math.sqrt(dip_margin**2 - dy_pt**2)
+                    limit_x = bx + needed_dx
+                    if limit_x > xl:
+                        xl = limit_x
+                # Outer contour is on right (bx > xc)
+                elif bx > xc and dy_pt < outer_margin:
+                    needed_dx = math.sqrt(outer_margin**2 - dy_pt**2)
+                    limit_x = bx - needed_dx
+                    if limit_x < xr:
+                        xr = limit_x
+            else:
+                if bx > xc and dy_pt < outer_margin:
+                    needed_dx = math.sqrt(outer_margin**2 - dy_pt**2)
+                    limit_x = bx - needed_dx
+                    if limit_x < xr:
+                        xr = limit_x
+                elif bx < xc and dy_pt < outer_margin:
+                    needed_dx = math.sqrt(outer_margin**2 - dy_pt**2)
+                    limit_x = bx + needed_dx
+                    if limit_x > xl:
+                        xl = limit_x
+
+        if xr - xl > 0.4:
+            left_pts.append((xl, y_val))
+            right_pts.append((xr, y_val))
+    bm.free()
+
+    if len(left_pts) < 3:
+        return None
+
+    poly_pts = left_pts + right_pts[::-1]
+    bm2 = bmesh.new()
+    z_bottom = (min_z + floor_thickness) if style == "pocket" else (min_z - 1.0)
+    z_top = max_z + 1.0
+
+    poly_verts = [bm2.verts.new((x, y, z_bottom)) for x, y in poly_pts]
+    face = bm2.faces.new(poly_verts)
+    bm2.faces.ensure_lookup_table()
+    if face.normal.z < 0:
+        face.normal_flip()
+
+    extrude_res = bmesh.ops.extrude_face_region(bm2, geom=[face])
+    for v in extrude_res['geom']:
+        if isinstance(v, bmesh.types.BMVert):
+            v.co.z = z_top
+    bmesh.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
+
+    cutter_mesh = bpy.data.meshes.new(f"{obj.name}_FrameCutterMesh")
+    bm2.to_mesh(cutter_mesh)
+    cutter = bpy.data.objects.new(f"{obj.name}_FrameCutter", cutter_mesh)
+    bpy.context.collection.objects.link(cutter)
+    bm2.free()
+    return cutter
+
+
 def apply_post_slice_modifiers(part_names, modifiers_cfg):
     """
     Applies post-split edge frame / exoskeleton modifier to outer guitar pieces,
@@ -437,44 +628,43 @@ def apply_post_slice_modifiers(part_names, modifiers_cfg):
                 log(f"Skipping piece '{obj.name}': dimensions ({dx:.1f}x{dy:.1f}cm) too small for frame.")
                 continue
 
-            # Duplicate object to create an inset frame cutter following the piece's organic silhouette
-            bpy.ops.object.select_all(action='DESELECT')
-            obj.select_set(True)
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.duplicate()
-            cutter = bpy.context.active_object
-            cutter.name = f"{obj.name}_FrameCutter"
-
-            # Compute organic inset scale factors uniformly for all pieces
             is_shoulder_piece = obj.name in ["Guitar_Top_Left", "Guitar_Top_Right"]
             if is_shoulder_piece:
-                # Elongated horn pieces (width varies from 2cm at tip to 9cm at base):
-                # Scale proportionally so the cutout window follows the horn's natural curve
-                # while preserving a solid horn tip and safe cutaway walls
-                target_w = max(3.5, min(4.5, dx - 2.0 * max(wall_thickness, 1.4)))
-                sx = target_w / dx
-                sy = 0.65
+                cutter = create_organic_profile_cutter(
+                    obj,
+                    wall_thickness=wall_thickness,
+                    is_shoulder_piece=True,
+                    style=style,
+                    floor_thickness=floor_thickness
+                )
+                if not cutter:
+                    log(f"Preserving piece '{obj.name}' (profile cutter could not find safe volume).")
+                    continue
             else:
+                # Duplicate object to create an inset frame cutter following the piece's organic silhouette
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.duplicate()
+                cutter = bpy.context.active_object
+                cutter.name = f"{obj.name}_FrameCutter"
+
                 sx = max(0.1, (dx - 2.0 * wall_thickness) / dx)
                 sy = max(0.1, (dy - 2.0 * wall_thickness) / dy)
 
-            for v in cutter.data.vertices:
-                world_co = cutter.matrix_world @ v.co
-                rel_x = world_co.x - cx
-                rel_y = world_co.y - cy
-                new_x = cx + rel_x * sx
-                new_y = cy + rel_y * sy
+                for v in cutter.data.vertices:
+                    world_co = cutter.matrix_world @ v.co
+                    rel_x = world_co.x - cx
+                    rel_y = world_co.y - cy
+                    new_x = cx + rel_x * sx
+                    new_y = cy + rel_y * sy
 
-                # For shoulder pieces, ensure the organic cutter stays within the wide bout (below the narrow tip)
-                if is_shoulder_piece and new_y > 37.8:
-                    new_y = 37.8
-
-                if style == "pocket":
-                    new_z = (min_z + floor_thickness) + (world_co.z - min_z) * 1.5
-                else:
-                    new_z = cz + (world_co.z - cz) * 1.6
-                v.co = cutter.matrix_world.inverted() @ Vector((new_x, new_y, new_z))
-            cutter.data.update()
+                    if style == "pocket":
+                        new_z = (min_z + floor_thickness) + (world_co.z - min_z) * 1.5
+                    else:
+                        new_z = cz + (world_co.z - cz) * 1.6
+                    v.co = cutter.matrix_world.inverted() @ Vector((new_x, new_y, new_z))
+                cutter.data.update()
 
             # CRITICAL: Respect combined electronics cavity + backplate exclusion zone!
             # If cutter overlaps the electronics exclusion zone, subtract it from the cutter!
@@ -515,20 +705,7 @@ def apply_post_slice_modifiers(part_names, modifiers_cfg):
             bpy.data.objects.remove(cutter, do_unlink=True)
 
             if success:
-                # Clean up any detached floating cylinders or thin shells
-                bpy.ops.object.select_all(action='DESELECT')
-                obj.select_set(True)
-                bpy.context.view_layer.objects.active = obj
-                bpy.ops.mesh.separate(type='LOOSE')
-                loose_parts = [p for p in bpy.context.selected_objects if p.type == 'MESH']
-                if len(loose_parts) > 1:
-                    loose_parts.sort(key=lambda p: len(p.data.vertices), reverse=True)
-                    main_frame = loose_parts[0]
-                    main_frame.name = obj.name
-                    for orphan in loose_parts[1:]:
-                        log(f"Removed detached floating cylinder/shell '{orphan.name}' ({len(orphan.data.vertices)} vertices) from {obj.name}")
-                        bpy.data.objects.remove(orphan, do_unlink=True)
-                    bpy.context.view_layer.objects.active = main_frame
+                keep_largest_component(obj)
                 log(f"Successfully framed piece '{obj.name}'.")
 
         except Exception as e:

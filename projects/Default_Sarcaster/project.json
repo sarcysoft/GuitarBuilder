@@ -2,7 +2,7 @@
     "name": "Default_Sarcaster",
     "version": "1.0",
     "created_at": "2026-11-24T10:57:32.338833",
-    "updated_at": "2026-11-25T10:35:23.094752",
+    "updated_at": "2026-11-25T11:14:30.475025",
     "body_model": "sarcaster",
     "body_dimensions": {
         "Offset Scale": 4.0,
@@ -55,9 +55,7 @@
         "pin_diameter": 6.0,
         "pin_length": 16.0,
         "no_pins": false,
-        "no_cut": false,
-        "last_slice_signature": "072994b646e40c7e",
-        "last_cut_type": "flat"
+        "no_cut": false
     },
     "visuals": {
         "presentation_mode": "sliced",

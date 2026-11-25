@@ -435,18 +435,25 @@ class GuitarBuilderGUI:
         grid_hw.pack(fill="x")
 
         ttk.Label(grid_hw, text="Hardware Cavity:").grid(row=0, column=0, sticky="w", pady=4)
-        self.combo_hardware = ttk.Combobox(grid_hw, textvariable=self.var_hardware, width=18, state="readonly")
-        self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 20), pady=4)
+        self.combo_hardware = ttk.Combobox(grid_hw, textvariable=self.var_hardware, width=16, state="readonly")
+        self.combo_hardware.grid(row=0, column=1, sticky="w", padx=(6, 16), pady=4)
         self.combo_hardware.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
 
         ttk.Label(grid_hw, text="Electronics Layout:").grid(row=0, column=2, sticky="w", pady=4)
-        self.combo_electronics = ttk.Combobox(grid_hw, textvariable=self.var_electronics, width=18, state="readonly")
-        self.combo_electronics.grid(row=0, column=3, sticky="w", padx=(6, 0), pady=4)
+        self.combo_electronics = ttk.Combobox(grid_hw, textvariable=self.var_electronics, width=16, state="readonly")
+        self.combo_electronics.grid(row=0, column=3, sticky="w", padx=(6, 16), pady=4)
         self.combo_electronics.bind("<<ComboboxSelected>>", self._on_geometry_setting_changed)
+
+        btn_recompile_scad = ttk.Button(
+            grid_hw,
+            text="⚡ Recompile SCAD to STLs",
+            command=self._on_compile_scad
+        )
+        btn_recompile_scad.grid(row=0, column=4, sticky="w", padx=(4, 0), pady=4)
 
         lbl_hw_note = ttk.Label(
             card_hw,
-            text="ℹ Backplate cavities and flush screw fixings are subtracted automatically based on selected variants.",
+            text="ℹ Backplate cavities and flush screw fixings are subtracted automatically based on selected variants. Use 'Recompile SCAD to STLs' to update STL meshes after editing .scad files.",
             foreground="#64748b"
         )
         lbl_hw_note.pack(anchor="w", pady=(6, 0))
@@ -1477,7 +1484,43 @@ class GuitarBuilderGUI:
             text="📁  Open STLs Folder in Explorer",
             command=self._open_stl_folder
         )
-        btn_open_stl.pack(fill="x")
+        btn_open_stl.pack(fill="x", pady=(0, 6))
+
+        btn_compile_scad = ttk.Button(
+            card_act,
+            text="⚡  Recompile OpenSCAD Hardware/Electronics to STLs",
+            command=self._on_compile_scad
+        )
+        btn_compile_scad.pack(fill="x")
+
+    def _on_compile_scad(self):
+        """Recompiles all OpenSCAD hardware, electronics, and neck models into STLs."""
+        compile_script = os.path.join(self.repo_dir, "scripts", "compile_scad.py")
+        if not os.path.exists(compile_script):
+            messagebox.showerror("Error", f"Compilation script not found: {compile_script}")
+            return
+        cmd = [sys.executable, compile_script]
+        self._start_subprocess(
+            cmd,
+            "Recompiling OpenSCAD Hardware & Electronics to STLs...",
+            on_success=self._on_compile_scad_success
+        )
+
+    def _on_compile_scad_success(self):
+        """Refreshes hardware and electronics dropdowns after SCAD recompilation."""
+        hw_base = os.path.join(self.repo_dir, "models", "scad", "hardware")
+        hw_variants = [d for d in sorted(os.listdir(hw_base)) if os.path.isdir(os.path.join(hw_base, d))] if os.path.exists(hw_base) else ["standard", "piezo"]
+        self.combo_hardware["values"] = hw_variants
+
+        elec_base = os.path.join(self.repo_dir, "models", "scad", "electronics")
+        elec_variants = ["auto"]
+        if os.path.exists(elec_base):
+            elec_variants += [d for d in sorted(os.listdir(elec_base)) if os.path.isdir(os.path.join(elec_base, d))]
+        else:
+            elec_variants += ["sarcaster", "flying_v", "les_paul"]
+        self.combo_electronics["values"] = elec_variants
+
+        messagebox.showinfo("Compilation Complete", "OpenSCAD models successfully recompiled to STLs in models/stl/!")
 
     def _action_generate_stls(self):
         """Runs complete STL generation pipeline for active project."""
