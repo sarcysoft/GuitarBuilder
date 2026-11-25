@@ -367,8 +367,11 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     size_t num_indices = mesh_gl.triVerts.size();
     indices.resize((int64_t)num_indices);
-    for (size_t i = 0; i < num_indices; ++i) {
-        indices[(int64_t)i] = (int32_t)mesh_gl.triVerts[i];
+    // Convert Manifold's CCW triangle winding to Godot's CW front-facing winding by swapping indices 1 and 2
+    for (size_t t = 0; t < num_indices / 3; ++t) {
+        indices[(int64_t)(t * 3 + 0)] = (int32_t)mesh_gl.triVerts[t * 3 + 0];
+        indices[(int64_t)(t * 3 + 1)] = (int32_t)mesh_gl.triVerts[t * 3 + 2];
+        indices[(int64_t)(t * 3 + 2)] = (int32_t)mesh_gl.triVerts[t * 3 + 1];
     }
 
     Array arrays;

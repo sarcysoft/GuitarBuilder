@@ -38,6 +38,7 @@ func _setup_default_material():
 	mat.clearcoat_enabled = true
 	mat.clearcoat = 0.9
 	mat.clearcoat_roughness = 0.08
+	mat.cull_mode = BaseMaterial3D.CULL_BACK
 	body_mesh.material_override = mat
 
 func _sync_ui_from_mesh():
@@ -89,4 +90,4 @@ func _unhandled_input(event):
 		var delta = event.position - last_mouse_pos
 		last_mouse_pos = event.position
 		camera_pivot.rotation.y -= delta.x * orbit_speed
-		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x - delta.y * orbit_speed, -1.4, 1.4)
+		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x + delta.y * orbit_speed, -1.4, 1.4)

@@ -40,9 +40,9 @@ light_energy = 0.8
 transform = Transform3D(0.92388, 0.0667652, -0.376815, 0, 0.984808, 0.174311, 0.382683, -0.161043, 0.909844, 0, 0, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.85)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.15)
 current = true
-fov = 42.0
+fov = 32.0
 
 [node name="UI" type="Control" parent="."]
 layout_mode = 3
