@@ -57,93 +57,56 @@ mouse_filter = 2
 layout_mode = 0
 offset_left = 20.0
 offset_top = 20.0
-offset_right = 360.0
-offset_bottom = 540.0
+offset_right = 380.0
+offset_bottom = 680.0
 
-[node name="VBox" type="VBoxContainer" parent="UI/Panel"]
+[node name="Scroll" type="ScrollContainer" parent="UI/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 10
+horizontal_scroll_mode = 0
 
-[node name="Title" type="Label" parent="UI/Panel/VBox"]
+[node name="VBox" type="VBoxContainer" parent="UI/Panel/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "🎸 GuitarBuilder Studio"
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="UI/Panel/VBox"]
+[node name="HSeparator" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 
-[node name="Grid" type="GridContainer" parent="UI/Panel/VBox"]
+[node name="LblGlobal" type="Label" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "Global Body Dimensions"
+
+[node name="GridGlobal" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 columns = 2
 theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 8
+theme_override_constants/v_separation = 6
 
-[node name="LblHip" type="Label" parent="UI/Panel/VBox/Grid"]
+[node name="LblLength" type="Label" parent="UI/Panel/Scroll/VBox/GridGlobal"]
 layout_mode = 2
-text = "Hip Width (mm)"
+text = "Length (mm)"
 
-[node name="SliderHip" type="HSlider" parent="UI/Panel/VBox/Grid"]
-custom_minimum_size = Vector2(160, 0)
-layout_mode = 2
-min_value = 250.0
-max_value = 420.0
-step = 1.0
-value = 320.0
-
-[node name="LblWaist" type="Label" parent="UI/Panel/VBox/Grid"]
-layout_mode = 2
-text = "Waist Width (mm)"
-
-[node name="SliderWaist" type="HSlider" parent="UI/Panel/VBox/Grid"]
-custom_minimum_size = Vector2(160, 0)
-layout_mode = 2
-min_value = 180.0
-max_value = 320.0
-step = 1.0
-value = 228.0
-
-[node name="LblChest" type="Label" parent="UI/Panel/VBox/Grid"]
-layout_mode = 2
-text = "Chest Width (mm)"
-
-[node name="SliderChest" type="HSlider" parent="UI/Panel/VBox/Grid"]
-custom_minimum_size = Vector2(160, 0)
-layout_mode = 2
-min_value = 200.0
-max_value = 360.0
-step = 1.0
-value = 276.0
-
-[node name="LblShoulder" type="Label" parent="UI/Panel/VBox/Grid"]
-layout_mode = 2
-text = "Shoulder Width"
-
-[node name="SliderShoulder" type="HSlider" parent="UI/Panel/VBox/Grid"]
-custom_minimum_size = Vector2(160, 0)
-layout_mode = 2
-min_value = 180.0
-max_value = 340.0
-step = 1.0
-value = 250.0
-
-[node name="LblLength" type="Label" parent="UI/Panel/VBox/Grid"]
-layout_mode = 2
-text = "Body Length (mm)"
-
-[node name="SliderLength" type="HSlider" parent="UI/Panel/VBox/Grid"]
+[node name="SliderLength" type="HSlider" parent="UI/Panel/Scroll/VBox/GridGlobal"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 min_value = 380.0
 max_value = 520.0
 step = 1.0
-value = 460.0
+value = 446.0
 
-[node name="LblThickness" type="Label" parent="UI/Panel/VBox/Grid"]
+[node name="LblThickness" type="Label" parent="UI/Panel/Scroll/VBox/GridGlobal"]
 layout_mode = 2
 text = "Thickness (mm)"
 
-[node name="SliderThickness" type="HSlider" parent="UI/Panel/VBox/Grid"]
+[node name="SliderThickness" type="HSlider" parent="UI/Panel/Scroll/VBox/GridGlobal"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 min_value = 30.0
@@ -151,11 +114,11 @@ max_value = 55.0
 step = 0.5
 value = 45.0
 
-[node name="LblRadius" type="Label" parent="UI/Panel/VBox/Grid"]
+[node name="LblRadius" type="Label" parent="UI/Panel/Scroll/VBox/GridGlobal"]
 layout_mode = 2
 text = "Edge Radius (mm)"
 
-[node name="SliderRadius" type="HSlider" parent="UI/Panel/VBox/Grid"]
+[node name="SliderRadius" type="HSlider" parent="UI/Panel/Scroll/VBox/GridGlobal"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 min_value = 0.0
@@ -163,25 +126,276 @@ max_value = 16.0
 step = 0.5
 value = 8.0
 
-[node name="HSeparator2" type="HSeparator" parent="UI/Panel/VBox"]
+[node name="HSeparator2" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 
-[node name="CheckSymmetric" type="CheckBox" parent="UI/Panel/VBox"]
+[node name="CheckSymmetric" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 button_pressed = true
 text = "Symmetric Body"
 
-[node name="CheckBellyCut" type="CheckBox" parent="UI/Panel/VBox"]
+[node name="SymmetricControls" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
-button_pressed = true
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblHip" type="Label" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+layout_mode = 2
+text = "Hip Width (mm)"
+
+[node name="SliderHip" type="HSlider" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 250.0
+max_value = 420.0
+step = 1.0
+value = 318.0
+
+[node name="LblWaist" type="Label" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+layout_mode = 2
+text = "Waist Width (mm)"
+
+[node name="SliderWaist" type="HSlider" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 180.0
+max_value = 320.0
+step = 1.0
+value = 231.0
+
+[node name="LblChest" type="Label" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+layout_mode = 2
+text = "Chest Width (mm)"
+
+[node name="SliderChest" type="HSlider" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 200.0
+max_value = 360.0
+step = 1.0
+value = 275.0
+
+[node name="LblShoulder" type="Label" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+layout_mode = 2
+text = "Horn Width (mm)"
+
+[node name="SliderShoulder" type="HSlider" parent="UI/Panel/Scroll/VBox/SymmetricControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 180.0
+max_value = 340.0
+step = 1.0
+value = 250.0
+
+[node name="AsymmetricControls" type="VBoxContainer" parent="UI/Panel/Scroll/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LblTreble" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "Treble Side (+X)"
+
+[node name="GridTreble" type="GridContainer" parent="UI/Panel/Scroll/VBox/AsymmetricControls"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblTHip" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+layout_mode = 2
+text = "Treble Hip"
+
+[node name="SliderTrebleHip" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 120.0
+max_value = 220.0
+step = 1.0
+value = 159.0
+
+[node name="LblTWaist" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+layout_mode = 2
+text = "Treble Waist"
+
+[node name="SliderTrebleWaist" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 80.0
+max_value = 170.0
+step = 1.0
+value = 115.6
+
+[node name="LblTChest" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+layout_mode = 2
+text = "Treble Chest"
+
+[node name="SliderTrebleChest" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 90.0
+max_value = 190.0
+step = 1.0
+value = 137.5
+
+[node name="LblTHorn" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+layout_mode = 2
+text = "Horn Reach (mm)"
+
+[node name="SliderTrebleHorn" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridTreble"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 400.0
+max_value = 490.0
+step = 1.0
+value = 446.4
+
+[node name="LblBass" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.5, 0.4, 1)
+theme_override_font_sizes/font_size = 12
+text = "Bass Side (-X)"
+
+[node name="GridBass" type="GridContainer" parent="UI/Panel/Scroll/VBox/AsymmetricControls"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblBHip" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+layout_mode = 2
+text = "Bass Hip"
+
+[node name="SliderBassHip" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 120.0
+max_value = 220.0
+step = 1.0
+value = 159.0
+
+[node name="LblBWaist" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+layout_mode = 2
+text = "Bass Waist"
+
+[node name="SliderBassWaist" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 80.0
+max_value = 170.0
+step = 1.0
+value = 115.6
+
+[node name="LblBChest" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+layout_mode = 2
+text = "Bass Chest"
+
+[node name="SliderBassChest" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 90.0
+max_value = 190.0
+step = 1.0
+value = 137.5
+
+[node name="LblBHorn" type="Label" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+layout_mode = 2
+text = "Horn Reach (mm)"
+
+[node name="SliderBassHorn" type="HSlider" parent="UI/Panel/Scroll/VBox/AsymmetricControls/GridBass"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 400.0
+max_value = 490.0
+step = 1.0
+value = 458.0
+
+[node name="HSeparator3" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+
+[node name="LblErgo" type="Label" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "Ergonomic Contours"
+
+[node name="CheckBellyCut" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
 text = "Belly Contour (Rear)"
 
-[node name="CheckForearm" type="CheckBox" parent="UI/Panel/VBox"]
+[node name="BellyControls" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+visible = false
 layout_mode = 2
-button_pressed = true
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblBellyAngle" type="Label" parent="UI/Panel/Scroll/VBox/BellyControls"]
+layout_mode = 2
+text = "Belly Angle (°)"
+
+[node name="SliderBellyAngle" type="HSlider" parent="UI/Panel/Scroll/VBox/BellyControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 4.0
+max_value = 25.0
+step = 0.5
+value = 10.0
+
+[node name="LblBellyLength" type="Label" parent="UI/Panel/Scroll/VBox/BellyControls"]
+layout_mode = 2
+text = "Belly Length"
+
+[node name="SliderBellyLength" type="HSlider" parent="UI/Panel/Scroll/VBox/BellyControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 100.0
+max_value = 260.0
+step = 1.0
+value = 180.0
+
+[node name="CheckForearm" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
 text = "Forearm Bevel (Front)"
 
-[node name="HelpText" type="Label" parent="UI/Panel/VBox"]
+[node name="ForearmControls" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+visible = false
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblForearmAngle" type="Label" parent="UI/Panel/Scroll/VBox/ForearmControls"]
+layout_mode = 2
+text = "Bevel Angle (°)"
+
+[node name="SliderForearmAngle" type="HSlider" parent="UI/Panel/Scroll/VBox/ForearmControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 3.0
+max_value = 20.0
+step = 0.5
+value = 8.0
+
+[node name="LblForearmLength" type="Label" parent="UI/Panel/Scroll/VBox/ForearmControls"]
+layout_mode = 2
+text = "Bevel Length"
+
+[node name="SliderForearmLength" type="HSlider" parent="UI/Panel/Scroll/VBox/ForearmControls"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 80.0
+max_value = 240.0
+step = 1.0
+value = 160.0
+
+[node name="HSeparator4" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+
+[node name="HelpText" type="Label" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)

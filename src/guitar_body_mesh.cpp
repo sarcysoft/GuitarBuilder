@@ -55,13 +55,79 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_symmetric_mode"), &GuitarBodyMesh::get_symmetric_mode);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "symmetric_mode"), "set_symmetric_mode", "get_symmetric_mode");
 
+    // Independent side properties
+    ClassDB::bind_method(D_METHOD("set_treble_hip_width", "val"), &GuitarBodyMesh::set_treble_hip_width);
+    ClassDB::bind_method(D_METHOD("get_treble_hip_width"), &GuitarBodyMesh::get_treble_hip_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "treble_hip_width"), "set_treble_hip_width", "get_treble_hip_width");
+
+    ClassDB::bind_method(D_METHOD("set_bass_hip_width", "val"), &GuitarBodyMesh::set_bass_hip_width);
+    ClassDB::bind_method(D_METHOD("get_bass_hip_width"), &GuitarBodyMesh::get_bass_hip_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bass_hip_width"), "set_bass_hip_width", "get_bass_hip_width");
+
+    ClassDB::bind_method(D_METHOD("set_treble_waist_width", "val"), &GuitarBodyMesh::set_treble_waist_width);
+    ClassDB::bind_method(D_METHOD("get_treble_waist_width"), &GuitarBodyMesh::get_treble_waist_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "treble_waist_width"), "set_treble_waist_width", "get_treble_waist_width");
+
+    ClassDB::bind_method(D_METHOD("set_bass_waist_width", "val"), &GuitarBodyMesh::set_bass_waist_width);
+    ClassDB::bind_method(D_METHOD("get_bass_waist_width"), &GuitarBodyMesh::get_bass_waist_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bass_waist_width"), "set_bass_waist_width", "get_bass_waist_width");
+
+    ClassDB::bind_method(D_METHOD("set_treble_chest_width", "val"), &GuitarBodyMesh::set_treble_chest_width);
+    ClassDB::bind_method(D_METHOD("get_treble_chest_width"), &GuitarBodyMesh::get_treble_chest_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "treble_chest_width"), "set_treble_chest_width", "get_treble_chest_width");
+
+    ClassDB::bind_method(D_METHOD("set_bass_chest_width", "val"), &GuitarBodyMesh::set_bass_chest_width);
+    ClassDB::bind_method(D_METHOD("get_bass_chest_width"), &GuitarBodyMesh::get_bass_chest_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bass_chest_width"), "set_bass_chest_width", "get_bass_chest_width");
+
+    ClassDB::bind_method(D_METHOD("set_treble_shoulder_width", "val"), &GuitarBodyMesh::set_treble_shoulder_width);
+    ClassDB::bind_method(D_METHOD("get_treble_shoulder_width"), &GuitarBodyMesh::get_treble_shoulder_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "treble_shoulder_width"), "set_treble_shoulder_width", "get_treble_shoulder_width");
+
+    ClassDB::bind_method(D_METHOD("set_bass_shoulder_width", "val"), &GuitarBodyMesh::set_bass_shoulder_width);
+    ClassDB::bind_method(D_METHOD("get_bass_shoulder_width"), &GuitarBodyMesh::get_bass_shoulder_width);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bass_shoulder_width"), "set_bass_shoulder_width", "get_bass_shoulder_width");
+
+    ClassDB::bind_method(D_METHOD("set_treble_horn_length", "val"), &GuitarBodyMesh::set_treble_horn_length);
+    ClassDB::bind_method(D_METHOD("get_treble_horn_length"), &GuitarBodyMesh::get_treble_horn_length);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "treble_horn_length"), "set_treble_horn_length", "get_treble_horn_length");
+
+    ClassDB::bind_method(D_METHOD("set_bass_horn_length", "val"), &GuitarBodyMesh::set_bass_horn_length);
+    ClassDB::bind_method(D_METHOD("get_bass_horn_length"), &GuitarBodyMesh::get_bass_horn_length);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bass_horn_length"), "set_bass_horn_length", "get_bass_horn_length");
+
+    // Ergonomic cuts
     ClassDB::bind_method(D_METHOD("set_belly_cut_enabled", "val"), &GuitarBodyMesh::set_belly_cut_enabled);
     ClassDB::bind_method(D_METHOD("get_belly_cut_enabled"), &GuitarBodyMesh::get_belly_cut_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "belly_cut_enabled"), "set_belly_cut_enabled", "get_belly_cut_enabled");
 
+    ClassDB::bind_method(D_METHOD("set_belly_cut_depth", "val"), &GuitarBodyMesh::set_belly_cut_depth);
+    ClassDB::bind_method(D_METHOD("get_belly_cut_depth"), &GuitarBodyMesh::get_belly_cut_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "belly_cut_depth"), "set_belly_cut_depth", "get_belly_cut_depth");
+
+    ClassDB::bind_method(D_METHOD("set_belly_cut_angle", "val"), &GuitarBodyMesh::set_belly_cut_angle);
+    ClassDB::bind_method(D_METHOD("get_belly_cut_angle"), &GuitarBodyMesh::get_belly_cut_angle);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "belly_cut_angle"), "set_belly_cut_angle", "get_belly_cut_angle");
+
+    ClassDB::bind_method(D_METHOD("set_belly_cut_length", "val"), &GuitarBodyMesh::set_belly_cut_length);
+    ClassDB::bind_method(D_METHOD("get_belly_cut_length"), &GuitarBodyMesh::get_belly_cut_length);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "belly_cut_length"), "set_belly_cut_length", "get_belly_cut_length");
+
     ClassDB::bind_method(D_METHOD("set_forearm_bevel_enabled", "val"), &GuitarBodyMesh::set_forearm_bevel_enabled);
     ClassDB::bind_method(D_METHOD("get_forearm_bevel_enabled"), &GuitarBodyMesh::get_forearm_bevel_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "forearm_bevel_enabled"), "set_forearm_bevel_enabled", "get_forearm_bevel_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_forearm_bevel_depth", "val"), &GuitarBodyMesh::set_forearm_bevel_depth);
+    ClassDB::bind_method(D_METHOD("get_forearm_bevel_depth"), &GuitarBodyMesh::get_forearm_bevel_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "forearm_bevel_depth"), "set_forearm_bevel_depth", "get_forearm_bevel_depth");
+
+    ClassDB::bind_method(D_METHOD("set_forearm_bevel_angle", "val"), &GuitarBodyMesh::set_forearm_bevel_angle);
+    ClassDB::bind_method(D_METHOD("get_forearm_bevel_angle"), &GuitarBodyMesh::get_forearm_bevel_angle);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "forearm_bevel_angle"), "set_forearm_bevel_angle", "get_forearm_bevel_angle");
+
+    ClassDB::bind_method(D_METHOD("set_forearm_bevel_length", "val"), &GuitarBodyMesh::set_forearm_bevel_length);
+    ClassDB::bind_method(D_METHOD("get_forearm_bevel_length"), &GuitarBodyMesh::get_forearm_bevel_length);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "forearm_bevel_length"), "set_forearm_bevel_length", "get_forearm_bevel_length");
 
     ClassDB::bind_method(D_METHOD("set_neck_pocket_enabled", "val"), &GuitarBodyMesh::set_neck_pocket_enabled);
     ClassDB::bind_method(D_METHOD("get_neck_pocket_enabled"), &GuitarBodyMesh::get_neck_pocket_enabled);
@@ -77,6 +143,8 @@ void GuitarBodyMesh::_ready() {
 void GuitarBodyMesh::set_hip_width(double p_val) {
     if (hip_width != p_val) {
         hip_width = p_val;
+        treble_hip_width = p_val * 0.5;
+        bass_hip_width = p_val * 0.5;
         rebuild_mesh();
     }
 }
@@ -84,6 +152,8 @@ void GuitarBodyMesh::set_hip_width(double p_val) {
 void GuitarBodyMesh::set_waist_width(double p_val) {
     if (waist_width != p_val) {
         waist_width = p_val;
+        treble_waist_width = p_val * 0.5;
+        bass_waist_width = p_val * 0.5;
         rebuild_mesh();
     }
 }
@@ -91,6 +161,8 @@ void GuitarBodyMesh::set_waist_width(double p_val) {
 void GuitarBodyMesh::set_chest_width(double p_val) {
     if (chest_width != p_val) {
         chest_width = p_val;
+        treble_chest_width = p_val * 0.5;
+        bass_chest_width = p_val * 0.5;
         rebuild_mesh();
     }
 }
@@ -98,6 +170,8 @@ void GuitarBodyMesh::set_chest_width(double p_val) {
 void GuitarBodyMesh::set_shoulder_width(double p_val) {
     if (shoulder_width != p_val) {
         shoulder_width = p_val;
+        treble_shoulder_width = p_val * 0.5;
+        bass_shoulder_width = p_val * 0.5;
         rebuild_mesh();
     }
 }
@@ -130,6 +204,84 @@ void GuitarBodyMesh::set_symmetric_mode(bool p_val) {
     }
 }
 
+void GuitarBodyMesh::set_treble_hip_width(double p_val) {
+    if (treble_hip_width != p_val) {
+        treble_hip_width = p_val;
+        hip_width = treble_hip_width + bass_hip_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bass_hip_width(double p_val) {
+    if (bass_hip_width != p_val) {
+        bass_hip_width = p_val;
+        hip_width = treble_hip_width + bass_hip_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_treble_waist_width(double p_val) {
+    if (treble_waist_width != p_val) {
+        treble_waist_width = p_val;
+        waist_width = treble_waist_width + bass_waist_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bass_waist_width(double p_val) {
+    if (bass_waist_width != p_val) {
+        bass_waist_width = p_val;
+        waist_width = treble_waist_width + bass_waist_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_treble_chest_width(double p_val) {
+    if (treble_chest_width != p_val) {
+        treble_chest_width = p_val;
+        chest_width = treble_chest_width + bass_chest_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bass_chest_width(double p_val) {
+    if (bass_chest_width != p_val) {
+        bass_chest_width = p_val;
+        chest_width = treble_chest_width + bass_chest_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_treble_shoulder_width(double p_val) {
+    if (treble_shoulder_width != p_val) {
+        treble_shoulder_width = p_val;
+        shoulder_width = treble_shoulder_width + bass_shoulder_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bass_shoulder_width(double p_val) {
+    if (bass_shoulder_width != p_val) {
+        bass_shoulder_width = p_val;
+        shoulder_width = treble_shoulder_width + bass_shoulder_width;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_treble_horn_length(double p_val) {
+    if (treble_horn_length != p_val) {
+        treble_horn_length = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_bass_horn_length(double p_val) {
+    if (bass_horn_length != p_val) {
+        bass_horn_length = p_val;
+        rebuild_mesh();
+    }
+}
+
 void GuitarBodyMesh::set_belly_cut_enabled(bool p_val) {
     if (belly_cut_enabled != p_val) {
         belly_cut_enabled = p_val;
@@ -137,9 +289,51 @@ void GuitarBodyMesh::set_belly_cut_enabled(bool p_val) {
     }
 }
 
+void GuitarBodyMesh::set_belly_cut_depth(double p_val) {
+    if (belly_cut_depth != p_val) {
+        belly_cut_depth = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_belly_cut_angle(double p_val) {
+    if (belly_cut_angle != p_val) {
+        belly_cut_angle = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_belly_cut_length(double p_val) {
+    if (belly_cut_length != p_val) {
+        belly_cut_length = p_val;
+        rebuild_mesh();
+    }
+}
+
 void GuitarBodyMesh::set_forearm_bevel_enabled(bool p_val) {
     if (forearm_bevel_enabled != p_val) {
         forearm_bevel_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_forearm_bevel_depth(double p_val) {
+    if (forearm_bevel_depth != p_val) {
+        forearm_bevel_depth = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_forearm_bevel_angle(double p_val) {
+    if (forearm_bevel_angle != p_val) {
+        forearm_bevel_angle = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_forearm_bevel_length(double p_val) {
+    if (forearm_bevel_length != p_val) {
+        forearm_bevel_length = p_val;
         rebuild_mesh();
     }
 }
@@ -178,10 +372,32 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     double L = body_length; // standard reference 446.0 mm
     double scale_y = L / 446.0;
-    double half_hip = hip_width * 0.5;
-    double half_waist = waist_width * 0.5;
-    double half_chest = chest_width * 0.5;
-    double half_shoulder = shoulder_width * 0.5;
+
+    double t_hip = treble_hip_width;
+    double t_waist = treble_waist_width;
+    double t_chest = treble_chest_width;
+    double t_shoulder = treble_shoulder_width;
+    double t_scale_horn = treble_horn_length / 446.35;
+
+    double b_hip = bass_hip_width;
+    double b_waist = bass_waist_width;
+    double b_chest = bass_chest_width;
+    double b_shoulder = bass_shoulder_width;
+    double b_scale_horn = bass_horn_length / 458.0;
+
+    if (symmetric_mode) {
+        t_hip = hip_width * 0.5;
+        t_waist = waist_width * 0.5;
+        t_chest = chest_width * 0.5;
+        t_shoulder = shoulder_width * 0.5;
+        t_scale_horn = scale_y;
+
+        b_hip = t_hip;
+        b_waist = t_waist;
+        b_chest = t_chest;
+        b_shoulder = t_shoulder;
+        b_scale_horn = scale_y;
+    }
 
     const double r_hip = 159.0;
     const double r_waist = 115.6;
@@ -191,19 +407,19 @@ void GuitarBodyMesh::rebuild_mesh() {
     // Right side (+X, Treble side): starts from bottom tail (0,0) and sweeps CCW to the neck pocket center (0, 399.7)
     std::vector<vec2> right_keys = {
         vec2{   0.00,                                 0.00 },                // 0: Tail bottom center
-        vec2{  27.23 * (half_hip / r_hip),            1.69 * scale_y },      // 1: Tail bottom curve
-        vec2{  66.95 * (half_hip / r_hip),            8.80 * scale_y },      // 2: Lower bout entry
-        vec2{ 111.58 * (half_hip / r_hip),           30.43 * scale_y },      // 3: Lower bout sweep
-        vec2{ 145.13 * (half_hip / r_hip),           72.89 * scale_y },      // 4: Lower bout curve
-        vec2{ half_hip,                             143.95 * scale_y },      // 5: Hip apex (widest lower bout ~318.6mm)
-        vec2{ 146.33 * (half_hip / r_hip),          207.40 * scale_y },      // 6: Lower bout to waist transition
-        vec2{ half_waist,                           256.50 * scale_y },      // 7: Waist minimum (~238mm)
-        vec2{ 122.20 * (half_waist / r_waist),      309.62 * scale_y },      // 8: Waist to chest rise
-        vec2{ half_chest,                           362.05 * scale_y },      // 9: Chest / Upper bout apex
-        vec2{ 136.31 * (half_shoulder / 125.0),     416.30 * scale_y },      // 10: Horn outer rise
-        vec2{ 124.06 * (half_shoulder / 125.0),     446.35 * scale_y },      // 11: Horn tip apex
-        vec2{ 105.72 * (half_shoulder / 125.0),     421.13 * scale_y },      // 12: Horn inner slope
-        vec2{  91.72 * (half_shoulder / 125.0),     388.22 * scale_y },      // 13: Horn inner flank
+        vec2{  27.23 * (t_hip / r_hip),               1.69 * scale_y },      // 1: Tail bottom curve
+        vec2{  66.95 * (t_hip / r_hip),               8.80 * scale_y },      // 2: Lower bout entry
+        vec2{ 111.58 * (t_hip / r_hip),              30.43 * scale_y },      // 3: Lower bout sweep
+        vec2{ 145.13 * (t_hip / r_hip),              72.89 * scale_y },      // 4: Lower bout curve
+        vec2{ t_hip,                                143.95 * scale_y },      // 5: Hip apex (widest lower bout ~318.6mm)
+        vec2{ 146.33 * (t_hip / r_hip),             207.40 * scale_y },      // 6: Lower bout to waist transition
+        vec2{ t_waist,                              256.50 * scale_y },      // 7: Waist minimum (~238mm)
+        vec2{ 122.20 * (t_waist / r_waist),         309.62 * scale_y },      // 8: Waist to chest rise
+        vec2{ t_chest,                              362.05 * scale_y },      // 9: Chest / Upper bout apex
+        vec2{ 136.31 * (t_shoulder / 125.0),        416.30 * t_scale_horn }, // 10: Horn outer rise
+        vec2{ 124.06 * (t_shoulder / 125.0),        446.35 * t_scale_horn }, // 11: Horn tip apex
+        vec2{ 105.72 * (t_shoulder / 125.0),        421.13 * t_scale_horn }, // 12: Horn inner slope
+        vec2{  91.72 * (t_shoulder / 125.0),        388.22 * t_scale_horn }, // 13: Horn inner flank
         vec2{  74.38,                               367.52 * scale_y },      // 14: Cutaway scoop descent
         vec2{  54.52,                               366.60 * scale_y },      // 15: Cutaway scoop floor
         vec2{  40.00,                               374.00 * scale_y },      // 16: Scoop rise to neck
@@ -221,27 +437,27 @@ void GuitarBodyMesh::rebuild_mesh() {
             left_keys.push_back(vec2{ -right_keys[i].x, right_keys[i].y });
         }
     } else {
-        // Asymmetric Stratocaster: Extended bass horn (+12mm) and shallower bass cutaway scoop
+        // Independent asymmetric Bass side (-X)
         left_keys = {
             vec2{  -14.00,                               399.69 * scale_y },
             vec2{  -28.25,                               399.69 * scale_y },
             vec2{  -32.00,                               388.00 * scale_y },
             vec2{  -40.00,                               378.00 * scale_y },
             vec2{  -56.00,                               376.00 * scale_y },
-            vec2{  -78.00 * (half_shoulder / 125.0),     388.00 * scale_y },
-            vec2{  -95.00 * (half_shoulder / 125.0),     418.00 * scale_y },
-            vec2{ -108.00 * (half_shoulder / 125.0),     438.00 * scale_y },
-            vec2{ -124.06 * (half_shoulder / 125.0),     458.00 * scale_y }, // Extended bass horn (+12mm)
-            vec2{ -136.31 * (half_shoulder / 125.0),     428.00 * scale_y },
-            vec2{ -half_chest,                           362.05 * scale_y },
-            vec2{ -122.20 * (half_waist / r_waist),      309.62 * scale_y },
-            vec2{ -half_waist,                           256.50 * scale_y },
-            vec2{ -146.33 * (half_hip / r_hip),          207.40 * scale_y },
-            vec2{ -half_hip,                             143.95 * scale_y },
-            vec2{ -145.13 * (half_hip / r_hip),           72.89 * scale_y },
-            vec2{ -111.58 * (half_hip / r_hip),           30.43 * scale_y },
-            vec2{  -66.95 * (half_hip / r_hip),            8.80 * scale_y },
-            vec2{  -27.23 * (half_hip / r_hip),            1.69 * scale_y }
+            vec2{  -78.00 * (b_shoulder / 125.0),        388.00 * scale_y },
+            vec2{  -95.00 * (b_shoulder / 125.0),        418.00 * b_scale_horn },
+            vec2{ -108.00 * (b_shoulder / 125.0),        438.00 * b_scale_horn },
+            vec2{ -124.06 * (b_shoulder / 125.0),        458.00 * b_scale_horn }, // Bass horn apex
+            vec2{ -136.31 * (b_shoulder / 125.0),        428.00 * b_scale_horn },
+            vec2{ -b_chest,                              362.05 * scale_y },
+            vec2{ -122.20 * (b_waist / r_waist),         309.62 * scale_y },
+            vec2{ -b_waist,                              256.50 * scale_y },
+            vec2{ -146.33 * (b_hip / r_hip),             207.40 * scale_y },
+            vec2{ -b_hip,                                143.95 * scale_y },
+            vec2{ -145.13 * (b_hip / r_hip),              72.89 * scale_y },
+            vec2{ -111.58 * (b_hip / r_hip),              30.43 * scale_y },
+            vec2{  -66.95 * (b_hip / r_hip),               8.80 * scale_y },
+            vec2{  -27.23 * (b_hip / r_hip),               1.69 * scale_y }
         };
     }
 
@@ -400,17 +616,23 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     // Ergonomic Cut 1: Belly Cut (Tummy contour on rear waist Z=0, bass side only)
     if (belly_cut_enabled) {
-        Manifold belly_cutter = Manifold::Cube(vec3{ 140.0, 160.0 * scale_y, 40.0 }, true)
-            .Rotate(-12.0, 10.0, 0.0)
-            .Translate(vec3{ -half_hip * 0.70, 250.0 * scale_y, -14.0 });
+        double cut_len = belly_cut_length * scale_y;
+        double hinge_x = -40.0;
+        Manifold belly_cutter = Manifold::Cube(vec3{ 350.0, cut_len, 120.0 }, false)
+            .Translate(vec3{ 0.0, -cut_len * 0.5, -120.0 })
+            .Rotate(0.0, belly_cut_angle, 192.0)
+            .Translate(vec3{ hinge_x, 250.0 * scale_y, 0.0 });
         body = body - belly_cutter;
     }
 
     // Ergonomic Cut 2: Forearm Bevel (Front lower bout, Z near body_thickness, treble side only)
     if (forearm_bevel_enabled) {
-        Manifold forearm_cutter = Manifold::Cube(vec3{ 140.0, 150.0 * scale_y, 40.0 }, true)
-            .Rotate(12.0, -8.0, 0.0)
-            .Translate(vec3{ half_hip * 0.80, 140.0 * scale_y, body_thickness + 14.0 });
+        double cut_len = forearm_bevel_length * scale_y;
+        double hinge_x = 55.0;
+        Manifold forearm_cutter = Manifold::Cube(vec3{ 350.0, cut_len, 120.0 }, false)
+            .Translate(vec3{ 0.0, -cut_len * 0.5, 0.0 })
+            .Rotate(0.0, -forearm_bevel_angle, -10.0)
+            .Translate(vec3{ hinge_x, 140.0 * scale_y, body_thickness });
         body = body - forearm_cutter;
     }
 
@@ -473,7 +695,8 @@ void GuitarBodyMesh::rebuild_mesh() {
             normals[(int64_t)v] = Vector3(0, 0, 1);
         }
 
-        float u = (px + (float)half_hip * scale_factor) / ((float)hip_width * scale_factor);
+        float total_hip = (float)(t_hip + b_hip);
+        float u = (px + (float)b_hip * scale_factor) / (total_hip * scale_factor);
         float v_coord = py / ((float)L * scale_factor);
         uvs[(int64_t)v] = Vector2(u, v_coord);
     }
