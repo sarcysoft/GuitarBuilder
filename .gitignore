@@ -33,7 +33,11 @@ debug/
 
 # Godot 4 project ignores
 .godot/
+project/.godot/
 *.translation
+project/preview.png
+project/bin/*.dll
+project/bin/Release/
 
 # C++ / SCons / CMake build artifacts
 build/
@@ -44,3 +48,4 @@ bin/
 *.pdb
 *.ilk
 .sconsign.dblite
+thirdparty/
