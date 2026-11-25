@@ -11,11 +11,11 @@ class GuitarBodyMesh : public MeshInstance3D {
     GDCLASS(GuitarBodyMesh, MeshInstance3D);
 
 private:
-    double hip_width = 320.0;
-    double waist_width = 228.0;
-    double chest_width = 276.0;
+    double hip_width = 318.0;
+    double waist_width = 231.0;
+    double chest_width = 275.0;
     double shoulder_width = 250.0;
-    double body_length = 460.0;
+    double body_length = 446.0;
     double body_thickness = 45.0;
     double edge_radius = 8.0;
 
@@ -25,15 +25,15 @@ private:
     double right_chest_offset = 0.0;
     double right_shoulder_offset = 0.0;
 
-    bool belly_cut_enabled = true;
+    bool belly_cut_enabled = false;
     double belly_cut_depth = 14.0;
-    double belly_cut_angle = 18.0;
+    double belly_cut_angle = 15.0;
 
-    bool forearm_bevel_enabled = true;
+    bool forearm_bevel_enabled = false;
     double forearm_bevel_depth = 12.0;
     double forearm_bevel_angle = 15.0;
 
-    bool neck_pocket_enabled = true;
+    bool neck_pocket_enabled = false;
 
 protected:
     static void _bind_methods();
