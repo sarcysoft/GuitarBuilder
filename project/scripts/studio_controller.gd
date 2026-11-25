@@ -97,9 +97,12 @@ func _setup_materials():
 	body_mesh.material_override = mat
 
 	chrome_mat = StandardMaterial3D.new()
-	chrome_mat.albedo_color = Color(0.92, 0.94, 0.96)
-	chrome_mat.metallic = 0.98
-	chrome_mat.roughness = 0.12
+	chrome_mat.albedo_color = Color(0.96, 0.97, 0.99)
+	chrome_mat.metallic = 0.95
+	chrome_mat.roughness = 0.10
+	chrome_mat.clearcoat_enabled = true
+	chrome_mat.clearcoat = 0.8
+	chrome_mat.clearcoat_roughness = 0.05
 	chrome_mat.cull_mode = BaseMaterial3D.CULL_BACK
 
 	black_plastic_mat = StandardMaterial3D.new()
@@ -520,14 +523,67 @@ func _create_knob_visuals(to_world: Callable, scale_y: float):
 		knob_group.add_child(knob)
 
 func _create_jack_plate_visuals(to_world: Callable, scale_y: float):
+	var jack_group = Node3D.new()
+	jack_group.name = "JackPlateRig"
+	hardware_rig.add_child(jack_group)
+
+	var t_hip = body_mesh.treble_hip_width if not body_mesh.symmetric_mode else body_mesh.hip_width * 0.5
+	var edge_x = (t_hip * 0.945) * 0.001
+	var center_y = 240.0 * scale_y * 0.001
+	var edge_y = (70.0 * scale_y) * 0.001 - center_y
+	var edge_z = 0.0 # mid-body rim where coaxial tunnel emerges
+
+	jack_group.position = Vector3(edge_x, edge_y, edge_z)
+	# Align to lower bout perimeter rim normal
+	jack_group.rotation = Vector3(0.0, deg_to_rad(85.0), deg_to_rad(-34.0))
+
+	# Football baseplate (oval shape)
 	var plate = MeshInstance3D.new()
-	var box = BoxMesh.new()
-	box.size = Vector3(0.024, 0.048, 0.0025)
-	plate.mesh = box
+	var cyl = CylinderMesh.new()
+	cyl.top_radius = 0.012
+	cyl.bottom_radius = 0.012
+	cyl.height = 0.002
+	plate.mesh = cyl
+	plate.scale = Vector3(1.0, 1.0, 2.0)
+	plate.rotation.x = PI * 0.5
 	plate.material_override = chrome_mat
-	plate.position = to_world.call(140.0, 75.0, 0.0015)
-	plate.rotation = Vector3(deg_to_rad(-12.0), deg_to_rad(8.0), deg_to_rad(-45.0))
-	hardware_rig.add_child(plate)
+	jack_group.add_child(plate)
+
+	# 1/4" Jack hex nut
+	var nut = MeshInstance3D.new()
+	var nut_mesh = CylinderMesh.new()
+	nut_mesh.top_radius = 0.006
+	nut_mesh.bottom_radius = 0.006
+	nut_mesh.height = 0.003
+	nut_mesh.radial_segments = 6 # 6-sided hex nut
+	nut.mesh = nut_mesh
+	nut.rotation.x = PI * 0.5
+	nut.position = Vector3(0.0, 0.0, 0.0015)
+	nut.material_override = chrome_mat
+	jack_group.add_child(nut)
+
+	# Center 1/4" socket hole
+	var socket_hole = MeshInstance3D.new()
+	var sock_mesh = CylinderMesh.new()
+	sock_mesh.top_radius = 0.0032
+	sock_mesh.bottom_radius = 0.0032
+	sock_mesh.height = 0.004
+	socket_hole.mesh = sock_mesh
+	socket_hole.rotation.x = PI * 0.5
+	socket_hole.position = Vector3(0.0, 0.0, 0.002)
+	socket_hole.material_override = black_plastic_mat
+	jack_group.add_child(socket_hole)
+
+	# 2 Chrome mounting screws
+	for s_sign in [-1.0, 1.0]:
+		var screw = MeshInstance3D.new()
+		var s_mesh = SphereMesh.new()
+		s_mesh.radius = 0.0016
+		s_mesh.height = 0.0016
+		screw.mesh = s_mesh
+		screw.position = Vector3(0.0, s_sign * 0.018, 0.001)
+		screw.material_override = chrome_mat
+		jack_group.add_child(screw)
 
 func _check_cli_capture():
 	var args = OS.get_cmdline_args() + OS.get_cmdline_user_args()
