@@ -198,6 +198,7 @@ func _connect_signals():
 		body_mesh.symmetric_mode = v
 		symmetric_controls.visible = v
 		asymmetric_controls.visible = not v
+		_update_hardware_visuals()
 	)
 
 	# Unified Symmetric
@@ -205,16 +206,19 @@ func _connect_signals():
 		body_mesh.hip_width = v
 		slider_t_hip.value = v * 0.5
 		slider_b_hip.value = v * 0.5
+		_update_hardware_visuals()
 	)
 	slider_waist.value_changed.connect(func(v):
 		body_mesh.waist_width = v
 		slider_t_waist.value = v * 0.5
 		slider_b_waist.value = v * 0.5
+		_update_hardware_visuals()
 	)
 	slider_chest.value_changed.connect(func(v):
 		body_mesh.chest_width = v
 		slider_t_chest.value = v * 0.5
 		slider_b_chest.value = v * 0.5
+		_update_hardware_visuals()
 	)
 	slider_shoulder.value_changed.connect(func(v):
 		body_mesh.shoulder_width = v
@@ -231,14 +235,25 @@ func _connect_signals():
 	)
 
 	# Asymmetric Treble
-	slider_t_hip.value_changed.connect(func(v): body_mesh.treble_hip_width = v)
-	slider_t_waist.value_changed.connect(func(v): body_mesh.treble_waist_width = v)
-	slider_t_chest.value_changed.connect(func(v): body_mesh.treble_chest_width = v)
+	slider_t_hip.value_changed.connect(func(v):
+		body_mesh.treble_hip_width = v
+		_update_hardware_visuals()
+	)
+	slider_t_waist.value_changed.connect(func(v):
+		body_mesh.treble_waist_width = v
+		_update_hardware_visuals()
+	)
+	slider_t_chest.value_changed.connect(func(v):
+		body_mesh.treble_chest_width = v
+		_update_hardware_visuals()
+	)
 	slider_t_horn.value_changed.connect(func(v): body_mesh.treble_horn_length = v)
 	slider_t_roundness.value_changed.connect(func(v): body_mesh.treble_horn_roundness = v)
 
 	# Asymmetric Bass
-	slider_b_hip.value_changed.connect(func(v): body_mesh.bass_hip_width = v)
+	slider_b_hip.value_changed.connect(func(v):
+		body_mesh.bass_hip_width = v
+	)
 	slider_b_waist.value_changed.connect(func(v): body_mesh.bass_waist_width = v)
 	slider_b_chest.value_changed.connect(func(v): body_mesh.bass_chest_width = v)
 	slider_b_horn.value_changed.connect(func(v): body_mesh.bass_horn_length = v)
@@ -528,60 +543,75 @@ func _create_jack_plate_visuals(to_world: Callable, scale_y: float):
 	hardware_rig.add_child(jack_group)
 
 	var t_hip = body_mesh.treble_hip_width if not body_mesh.symmetric_mode else body_mesh.hip_width * 0.5
-	var edge_x = (t_hip * 0.945) * 0.001
+	var r_hip = 159.0
 	var center_y = 240.0 * scale_y * 0.001
-	var edge_y = (70.0 * scale_y) * 0.001 - center_y
-	var edge_z = 0.0 # mid-body rim where coaxial tunnel emerges
 
-	jack_group.position = Vector3(edge_x, edge_y, edge_z)
-	# Align to lower bout perimeter rim normal
-	jack_group.rotation = Vector3(0.0, deg_to_rad(85.0), deg_to_rad(-34.0))
+	# Waypoints 3, 4, 5 from body contour to derive exact position and tangent
+	var p3 = Vector2(111.58 * (t_hip / r_hip), 30.43 * scale_y)
+	var p4 = Vector2(145.13 * (t_hip / r_hip), 72.89 * scale_y)
+	var p5 = Vector2(t_hip, 143.95 * scale_y)
 
-	# Football baseplate (oval shape)
+	var world_pos = Vector3(p4.x * 0.001, p4.y * 0.001 - center_y, 0.0)
+	var tangent_2d = (p5 - p3).normalized()
+
+	# Orthonormal basis:
+	# basis_x: major axis of oval plate along rim curve (tangent)
+	var basis_x = Vector3(tangent_2d.x, tangent_2d.y, 0.0)
+	# basis_y: minor axis of oval plate across body thickness (Z in world)
+	var basis_y = Vector3(0.0, 0.0, 1.0)
+	# basis_z: outward normal pointing out of guitar body
+	var basis_z = Vector3(tangent_2d.y, -tangent_2d.x, 0.0)
+
+	jack_group.transform = Transform3D(basis_x, basis_y, basis_z, world_pos)
+
+	# Oval football baseplate
+	# CylinderMesh: by default height is along Y, circle is in XZ.
+	# Rotating 90 deg around X puts height along Z (normal), and circle in XY (rim plane).
 	var plate = MeshInstance3D.new()
 	var cyl = CylinderMesh.new()
 	cyl.top_radius = 0.012
 	cyl.bottom_radius = 0.012
-	cyl.height = 0.002
+	cyl.height = 0.0016
 	plate.mesh = cyl
-	plate.scale = Vector3(1.0, 1.0, 2.0)
-	plate.rotation.x = PI * 0.5
+	plate.rotation = Vector3(PI * 0.5, 0.0, 0.0)
+	plate.scale = Vector3(2.0, 1.0, 1.0) # 48mm along X (rim curve), 24mm along Y (body thickness)
+	plate.position = Vector3(0.0, 0.0, 0.0008) # Flush on outer wood rim
 	plate.material_override = chrome_mat
 	jack_group.add_child(plate)
 
-	# 1/4" Jack hex nut
+	# 1/4" Hex nut
 	var nut = MeshInstance3D.new()
 	var nut_mesh = CylinderMesh.new()
 	nut_mesh.top_radius = 0.006
 	nut_mesh.bottom_radius = 0.006
-	nut_mesh.height = 0.003
-	nut_mesh.radial_segments = 6 # 6-sided hex nut
+	nut_mesh.height = 0.0025
+	nut_mesh.radial_segments = 6 # 6-sided hex
 	nut.mesh = nut_mesh
-	nut.rotation.x = PI * 0.5
-	nut.position = Vector3(0.0, 0.0, 0.0015)
+	nut.rotation = Vector3(PI * 0.5, 0.0, 0.0)
+	nut.position = Vector3(0.0, 0.0, 0.0022)
 	nut.material_override = chrome_mat
 	jack_group.add_child(nut)
 
-	# Center 1/4" socket hole
+	# Center 1/4" dark socket bore
 	var socket_hole = MeshInstance3D.new()
 	var sock_mesh = CylinderMesh.new()
-	sock_mesh.top_radius = 0.0032
+	sock_mesh.top_radius = 0.0032 # 6.4mm jack bore
 	sock_mesh.bottom_radius = 0.0032
-	sock_mesh.height = 0.004
+	sock_mesh.height = 0.003
 	socket_hole.mesh = sock_mesh
-	socket_hole.rotation.x = PI * 0.5
-	socket_hole.position = Vector3(0.0, 0.0, 0.002)
+	socket_hole.rotation = Vector3(PI * 0.5, 0.0, 0.0)
+	socket_hole.position = Vector3(0.0, 0.0, 0.0026)
 	socket_hole.material_override = black_plastic_mat
 	jack_group.add_child(socket_hole)
 
-	# 2 Chrome mounting screws
+	# 2 Chrome mounting screws along long axis (X)
 	for s_sign in [-1.0, 1.0]:
 		var screw = MeshInstance3D.new()
 		var s_mesh = SphereMesh.new()
 		s_mesh.radius = 0.0016
 		s_mesh.height = 0.0016
 		screw.mesh = s_mesh
-		screw.position = Vector3(0.0, s_sign * 0.018, 0.001)
+		screw.position = Vector3(s_sign * 0.0165, 0.0, 0.0016)
 		screw.material_override = chrome_mat
 		jack_group.add_child(screw)
 
@@ -638,6 +668,19 @@ func _check_cli_capture():
 		check_control_cavity.button_pressed = true
 		body_mesh.control_cavity_enabled = true
 		camera_pivot.rotation = Vector3(-0.25, PI + 0.4, 0.0)
+		should_exit = true
+	elif "--test-jack-closeup" in args:
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.15, 1.25, 0.0)
+		camera.position.z = 0.85
+		should_exit = true
+	elif "--test-jack-morph" in args:
+		slider_hip.value = 390.0
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.15, 1.25, 0.0)
+		camera.position.z = 0.85
 		should_exit = true
 
 	if should_exit or "--screenshot" in args or "--capture" in args:
