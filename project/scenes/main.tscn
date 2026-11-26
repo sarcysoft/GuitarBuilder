@@ -623,6 +623,10 @@ text = "Render Chrome Hardware"
 layout_mode = 2
 text = "Piezo Saddles (3x6mm Wire Slots)"
 
+[node name="CheckPiezo" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Piezo Saddles (3x6mm Wire Slots)"
+
 [node name="HSeparatorCAM" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 

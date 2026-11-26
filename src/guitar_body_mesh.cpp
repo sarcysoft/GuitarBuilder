@@ -1283,6 +1283,28 @@ void GuitarBodyMesh::rebuild_mesh() {
         }
     }
 
+    // Control Cavity & Potentiometer Shaft Holes
+    // Situated at cc_x = 88.0, cc_y = 175.0 to guarantee ample clearance (> 16mm)
+    // from the vertical slicing plane (X=50), > 17mm from horizontal bridge cut (Y=110),
+    // and completely self-contained within the right wing.
+    double cc_x = 88.0;
+    double cc_y = 175.0 * scale_y;
+    double drill_z = std::max(12.0, body_thickness - pickup_depth - 1.5);
+
+    // Helper lambda for straight cylindrical tunnels between two 3D points
+    auto make_tunnel = [](const vec3& start, const vec3& end, double radius) -> Manifold {
+        vec3 dir{ end.x - start.x, end.y - start.y, end.z - start.z };
+        double len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        if (len < 1e-3) return Manifold();
+        double pitch_deg = -std::asin(dir.z / len) * 180.0 / 3.141592653589793;
+        double yaw_deg = std::atan2(dir.y, dir.x) * 180.0 / 3.141592653589793;
+        return Manifold::Cylinder(len + 4.0, radius, radius, 16)
+            .Translate(vec3{ 0.0, 0.0, -2.0 })
+            .Rotate(0.0, 90.0, 0.0)
+            .Rotate(0.0, pitch_deg, yaw_deg)
+            .Translate(start);
+    };
+
     // Bridge Routing & String Holes
     if (bridge_enabled) {
         double b_y = bridge_y * scale_y;
@@ -1306,11 +1328,14 @@ void GuitarBodyMesh::rebuild_mesh() {
             body = body - block_slot - spring_cavity;
         }
 
-        // Piezo saddle wire slots (3mm wide slot from 6mm to 12mm in front of string holes, curved ends)
+        // Piezo saddle wire slots & angled routing into main electronics cavity
+        // Slots are not cut all the way through; they plunge to progressive depths
+        // (slot 1 shallow at 8mm, slot 6 deep at 18mm) and connect to an angled tunnel guiding wires directly into the control cavity.
         if (piezo_saddles_enabled) {
             double r = 1.5;
             double y_bot = b_y + 7.5 * scale_y;
             double y_top = b_y + 10.5 * scale_y;
+            double y_center = b_y + 9.0 * scale_y;
             double spacing = 10.5;
             const int segs = 12;
 
@@ -1326,20 +1351,27 @@ void GuitarBodyMesh::rebuild_mesh() {
                     slot_pts.push_back(vec2{ sx + r * std::cos(ang), y_bot + r * std::sin(ang) });
                 }
                 CrossSection cs_slot(slot_pts, CrossSection::FillRule::Positive);
-                Manifold piezo_slot = Manifold::Extrude(cs_slot.ToPolygons(), body_thickness + 4.0)
-                    .Translate(vec3{ 0.0, 0.0, -2.0 });
+                // Progressive depth: 8mm for 1st slot up to 18mm for 6th slot
+                double slot_depth = 8.0 + i * 2.0;
+                Manifold piezo_slot = Manifold::Extrude(cs_slot.ToPolygons(), slot_depth + 2.0)
+                    .Translate(vec3{ 0.0, 0.0, body_thickness - slot_depth });
                 body = body - piezo_slot;
             }
+
+            // Angled channel sloping under all 6 slots (from slot 1 at depth 8mm to slot 6 at depth 18mm)
+            vec3 p_first{ -26.25, y_center, body_thickness - 8.0 };
+            vec3 p_last{   26.25, y_center, body_thickness - 18.0 };
+            Manifold saddle_wire_ramp = make_tunnel(p_first, p_last, 2.5);
+            saddle_wire_ramp = saddle_wire_ramp + Manifold::Sphere(2.5, 16).Translate(p_first);
+
+            // Angled tunnel routing from 6th slot directly across to the main electronics cavity
+            vec3 p_cc{ cc_x - 14.0, cc_y, drill_z };
+            Manifold piezo_to_cavity = make_tunnel(p_last, p_cc, 3.0);
+            piezo_to_cavity = piezo_to_cavity + Manifold::Sphere(3.0, 16).Translate(p_last);
+
+            body = body - saddle_wire_ramp - piezo_to_cavity;
         }
     }
-
-    // Control Cavity & Potentiometer Shaft Holes
-    // Control Cavity & Potentiometer Shaft Holes
-    // Situated at cc_x = 88.0, cc_y = 175.0 to guarantee ample clearance (> 16mm)
-    // from the vertical slicing plane (X=50), > 17mm from horizontal bridge cut (Y=110),
-    // and completely self-contained within the right wing.
-    double cc_x = 88.0;
-    double cc_y = 175.0 * scale_y;
 
     if (control_cavity_enabled) {
         double pocket_depth = std::min(control_cavity_depth, body_thickness - 6.0);
@@ -1385,23 +1417,6 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     // Wiring Tunnels
     if (wiring_tunnels_enabled) {
-        // Tunnel drill height: breaks cleanly through the bottom of the pickup cavities into control pocket
-        double drill_z = std::max(12.0, body_thickness - pickup_depth - 1.5);
-
-        // Helper lambda for straight cylindrical tunnels between two 3D points
-        auto make_tunnel = [](const vec3& start, const vec3& end, double radius) -> Manifold {
-            vec3 dir{ end.x - start.x, end.y - start.y, end.z - start.z };
-            double len = std::sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
-            if (len < 1e-3) return Manifold();
-            double pitch_deg = -std::asin(dir.z / len) * 180.0 / 3.141592653589793;
-            double yaw_deg = std::atan2(dir.y, dir.x) * 180.0 / 3.141592653589793;
-            return Manifold::Cylinder(len + 4.0, radius, radius, 16)
-                .Translate(vec3{ 0.0, 0.0, -2.0 })
-                .Rotate(0.0, 90.0, 0.0)
-                .Rotate(0.0, pitch_deg, yaw_deg)
-                .Translate(start);
-        };
-
         // 1. Pickup Inter-Pocket Tunnels (treble side channel at X = 22.0)
         double p_channel_x = 22.0;
 
@@ -1429,11 +1444,14 @@ void GuitarBodyMesh::rebuild_mesh() {
             body = body - make_tunnel(p_brg, p_cc, 4.5);
         }
 
-        // 2. Bridge Ground Wire Tunnel (4.0mm diameter)
-        // Drilled from bridge position into the control cavity
-        vec3 gnd_start{ 14.0, bridge_y * scale_y, body_thickness - 2.0 };
-        vec3 gnd_end{ cc_x - 14.0, cc_y, drill_z };
-        body = body - make_tunnel(gnd_start, gnd_end, 2.0);
+        // 2. Bridge Ground Wire Tunnel (3.0mm diameter)
+        // If piezo saddles are enabled, the piezo wire route already connects bridge to cavity.
+        // Otherwise, drill a dedicated submerged ground wire tunnel from under the bridge plate.
+        if (!piezo_saddles_enabled) {
+            vec3 gnd_start{ 10.5, (bridge_y + 4.0) * scale_y, body_thickness - 3.5 };
+            vec3 gnd_end{ cc_x - 14.0, cc_y, drill_z };
+            body = body - make_tunnel(gnd_start, gnd_end, 1.5);
+        }
 
         // 3. Output Jack Tunnel (12.0mm diameter)
         // Drilled from control cavity to the side rim at waypoint 4
