@@ -83,6 +83,7 @@ extends Node3D
 @onready var btn_tab_body = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabBody
 @onready var btn_tab_hardware = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabHardware
 @onready var btn_tab_slicing = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabSlicing
+@onready var btn_tab_finish = $UI/Panel/Scroll/VBox/ModeTabs/BtnTabFinish
 @onready var btn_quick_slicing = $UI/BtnQuickSlicing
 @onready var hsep_mode = $UI/Panel/Scroll/VBox/HSeparatorMode
 @onready var lbl_global = $UI/Panel/Scroll/VBox/LblGlobal
@@ -97,10 +98,36 @@ extends Node3D
 @onready var lbl_cam = $UI/Panel/Scroll/VBox/LblCAM
 @onready var lbl_cam_sub = $UI/Panel/Scroll/VBox/LblCAMSub
 
+# Finish & Materials Controls
+@onready var hsep_finish = $UI/Panel/Scroll/VBox/HSeparatorFinish
+@onready var lbl_finish = $UI/Panel/Scroll/VBox/LblFinish
+@onready var grid_finish = $UI/Panel/Scroll/VBox/GridFinish
+@onready var option_preset = $UI/Panel/Scroll/VBox/GridFinish/OptionPreset
+@onready var option_finish_type = $UI/Panel/Scroll/VBox/GridFinish/OptionFinishType
+@onready var color_base = $UI/Panel/Scroll/VBox/GridFinish/ColorBase
+@onready var color_inner = $UI/Panel/Scroll/VBox/GridFinish/ColorInner
+@onready var color_mid = $UI/Panel/Scroll/VBox/GridFinish/ColorMid
+@onready var color_rim = $UI/Panel/Scroll/VBox/GridFinish/ColorRim
+@onready var slider_burst_falloff = $UI/Panel/Scroll/VBox/GridFinish/SliderBurstFalloff
+@onready var slider_waist_pinch = $UI/Panel/Scroll/VBox/GridFinish/SliderWaistPinch
+@onready var slider_flake_sparkle = $UI/Panel/Scroll/VBox/GridFinish/SliderFlakeSparkle
+@onready var slider_flame_intensity = $UI/Panel/Scroll/VBox/GridFinish/SliderFlameIntensity
+@onready var slider_clearcoat = $UI/Panel/Scroll/VBox/GridFinish/SliderClearcoat
+@onready var slider_clearcoat_roughness = $UI/Panel/Scroll/VBox/GridFinish/SliderClearcoatRoughness
+@onready var hsep_project = $UI/Panel/Scroll/VBox/HSeparatorProject
+@onready var lbl_project = $UI/Panel/Scroll/VBox/LblProject
+@onready var project_buttons = $UI/Panel/Scroll/VBox/ProjectButtons
+@onready var btn_save_project = $UI/Panel/Scroll/VBox/ProjectButtons/BtnSaveProject
+@onready var btn_load_project = $UI/Panel/Scroll/VBox/ProjectButtons/BtnLoadProject
+@onready var btn_reset_defaults = $UI/Panel/Scroll/VBox/ProjectButtons/BtnResetDefaults
+@onready var lbl_project_status = $UI/Panel/Scroll/VBox/LblProjectStatus
+
 var current_ui_mode: int = 0
 
 # Materials for Hardware & Slices
 var body_mat: StandardMaterial3D
+var finish_mat: ShaderMaterial
+var finish_shader: Shader
 var chrome_mat: StandardMaterial3D
 var black_plastic_mat: StandardMaterial3D
 var cream_mat: StandardMaterial3D
@@ -118,12 +145,20 @@ func _ready():
 	_sync_ui_from_mesh()
 	_connect_signals()
 	_update_hardware_visuals()
+	_update_finish_shader()
 	_switch_ui_mode(0)
 	_check_cli_capture()
 
 func _setup_materials():
 	if not body_mesh:
 		return
+
+	# PBR Guitar Finish Shader Material
+	finish_shader = load("res://shaders/guitar_finish.gdshader")
+	finish_mat = ShaderMaterial.new()
+	finish_mat.shader = finish_shader
+	body_mesh.material_override = finish_mat
+
 	body_mat = StandardMaterial3D.new()
 	body_mat.albedo_color = Color(0.85, 0.14, 0.16) # Candy Apple Fiesta Red
 	body_mat.metallic = 0.15
@@ -132,7 +167,6 @@ func _setup_materials():
 	body_mat.clearcoat = 0.9
 	body_mat.clearcoat_roughness = 0.08
 	body_mat.cull_mode = BaseMaterial3D.CULL_BACK
-	body_mesh.material_override = body_mat
 
 	chrome_mat = StandardMaterial3D.new()
 	chrome_mat.albedo_color = Color(0.96, 0.97, 0.99)
@@ -401,6 +435,7 @@ func _connect_signals():
 	btn_tab_body.pressed.connect(func(): _switch_ui_mode(0))
 	btn_tab_hardware.pressed.connect(func(): _switch_ui_mode(1))
 	btn_tab_slicing.pressed.connect(func(): _switch_ui_mode(2))
+	btn_tab_finish.pressed.connect(func(): _switch_ui_mode(3))
 
 	option_grid.item_selected.connect(func(idx):
 		body_mesh.slice_grid_type = 1 if idx == 0 else 2
@@ -421,11 +456,29 @@ func _connect_signals():
 	btn_export_3mf.pressed.connect(_on_export_3mf_pressed)
 	btn_export_dxf.pressed.connect(_on_export_dxf_pressed)
 
+	# Finish & Materials
+	option_preset.item_selected.connect(_apply_curated_preset)
+	option_finish_type.item_selected.connect(func(_idx): _update_finish_shader())
+	color_base.color_changed.connect(func(_c): _update_finish_shader())
+	color_inner.color_changed.connect(func(_c): _update_finish_shader())
+	color_mid.color_changed.connect(func(_c): _update_finish_shader())
+	color_rim.color_changed.connect(func(_c): _update_finish_shader())
+	slider_burst_falloff.value_changed.connect(func(_v): _update_finish_shader())
+	slider_waist_pinch.value_changed.connect(func(_v): _update_finish_shader())
+	slider_flake_sparkle.value_changed.connect(func(_v): _update_finish_shader())
+	slider_flame_intensity.value_changed.connect(func(_v): _update_finish_shader())
+	slider_clearcoat.value_changed.connect(func(_v): _update_finish_shader())
+	slider_clearcoat_roughness.value_changed.connect(func(_v): _update_finish_shader())
+	btn_save_project.pressed.connect(func(): _save_project_json())
+	btn_load_project.pressed.connect(func(): _load_project_json())
+	btn_reset_defaults.pressed.connect(_reset_project_defaults)
+
 func _switch_ui_mode(mode: int):
 	current_ui_mode = mode
 	if is_instance_valid(btn_tab_body): btn_tab_body.button_pressed = (mode == 0)
 	if is_instance_valid(btn_tab_hardware): btn_tab_hardware.button_pressed = (mode == 1)
 	if is_instance_valid(btn_tab_slicing): btn_tab_slicing.button_pressed = (mode == 2)
+	if is_instance_valid(btn_tab_finish): btn_tab_finish.button_pressed = (mode == 3)
 
 	# Body section
 	for n in [lbl_global, grid_global, hsep_sym, check_symmetric, hsep_cuts, lbl_ergo, check_belly, check_forearm]:
@@ -450,6 +503,10 @@ func _switch_ui_mode(mode: int):
 		if is_instance_valid(n): n.visible = (mode == 2)
 	if is_instance_valid(slicing_controls) and is_instance_valid(check_slicing):
 		slicing_controls.visible = (mode == 2) and check_slicing.button_pressed
+
+	# Finish & Project section
+	for n in [hsep_finish, lbl_finish, grid_finish, hsep_project, lbl_project, project_buttons, lbl_project_status]:
+		if is_instance_valid(n): n.visible = (mode == 3)
 
 func _update_hardware_visuals():
 	if not is_instance_valid(hardware_rig) or not is_instance_valid(body_mesh):
@@ -872,6 +929,258 @@ func _on_export_dxf_pressed():
 	else:
 		lbl_export_status.text = "DXF export failed!"
 
+func _update_finish_shader():
+	if not is_instance_valid(finish_mat) or not is_instance_valid(body_mesh):
+		return
+	finish_mat.set_shader_parameter("finish_type", option_finish_type.selected)
+	finish_mat.set_shader_parameter("base_color", color_base.color)
+	finish_mat.set_shader_parameter("color_inner", color_inner.color)
+	finish_mat.set_shader_parameter("color_mid", color_mid.color)
+	finish_mat.set_shader_parameter("color_rim", color_rim.color)
+	finish_mat.set_shader_parameter("burst_falloff", slider_burst_falloff.value)
+	finish_mat.set_shader_parameter("waist_pinch", slider_waist_pinch.value)
+	finish_mat.set_shader_parameter("flake_sparkle", slider_flake_sparkle.value)
+	finish_mat.set_shader_parameter("flame_intensity", slider_flame_intensity.value)
+	finish_mat.set_shader_parameter("clearcoat", slider_clearcoat.value)
+	finish_mat.set_shader_parameter("clearcoat_roughness", slider_clearcoat_roughness.value)
+	var half_w = (body_mesh.hip_width * 0.5) * 0.001
+	var half_l = (body_mesh.body_length * 0.5) * 0.001
+	finish_mat.set_shader_parameter("body_half_extents", Vector2(half_w, half_l))
+	finish_mat.set_shader_parameter("body_center", Vector2(0.0, 0.0))
+
+func _apply_curated_preset(idx: int):
+	match idx:
+		1: # Vintage 3-Tone Sunburst
+			option_finish_type.selected = 1
+			color_inner.color = Color(1.0, 0.82, 0.28)
+			color_mid.color = Color(0.85, 0.18, 0.08)
+			color_rim.color = Color(0.04, 0.02, 0.02)
+			slider_burst_falloff.value = 1.7
+			slider_waist_pinch.value = 0.45
+			slider_clearcoat.value = 0.95
+			slider_clearcoat_roughness.value = 0.04
+		2: # 2-Tone Tobacco Burst
+			option_finish_type.selected = 1
+			color_inner.color = Color(0.96, 0.86, 0.52)
+			color_mid.color = Color(0.45, 0.22, 0.08)
+			color_rim.color = Color(0.05, 0.02, 0.02)
+			slider_burst_falloff.value = 1.5
+			slider_waist_pinch.value = 0.40
+			slider_clearcoat.value = 0.92
+			slider_clearcoat_roughness.value = 0.05
+		3: # Candy Apple Red Sparkle
+			option_finish_type.selected = 2
+			color_base.color = Color(0.88, 0.08, 0.12)
+			slider_flake_sparkle.value = 1.2
+			slider_clearcoat.value = 0.98
+			slider_clearcoat_roughness.value = 0.03
+		4: # Lake Placid Blue Metallic
+			option_finish_type.selected = 2
+			color_base.color = Color(0.18, 0.52, 0.78)
+			slider_flake_sparkle.value = 1.1
+			slider_clearcoat.value = 0.95
+			slider_clearcoat_roughness.value = 0.04
+		5: # Surf Green '62 Gloss
+			option_finish_type.selected = 0
+			color_base.color = Color(0.45, 0.78, 0.68)
+			slider_clearcoat.value = 0.90
+			slider_clearcoat_roughness.value = 0.06
+		6: # Olympic White Vintage
+			option_finish_type.selected = 0
+			color_base.color = Color(0.94, 0.92, 0.85)
+			slider_clearcoat.value = 0.88
+			slider_clearcoat_roughness.value = 0.08
+		7: # Natural Flame Maple Amber
+			option_finish_type.selected = 3
+			color_inner.color = Color(0.96, 0.75, 0.32)
+			color_mid.color = Color(0.48, 0.26, 0.10)
+			color_rim.color = Color(0.14, 0.07, 0.03)
+			slider_flame_intensity.value = 0.75
+			slider_clearcoat.value = 0.96
+			slider_clearcoat_roughness.value = 0.04
+		8: # Midnight Obsidian Black
+			option_finish_type.selected = 0
+			color_base.color = Color(0.04, 0.04, 0.05)
+			slider_clearcoat.value = 1.00
+			slider_clearcoat_roughness.value = 0.02
+	_update_finish_shader()
+
+func _save_project_json(path: String = "res://export/guitar_project_v2.json"):
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://export"))
+	var proj = {
+		"schema_version": "2.0.0",
+		"project_metadata": {
+			"name": "Custom_Guitar_Design",
+			"created_at": Time.get_datetime_string_from_system(true),
+			"units": "millimeters"
+		},
+		"body_spline": {
+			"symmetric_mode": body_mesh.symmetric_mode,
+			"dimensions": {
+				"body_length": body_mesh.body_length,
+				"body_thickness": body_mesh.body_thickness,
+				"edge_radius": body_mesh.edge_radius,
+				"hip_width": body_mesh.hip_width,
+				"waist_width": body_mesh.waist_width,
+				"chest_width": body_mesh.chest_width,
+				"shoulder_width": body_mesh.shoulder_width,
+				"treble_hip_width": body_mesh.treble_hip_width,
+				"bass_hip_width": body_mesh.bass_hip_width,
+				"treble_waist_width": body_mesh.treble_waist_width,
+				"bass_waist_width": body_mesh.bass_waist_width,
+				"treble_chest_width": body_mesh.treble_chest_width,
+				"bass_chest_width": body_mesh.bass_chest_width,
+				"horn_reach": body_mesh.horn_reach,
+				"horn_roundness": body_mesh.horn_roundness
+			},
+			"contours": {
+				"belly_cut": {
+					"enabled": body_mesh.belly_cut_enabled,
+					"angle": body_mesh.belly_cut_angle,
+					"length": body_mesh.belly_cut_length,
+					"depth": body_mesh.belly_cut_depth
+				},
+				"forearm_bevel": {
+					"enabled": body_mesh.forearm_bevel_enabled,
+					"angle": body_mesh.forearm_bevel_angle,
+					"length": body_mesh.forearm_bevel_length,
+					"depth": body_mesh.forearm_bevel_depth
+				}
+			}
+		},
+		"hardware_stack": {
+			"pickup_config": body_mesh.pickup_config,
+			"bridge_type": body_mesh.bridge_type,
+			"bridge_y": body_mesh.bridge_y,
+			"bridge_pickup_slant": body_mesh.bridge_pickup_slant,
+			"pickup_clearance": body_mesh.pickup_clearance,
+			"pickup_depth": body_mesh.pickup_depth,
+			"neck_pocket_enabled": body_mesh.neck_pocket_enabled,
+			"control_cavity_enabled": body_mesh.control_cavity_enabled,
+			"piezo_saddles_enabled": body_mesh.piezo_saddles_enabled
+		},
+		"slicing_cam": {
+			"slicing_enabled": body_mesh.slicing_enabled,
+			"slice_grid_type": body_mesh.slice_grid_type,
+			"pin_diameter": 6.0,
+			"pin_clearance": 0.4
+		},
+		"visuals": {
+			"finish_type": option_finish_type.selected,
+			"base_color": color_base.color.to_html(false),
+			"color_inner": color_inner.color.to_html(false),
+			"color_mid": color_mid.color.to_html(false),
+			"color_rim": color_rim.color.to_html(false),
+			"burst_falloff": slider_burst_falloff.value,
+			"waist_pinch": slider_waist_pinch.value,
+			"flake_sparkle": slider_flake_sparkle.value,
+			"flame_intensity": slider_flame_intensity.value,
+			"clearcoat": slider_clearcoat.value,
+			"clearcoat_roughness": slider_clearcoat_roughness.value
+		}
+	}
+	var f = FileAccess.open(path, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(proj, "  "))
+		f.close()
+		lbl_project_status.text = "Saved v2.0 project to res://export/"
+		print("[GuitarBuilder] Saved project schema to " + path)
+	else:
+		lbl_project_status.text = "Failed to save project file!"
+
+func _load_project_json(path: String = "res://export/guitar_project_v2.json"):
+	if not FileAccess.file_exists(path):
+		lbl_project_status.text = "File not found: " + path
+		return
+	var f = FileAccess.open(path, FileAccess.READ)
+	if not f:
+		lbl_project_status.text = "Failed to open project file"
+		return
+	var text = f.get_as_text()
+	f.close()
+	var json = JSON.new()
+	var err = json.parse(text)
+	if err != OK:
+		lbl_project_status.text = "JSON parse error!"
+		return
+	var data = json.data
+	if typeof(data) != TYPE_DICTIONARY:
+		lbl_project_status.text = "Invalid JSON dictionary"
+		return
+
+	if data.has("body_spline"):
+		var bs = data["body_spline"]
+		if bs.has("symmetric_mode"): body_mesh.symmetric_mode = bs["symmetric_mode"]
+		if bs.has("dimensions"):
+			var d = bs["dimensions"]
+			if d.has("body_length"): body_mesh.body_length = d["body_length"]
+			if d.has("body_thickness"): body_mesh.body_thickness = d["body_thickness"]
+			if d.has("edge_radius"): body_mesh.edge_radius = d["edge_radius"]
+			if d.has("hip_width"): body_mesh.hip_width = d["hip_width"]
+			if d.has("waist_width"): body_mesh.waist_width = d["waist_width"]
+			if d.has("chest_width"): body_mesh.chest_width = d["chest_width"]
+			if d.has("horn_reach"): body_mesh.horn_reach = d["horn_reach"]
+			if d.has("horn_roundness"): body_mesh.horn_roundness = d["horn_roundness"]
+		if bs.has("contours"):
+			var c = bs["contours"]
+			if c.has("belly_cut"):
+				body_mesh.belly_cut_enabled = c["belly_cut"].get("enabled", true)
+				body_mesh.belly_cut_angle = c["belly_cut"].get("angle", 18.0)
+				body_mesh.belly_cut_length = c["belly_cut"].get("length", 190.0)
+				body_mesh.belly_cut_depth = c["belly_cut"].get("depth", 14.0)
+			if c.has("forearm_bevel"):
+				body_mesh.forearm_bevel_enabled = c["forearm_bevel"].get("enabled", true)
+				body_mesh.forearm_bevel_angle = c["forearm_bevel"].get("angle", 15.0)
+				body_mesh.forearm_bevel_length = c["forearm_bevel"].get("length", 170.0)
+				body_mesh.forearm_bevel_depth = c["forearm_bevel"].get("depth", 12.0)
+
+	if data.has("hardware_stack"):
+		var hw = data["hardware_stack"]
+		if hw.has("pickup_config"): body_mesh.pickup_config = hw["pickup_config"]
+		if hw.has("bridge_type"): body_mesh.bridge_type = hw["bridge_type"]
+		if hw.has("bridge_y"): body_mesh.bridge_y = hw["bridge_y"]
+		if hw.has("bridge_pickup_slant"): body_mesh.bridge_pickup_slant = hw["bridge_pickup_slant"]
+		if hw.has("neck_pocket_enabled"): body_mesh.neck_pocket_enabled = hw["neck_pocket_enabled"]
+		if hw.has("control_cavity_enabled"): body_mesh.control_cavity_enabled = hw["control_cavity_enabled"]
+		if hw.has("piezo_saddles_enabled"): body_mesh.piezo_saddles_enabled = hw["piezo_saddles_enabled"]
+
+	if data.has("visuals"):
+		var v = data["visuals"]
+		if v.has("finish_type"): option_finish_type.selected = v["finish_type"]
+		if v.has("base_color"): color_base.color = Color.from_string(v["base_color"], Color(0.85, 0.14, 0.16))
+		if v.has("color_inner"): color_inner.color = Color.from_string(v["color_inner"], Color(1.0, 0.82, 0.28))
+		if v.has("color_mid"): color_mid.color = Color.from_string(v["color_mid"], Color(0.85, 0.18, 0.08))
+		if v.has("color_rim"): color_rim.color = Color.from_string(v["color_rim"], Color(0.05, 0.02, 0.02))
+		if v.has("burst_falloff"): slider_burst_falloff.value = v["burst_falloff"]
+		if v.has("waist_pinch"): slider_waist_pinch.value = v["waist_pinch"]
+		if v.has("flake_sparkle"): slider_flake_sparkle.value = v["flake_sparkle"]
+		if v.has("flame_intensity"): slider_flame_intensity.value = v["flame_intensity"]
+		if v.has("clearcoat"): slider_clearcoat.value = v["clearcoat"]
+		if v.has("clearcoat_roughness"): slider_clearcoat_roughness.value = v["clearcoat_roughness"]
+
+	_sync_ui_from_mesh()
+	_update_hardware_visuals()
+	_update_finish_shader()
+	lbl_project_status.text = "Loaded v2.0 project from " + path
+	print("[GuitarBuilder] Loaded project schema from " + path)
+
+func _reset_project_defaults():
+	body_mesh.body_length = 460.0
+	body_mesh.body_thickness = 45.0
+	body_mesh.edge_radius = 12.0
+	body_mesh.hip_width = 320.0
+	body_mesh.waist_width = 228.0
+	body_mesh.chest_width = 276.0
+	body_mesh.horn_reach = 430.0
+	body_mesh.horn_roundness = 1.2
+	body_mesh.symmetric_mode = true
+	body_mesh.belly_cut_enabled = true
+	body_mesh.forearm_bevel_enabled = true
+	_apply_curated_preset(1) # Default 3-tone burst
+	_sync_ui_from_mesh()
+	_update_hardware_visuals()
+	lbl_project_status.text = "Reset all parameters to factory defaults"
+
 func _check_cli_capture():
 	var args = OS.get_cmdline_args() + OS.get_cmdline_user_args()
 	var should_exit = false
@@ -1040,6 +1349,55 @@ func _check_cli_capture():
 		_on_export_stl_pressed()
 		_on_export_3mf_pressed()
 		_on_export_dxf_pressed()
+		should_exit = true
+	elif "--test-finish-sunburst" in args:
+		_switch_ui_mode(3)
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		camera_pivot.rotation = Vector3(-0.35, 0.40, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-finish-sparkle" in args:
+		_switch_ui_mode(3)
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 3
+		_apply_curated_preset(3)
+		camera_pivot.rotation = Vector3(-0.35, 0.40, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-finish-flame" in args:
+		_switch_ui_mode(3)
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 7
+		_apply_curated_preset(7)
+		camera_pivot.rotation = Vector3(-0.35, 0.40, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-finish-surfgreen" in args:
+		_switch_ui_mode(3)
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 5
+		_apply_curated_preset(5)
+		camera_pivot.rotation = Vector3(-0.35, 0.40, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-save-load" in args:
+		_switch_ui_mode(3)
+		var orig_len = body_mesh.body_length
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		_save_project_json()
+		# Mutate parameter
+		body_mesh.body_length = orig_len + 30.0
+		# Reload
+		_load_project_json()
+		assert(abs(body_mesh.body_length - orig_len) < 0.1, "Project load restored body length")
+		print("[GuitarBuilder] Project schema v2.0 save/load verified successfully!")
 		should_exit = true
 
 	if should_exit or "--screenshot" in args or "--capture" in args:
