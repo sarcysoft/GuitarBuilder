@@ -866,7 +866,7 @@ func _update_slice_visuals():
 			if check_color_slices.button_pressed:
 				mi.material_override = slice_materials[i % slice_materials.size()]
 			else:
-				mi.material_override = body_mat
+				mi.material_override = finish_mat if is_instance_valid(finish_mat) else body_mat
 			var dir: Vector3 = body_mesh.get_slice_direction(i)
 			mi.position = dir * explode_dist
 			mi.set_meta("slice_dir", dir)
@@ -1385,6 +1385,24 @@ func _check_cli_capture():
 		_apply_curated_preset(5)
 		camera_pivot.rotation = Vector3(-0.35, 0.40, 0.0)
 		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-finish-front" in args:
+		_switch_ui_mode(3)
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		camera_pivot.rotation = Vector3(0.0, 0.0, 0.0)
+		camera.position.z = 1.15
+		should_exit = true
+	elif "--test-finish-side" in args:
+		_switch_ui_mode(3)
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		camera_pivot.rotation = Vector3(-0.15, 1.15, 0.0)
+		camera.position.z = 1.15
 		should_exit = true
 	elif "--test-save-load" in args:
 		_switch_ui_mode(3)

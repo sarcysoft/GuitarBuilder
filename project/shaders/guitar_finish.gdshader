@@ -32,23 +32,33 @@ uniform float roughness : hint_range(0.0, 1.0) = 0.2;
 uniform float clearcoat : hint_range(0.0, 1.0) = 0.95;
 uniform float clearcoat_roughness : hint_range(0.0, 1.0) = 0.05;
 
+// Varyings to pass model/object-space attributes from vertex to fragment
+varying vec3 v_model_pos;
+varying vec3 v_model_normal;
+
+void vertex() {
+    // In vertex shader, VERTEX and NORMAL are in local object/model space
+    v_model_pos = VERTEX;
+    v_model_normal = NORMAL;
+}
+
 void fragment() {
     vec3 final_albedo = base_color.rgb;
     float final_metallic = metallic;
     float final_roughness = roughness;
 
-    // Local 2D coordinates centered on body
-    vec2 v_pos = VERTEX.xy - body_center;
+    // Fixed model-space 2D coordinates centered on the guitar body
+    vec2 v_pos = v_model_pos.xy - body_center;
     float nx = abs(v_pos.x) / max(0.01, body_half_extents.x);
     float ny = v_pos.y / max(0.01, body_half_extents.y);
 
     if (finish_type == 1) { // Contour Sunburst
-        // Contour warping for waist pinch
+        // Contour warping for waist pinch in model space
         float pinch = 1.0 + waist_pinch * smoothstep(0.4, -0.05, abs(ny + 0.05));
         float contour_dist = length(vec2(nx * pinch, ny * 0.92));
         
-        // Edge/fillet darkening: sides and bevels get rim color
-        float edge_factor = 1.0 - clamp(abs(NORMAL.z), 0.0, 1.0);
+        // Edge/fillet darkening in model space: perimeter sides and fillets have v_model_normal.z near 0
+        float edge_factor = 1.0 - clamp(abs(v_model_normal.z), 0.0, 1.0);
         float t = clamp(pow(contour_dist, burst_falloff) + edge_factor * 0.75, 0.0, 1.0);
 
         if (t < burst_mid_pos) {
@@ -57,7 +67,8 @@ void fragment() {
             final_albedo = mix(color_mid.rgb, color_rim.rgb, (t - burst_mid_pos) / (1.0 - burst_mid_pos));
         }
     } else if (finish_type == 2) { // Metallic Flake / Sparkle
-        vec3 cell = floor(VERTEX * flake_density);
+        // Fixed 3D cell hash on the model surface
+        vec3 cell = floor(v_model_pos * flake_density);
         vec3 f_hash = fract(sin(vec3(
             dot(cell, vec3(127.1, 311.7, 74.7)),
             dot(cell, vec3(269.5, 183.3, 246.1)),
@@ -73,14 +84,16 @@ void fragment() {
         final_metallic = max(metallic, 0.45);
         final_roughness = mix(roughness, 0.12, sparkle * 0.5);
     } else if (finish_type == 3) { // Flame / Curly Maple
-        float wave = sin(VERTEX.x * flame_curl * 35.0) * 0.012;
-        float flame = sin((VERTEX.y + wave) * flame_frequency);
+        // Fixed wood grain lines along model coordinates
+        float wave = sin(v_model_pos.x * flame_curl * 35.0) * 0.012;
+        float flame = sin((v_model_pos.y + wave) * flame_frequency);
+        // Dynamic chatoyancy angle as surface tilts relative to view
         float chatoyancy = dot(normalize(NORMAL), normalize(VIEW));
         float flame_mix = smoothstep(-0.5, 0.5, flame + chatoyancy * 0.25);
 
-        // Optional subtle edge burst for flame tops
+        // Edge burst in model space
         float contour_dist = length(vec2(nx, ny * 0.9));
-        float edge_factor = 1.0 - clamp(abs(NORMAL.z), 0.0, 1.0);
+        float edge_factor = 1.0 - clamp(abs(v_model_normal.z), 0.0, 1.0);
         float t = clamp(pow(contour_dist, burst_falloff) + edge_factor * 0.65, 0.0, 1.0);
 
         vec3 wood_core = mix(color_inner.rgb, color_mid.rgb, flame_mix * flame_intensity);
