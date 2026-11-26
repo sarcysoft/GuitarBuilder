@@ -1444,16 +1444,7 @@ void GuitarBodyMesh::rebuild_mesh() {
             body = body - make_tunnel(p_brg, p_cc, 4.5);
         }
 
-        // 2. Bridge Ground Wire Tunnel (3.0mm diameter)
-        // If piezo saddles are enabled, the piezo wire route already connects bridge to cavity.
-        // Otherwise, drill a dedicated submerged ground wire tunnel from under the bridge plate.
-        if (!piezo_saddles_enabled) {
-            vec3 gnd_start{ 10.5, (bridge_y + 4.0) * scale_y, body_thickness - 3.5 };
-            vec3 gnd_end{ cc_x - 14.0, cc_y, drill_z };
-            body = body - make_tunnel(gnd_start, gnd_end, 1.5);
-        }
-
-        // 3. Output Jack Tunnel (12.0mm diameter)
+        // 2. Output Jack Tunnel (12.0mm diameter)
         // Drilled from control cavity to the side rim at waypoint 4
         vec3 j_start{ cc_x, cc_y - 35.0 * scale_y, drill_z };
         vec3 j_end{ 145.13 * (t_hip / 159.0), 72.89 * scale_y, drill_z };

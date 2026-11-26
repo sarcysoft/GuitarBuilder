@@ -957,6 +957,19 @@ func _check_cli_capture():
 		camera_pivot.rotation = Vector3(-0.6, 0.25, 0.0)
 		camera.position = Vector3(0.0, 0.0, 0.22)
 		should_exit = true
+	elif "--test-nopiezo-wood" in args:
+		_switch_ui_mode(1)
+		body_mesh.bridge_enabled = true
+		body_mesh.piezo_saddles_enabled = false
+		check_piezo.button_pressed = false
+		check_hardware_models.button_pressed = false
+		hardware_rig.visible = false
+		var center_y = (body_mesh.body_length * 0.5) * 0.001
+		var by_world = body_mesh.bridge_y * (body_mesh.body_length / 446.0) * 0.001 - center_y
+		camera_pivot.position = Vector3(0.015, by_world + 0.01, 0.0)
+		camera_pivot.rotation = Vector3(-0.6, 0.25, 0.0)
+		camera.position = Vector3(0.0, 0.0, 0.22)
+		should_exit = true
 	elif "--test-piezo-back" in args:
 		_switch_ui_mode(1)
 		body_mesh.bridge_enabled = true
