@@ -70,6 +70,7 @@ private:
     bool bridge_enabled = true;
     int bridge_type = 0; // 0: Hardtail, 1: Tremolo
     double bridge_y = 145.0;
+    bool piezo_saddles_enabled = false;
 
     // Control Cavity & Wiring
     bool control_cavity_enabled = true;
@@ -240,6 +241,9 @@ public:
 
     void set_bridge_y(double p_val);
     double get_bridge_y() const { return bridge_y; }
+
+    void set_piezo_saddles_enabled(bool p_val);
+    bool get_piezo_saddles_enabled() const { return piezo_saddles_enabled; }
 
     // Control Cavity & Wiring
     void set_control_cavity_enabled(bool p_val);

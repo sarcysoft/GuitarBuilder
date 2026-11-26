@@ -205,6 +205,10 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_bridge_y"), &GuitarBodyMesh::get_bridge_y);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "bridge_y"), "set_bridge_y", "get_bridge_y");
 
+    ClassDB::bind_method(D_METHOD("set_piezo_saddles_enabled", "val"), &GuitarBodyMesh::set_piezo_saddles_enabled);
+    ClassDB::bind_method(D_METHOD("get_piezo_saddles_enabled"), &GuitarBodyMesh::get_piezo_saddles_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "piezo_saddles_enabled"), "set_piezo_saddles_enabled", "get_piezo_saddles_enabled");
+
     // Control Cavity & Wiring
     ClassDB::bind_method(D_METHOD("set_control_cavity_enabled", "val"), &GuitarBodyMesh::set_control_cavity_enabled);
     ClassDB::bind_method(D_METHOD("get_control_cavity_enabled"), &GuitarBodyMesh::get_control_cavity_enabled);
@@ -597,6 +601,13 @@ void GuitarBodyMesh::set_bridge_type(int p_val) {
 void GuitarBodyMesh::set_bridge_y(double p_val) {
     if (bridge_y != p_val) {
         bridge_y = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_piezo_saddles_enabled(bool p_val) {
+    if (piezo_saddles_enabled != p_val) {
+        piezo_saddles_enabled = p_val;
         rebuild_mesh();
     }
 }
@@ -1294,6 +1305,32 @@ void GuitarBodyMesh::rebuild_mesh() {
                 .Translate(vec3{ 0.0, b_y + 40.0 * scale_y, 8.5 });
             body = body - block_slot - spring_cavity;
         }
+
+        // Piezo saddle wire slots (3mm wide slot from 6mm to 12mm in front of string holes, curved ends)
+        if (piezo_saddles_enabled) {
+            double r = 1.5;
+            double y_bot = b_y + 7.5 * scale_y;
+            double y_top = b_y + 10.5 * scale_y;
+            double spacing = 10.5;
+            const int segs = 12;
+
+            for (int i = 0; i < 6; ++i) {
+                double sx = -26.25 + i * spacing;
+                SimplePolygon slot_pts;
+                for (int s = 0; s <= segs; ++s) {
+                    double ang = s * 3.141592653589793 / segs;
+                    slot_pts.push_back(vec2{ sx + r * std::cos(ang), y_top + r * std::sin(ang) });
+                }
+                for (int s = 0; s <= segs; ++s) {
+                    double ang = 3.141592653589793 + s * 3.141592653589793 / segs;
+                    slot_pts.push_back(vec2{ sx + r * std::cos(ang), y_bot + r * std::sin(ang) });
+                }
+                CrossSection cs_slot(slot_pts, CrossSection::FillRule::Positive);
+                Manifold piezo_slot = Manifold::Extrude(cs_slot.ToPolygons(), body_thickness + 4.0)
+                    .Translate(vec3{ 0.0, 0.0, -2.0 });
+                body = body - piezo_slot;
+            }
+        }
     }
 
     // Control Cavity & Potentiometer Shaft Holes
@@ -1747,6 +1784,25 @@ bool GuitarBodyMesh::export_2d_dxf(const String& p_filepath) {
             double sx = -26.25 + i * 10.5;
             write_circ(sx, by, 1.75, "BRIDGE_HOLES");
             write_circ(sx, by, 4.0, "BRIDGE_HOLES");
+        }
+        if (piezo_saddles_enabled) {
+            double r = 1.5;
+            double y_bot = by + 7.5 * scale_y;
+            double y_top = by + 10.5 * scale_y;
+            const int segs = 12;
+            for (int i = 0; i < 6; ++i) {
+                double sx = -26.25 + i * 10.5;
+                std::vector<manifold::vec2> slot_pts;
+                for (int s = 0; s <= segs; ++s) {
+                    double ang = s * 3.141592653589793 / segs;
+                    slot_pts.push_back(manifold::vec2{ sx + r * std::cos(ang), y_top + r * std::sin(ang) });
+                }
+                for (int s = 0; s <= segs; ++s) {
+                    double ang = 3.141592653589793 + s * 3.141592653589793 / segs;
+                    slot_pts.push_back(manifold::vec2{ sx + r * std::cos(ang), y_bot + r * std::sin(ang) });
+                }
+                write_poly(slot_pts, "BRIDGE_HOLES", true);
+            }
         }
     }
 

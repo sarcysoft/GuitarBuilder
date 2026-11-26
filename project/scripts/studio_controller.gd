@@ -64,6 +64,7 @@ extends Node3D
 @onready var check_neck_pocket = $UI/Panel/Scroll/VBox/CheckNeckPocket
 @onready var check_control_cavity = $UI/Panel/Scroll/VBox/CheckControlCavity
 @onready var check_hardware_models = $UI/Panel/Scroll/VBox/CheckHardwareModels
+@onready var check_piezo = $UI/Panel/Scroll/VBox/CheckPiezo
 
 # CAM Slicing Controls
 @onready var slice_rig = $SliceRig
@@ -229,6 +230,7 @@ func _sync_ui_from_mesh():
 	slider_cavity_depth.value = body_mesh.pickup_depth
 	check_neck_pocket.button_pressed = body_mesh.neck_pocket_enabled
 	check_control_cavity.button_pressed = body_mesh.control_cavity_enabled
+	check_piezo.button_pressed = body_mesh.piezo_saddles_enabled
 
 	# CAM & Slicing
 	check_slicing.button_pressed = body_mesh.slicing_enabled
@@ -378,6 +380,10 @@ func _connect_signals():
 	check_hardware_models.toggled.connect(func(v):
 		hardware_rig.visible = v
 	)
+	check_piezo.toggled.connect(func(v):
+		body_mesh.piezo_saddles_enabled = v
+		_update_hardware_visuals()
+	)
 
 	# CAM Slicing
 	check_slicing.toggled.connect(func(v):
@@ -436,7 +442,7 @@ func _switch_ui_mode(mode: int):
 		if is_instance_valid(forearm_controls): forearm_controls.visible = false
 
 	# Hardware section
-	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models]:
+	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models, check_piezo]:
 		if is_instance_valid(n): n.visible = (mode == 1)
 
 	# Slicing section
@@ -536,6 +542,33 @@ func _create_bridge_visuals(to_world: Callable, scale_y: float):
 		arm.position = to_world.call(34.0, b_y - 5.0 / scale_y, 0.035)
 		arm.rotation = Vector3(deg_to_rad(-30.0), 0.0, deg_to_rad(10.0))
 		bridge_group.add_child(arm)
+
+	# Piezo Saddle Wire Slots (3mm wide slot from 6mm to 12mm in front of string holes, curved ends)
+	if body_mesh.piezo_saddles_enabled:
+		var slot_center_y = b_y + 9.0 * scale_y
+		var hole_mat = StandardMaterial3D.new()
+		hole_mat.albedo_color = Color(0.04, 0.04, 0.04)
+		hole_mat.roughness = 0.95
+		for i in range(6):
+			var sx = -26.25 + i * 10.5
+			# 3mm wide x 6mm long slot with curved ends on bridge plate
+			var slot_mesh_inst = MeshInstance3D.new()
+			var cap = CapsuleMesh.new()
+			cap.radius = 0.0015
+			cap.height = 0.006 * scale_y
+			slot_mesh_inst.mesh = cap
+			slot_mesh_inst.position = to_world.call(sx, slot_center_y, 3.05)
+			slot_mesh_inst.material_override = hole_mat
+			bridge_group.add_child(slot_mesh_inst)
+
+			# Black Piezo transducer element on top of saddle
+			var pz_elem = MeshInstance3D.new()
+			var pz_box = BoxMesh.new()
+			pz_box.size = Vector3(0.007, 0.004, 0.0015)
+			pz_elem.mesh = pz_box
+			pz_elem.position = to_world.call(sx, b_y - 2.0 / scale_y, 8.2)
+			pz_elem.material_override = hole_mat
+			bridge_group.add_child(pz_elem)
 
 func _create_pickup_visuals(to_world: Callable, scale_y: float):
 	var pickup_group = Node3D.new()
@@ -897,6 +930,19 @@ func _check_cli_capture():
 		check_hardware_models.button_pressed = true
 		_update_hardware_visuals()
 		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		should_exit = true
+	elif "--test-piezo" in args:
+		_switch_ui_mode(1)
+		body_mesh.bridge_enabled = true
+		body_mesh.piezo_saddles_enabled = true
+		check_piezo.button_pressed = true
+		check_hardware_models.button_pressed = true
+		_update_hardware_visuals()
+		var center_y = (body_mesh.body_length * 0.5) * 0.001
+		var by_world = body_mesh.bridge_y * (body_mesh.body_length / 446.0) * 0.001 - center_y
+		camera_pivot.position = Vector3(0.0, by_world, 0.0)
+		camera_pivot.rotation = Vector3(-0.75, 0.0, 0.0)
+		camera.position = Vector3(0.0, 0.0, 0.22)
 		should_exit = true
 	elif "--test-hardware-back" in args:
 		check_control_cavity.button_pressed = true
