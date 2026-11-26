@@ -1666,6 +1666,54 @@ void GuitarBodyMesh::rebuild_mesh() {
         body = body - make_tunnel(j_start, j_end, 6.0);
     }
 
+    // Dowel Pin Definition helper for locating pin awareness across all modifier modes and slicing
+    struct DowelSpec {
+        vec3 pos;
+        vec3 axis;
+        int part_a;
+        int part_b;
+    };
+
+    auto get_dowel_specs = [&](double sc_y, double th) -> std::vector<DowelSpec> {
+        std::vector<DowelSpec> specs;
+        double mid_z = th * 0.5;
+        double y_brg_cut = 110.0 * sc_y;
+        double cx = 50.0;
+        double y_w_cut = 260.0 * sc_y;
+        double y_c_cut = 267.5 * sc_y;
+
+        // 1. Bot_Left (0) <-> Bot_Right (1) (centerline below bridge)
+        specs.push_back({ vec3{ 0.0, 55.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 0, 1 });
+
+        // 2. Horizontal seam below bridge (Y = y_brg_cut)
+        specs.push_back({ vec3{ -95.0, y_brg_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 0, 2 }); // Bot_Left <-> Mid_Left
+        specs.push_back({ vec3{ -25.0, y_brg_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 0, 6 }); // Bot_Left <-> Center_Mid
+        specs.push_back({ vec3{  25.0, y_brg_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 6 }); // Bot_Right <-> Center_Mid
+        specs.push_back({ vec3{ 130.0, y_brg_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 4 }); // Bot_Right <-> Mid_Right
+
+        // 3. Vertical seams between wings and center core (X = -50 and X = +50)
+        specs.push_back({ vec3{ -cx, 150.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid (low)
+        specs.push_back({ vec3{ -cx, 210.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid (high)
+        specs.push_back({ vec3{  cx, 120.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid (low)
+        specs.push_back({ vec3{  cx, 210.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid (high)
+
+        // 4. Horizontal seams on wings (Y = y_w_cut)
+        specs.push_back({ vec3{ -90.0, y_w_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 2, 3 }); // Mid_Left <-> Top_Left
+        specs.push_back({ vec3{  90.0, y_w_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 4, 5 }); // Mid_Right <-> Top_Right
+
+        // 5. Vertical seams on horns to top center (X = -50 and X = +50)
+        specs.push_back({ vec3{ -cx, 315.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 3, 7 }); // Top_Left <-> Top_Mid
+        specs.push_back({ vec3{  cx, 315.0 * sc_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 5, 7 }); // Top_Right <-> Top_Mid
+
+        // 6. Horizontal seam in center core (Y = y_c_cut)
+        specs.push_back({ vec3{ -25.0, y_c_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 6, 7 }); // Center_Mid <-> Top_Mid (bass side)
+        specs.push_back({ vec3{  38.0, y_c_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 6, 7 }); // Center_Mid <-> Top_Mid (treble side)
+
+        return specs;
+    };
+
+    std::vector<DowelSpec> active_dowel_specs = get_dowel_specs(scale_y, body_thickness);
+
     // Phase 5: Procedural Modifiers (Sphere Chambering, Angled Cylinders, Exoskeleton Frame, Honeycomb)
     if (sphere_modifiers_enabled || cylinder_modifiers_enabled || exoskeleton_enabled || honeycomb_modifiers_enabled) {
         // Point-in-polygon & rim distance against the exact 2D perimeter contour
@@ -1699,30 +1747,59 @@ void GuitarBodyMesh::rebuild_mesh() {
             return std::sqrt(min_d2);
         };
 
+        // Locating pin collision clearance check: protects 6mm dowel pins + 16mm length + 5mm solid wood wall
+        auto is_near_dowel_pin = [&](double px, double py, double pr) -> bool {
+            const double pin_half_len = 8.0;
+            const double pin_radius = 3.2;
+            const double safe_margin = 5.0; // 5mm solid wall minimum around dowel holes
+            const double keepout_rad = pr + pin_radius + safe_margin;
+
+            for (const auto& sp : active_dowel_specs) {
+                if (std::abs(sp.axis.x) > 0.9) {
+                    double seg_x = std::clamp(px, sp.pos.x - pin_half_len, sp.pos.x + pin_half_len);
+                    if (std::hypot(px - seg_x, py - sp.pos.y) < keepout_rad) return true;
+                } else if (std::abs(sp.axis.y) > 0.9) {
+                    double seg_y = std::clamp(py, sp.pos.y - pin_half_len, sp.pos.y + pin_half_len);
+                    if (std::hypot(px - sp.pos.x, py - seg_y) < keepout_rad) return true;
+                }
+            }
+            return false;
+        };
+
         auto is_point_protected = [&](double px, double py, double pr) -> bool {
-            // 1. Central structural spine keep-out (neck pocket, pickups, bridge, strings)
-            if (std::abs(px) - pr < 62.0) {
+            // 1. Central structural spine keep-out (neck pocket, pickups, bridge)
+            // ONLY applies between bridge base (Y >= 122mm) and neck pocket heel (Y <= 375mm).
+            // The section below the bridge (Y < 122mm) is explicitly permitted for modifier cuts!
+            if (std::abs(px) - pr < 62.0 && (py + pr >= 122.0 * scale_y && py - pr <= 375.0 * scale_y)) {
                 return true;
             }
-            // 2. Control cavity & potentiometer mounting exclusion zone
+            // 2. Strap button block at bottom tail center (Y < 35mm, |X| < 18mm)
+            if (std::abs(px) < (18.0 + pr) && py - pr < 35.0 * scale_y) {
+                return true;
+            }
+            // 3. Control cavity & potentiometer mounting exclusion zone
             if (px + pr > 45.0 && px - pr < 122.0 && py + pr > 100.0 * scale_y && py - pr < 245.0 * scale_y) {
                 return true;
             }
-            // 3. Neck joint root and upper cutaways (maintain full neck joint cantilever strength)
+            // 4. Neck joint root and upper cutaways (maintain full neck joint cantilever strength)
             if (py + pr > 375.0 * scale_y) {
                 return true;
             }
-            // 4. Lower bout tail boundary
-            if (py - pr < 42.0 * scale_y) {
+            // 5. Lower bout tail boundary
+            if (py - pr < 16.0 * scale_y) {
                 return true;
             }
-            // 5. Jack plate mounting region on lower treble rim
+            // 6. Jack plate mounting region on lower treble rim
             double jack_x = 145.13 * (t_hip / 159.0);
             double jack_y = 72.89 * scale_y;
-            if (std::hypot(px - jack_x, py - jack_y) < (26.0 + pr)) {
+            if (std::hypot(px - jack_x, py - jack_y) < (28.0 + pr)) {
                 return true;
             }
-            // 6. Perimeter rim margin: ensure minimum solid rim wall (>= 11mm)
+            // 7. CAM Locating / Dowel Pin Keepouts
+            if (is_near_dowel_pin(px, py, pr)) {
+                return true;
+            }
+            // 8. Perimeter rim margin: ensure minimum solid rim wall (>= 11mm)
             if (!is_inside_contour(px, py) || dist_to_boundary(px, py) < (pr + 11.0)) {
                 return true;
             }
@@ -1742,16 +1819,16 @@ void GuitarBodyMesh::rebuild_mesh() {
             struct PlacedSphere { double x, y, z, r; };
             std::vector<PlacedSphere> placed_spheres;
             int attempts = 0;
-            int max_attempts = sphere_count * 40;
+            int max_attempts = sphere_count * 45;
 
             while ((int)placed_spheres.size() < sphere_count && attempts < max_attempts) {
                 attempts++;
                 // Size variation: random radius between 0.65 * sphere_radius and 1.35 * sphere_radius
                 double r = sphere_radius * (0.65 + rand_f() * 0.70);
 
-                // Sample position across body bounds
-                double px = (rand_f() > 0.5) ? (-b_hip + rand_f() * (b_hip - 65.0)) : (65.0 + rand_f() * (t_hip - 65.0));
-                double py = (45.0 + rand_f() * 325.0) * scale_y;
+                // Sample across full body bounds including the section below the bridge
+                double px = -b_hip + rand_f() * (b_hip + t_hip);
+                double py = (25.0 + rand_f() * 345.0) * scale_y;
 
                 if (is_point_protected(px, py, r)) continue;
 
@@ -1807,15 +1884,16 @@ void GuitarBodyMesh::rebuild_mesh() {
             struct PlacedCyl { double x, y, r; };
             std::vector<PlacedCyl> placed_cyls;
             int attempts = 0;
-            int max_attempts = cylinder_count * 50;
+            int max_attempts = cylinder_count * 55;
 
             while ((int)placed_cyls.size() < cylinder_count && attempts < max_attempts) {
                 attempts++;
                 // Size variation: random radius between 0.60 * cylinder_radius and 1.40 * cylinder_radius
                 double r = cylinder_radius * (0.60 + rand_f() * 0.80);
 
-                double px = (rand_f() > 0.5) ? (-b_hip + rand_f() * (b_hip - 65.0)) : (65.0 + rand_f() * (t_hip - 65.0));
-                double py = (50.0 + rand_f() * 320.0) * scale_y;
+                // Sample position across body bounds including the central section below the bridge
+                double px = -b_hip + rand_f() * (b_hip + t_hip);
+                double py = (25.0 + rand_f() * 345.0) * scale_y;
 
                 if (is_point_protected(px, py, r)) continue;
 
@@ -1859,8 +1937,11 @@ void GuitarBodyMesh::rebuild_mesh() {
                     continue;
                 }
 
-                Manifold cyl = Manifold::Cylinder(body_thickness + 24.0, r, r, 16)
-                    .Translate(vec3{ 0.0, 0.0, -12.0 })
+                // Deep cut cylinder (3.5x body thickness ~155mm) centered at Z=0 before rotation
+                // to guarantee it bores cleanly through top, bottom, and bevel/fillet surfaces
+                double cyl_depth = body_thickness * 3.5;
+                Manifold cyl = Manifold::Cylinder(cyl_depth, r, r, 20)
+                    .Translate(vec3{ 0.0, 0.0, -cyl_depth * 0.5 })
                     .Rotate(ang_x, ang_y, 0.0)
                     .Translate(vec3{ px, py, body_thickness * 0.5 });
                 body = body - cyl;
@@ -1869,39 +1950,74 @@ void GuitarBodyMesh::rebuild_mesh() {
         }
 
         // 3. Exoskeleton / Post-Split Edge Frame Mode
+        // Generates perimeter frames matching the post-sliced sections (leaving central spine 100% solid)
         if (exoskeleton_enabled && exoskeleton_wall_thickness >= 6.0) {
             double wall = std::clamp(exoskeleton_wall_thickness, 8.0, 32.0);
-            CrossSection cs_inner = cs.Offset(-wall, CrossSection::JoinType::Round);
+            double y_brg_cut = 110.0 * scale_y;
+            double y_w_cut = 260.0 * scale_y;
+            double cx = 50.0;
 
-            // Subtract Central Structural Spine (124mm wide)
-            CrossSection cs_spine = CrossSection::Square(vec2{ 124.0, 600.0 }, true)
-                .Translate(vec2{ 0.0, 240.0 * scale_y });
-            // Subtract Control Cavity region + mounting rim
-            CrossSection cs_elec = CrossSection::Square(vec2{ 85.0, 165.0 }, true)
-                .Translate(vec2{ 85.0, 175.0 * scale_y });
-            // Subtract Neck Joint Root (Y >= 370mm)
-            CrossSection cs_neck = CrossSection::Square(vec2{ 400.0, 200.0 }, true)
-                .Translate(vec2{ 0.0, 460.0 * scale_y });
-            // Subtract Output Jack mounting region
-            double jack_x = 145.13 * (t_hip / 159.0);
-            double jack_y = 72.89 * scale_y;
-            CrossSection cs_jack = CrossSection::Circle(28.0)
-                .Translate(vec2{ jack_x, jack_y });
+            // 6 outer post-sliced domains:
+            // 0: Bot Left, 1: Bot Right, 2: Mid Left, 3: Top Left Horn, 4: Mid Right, 5: Top Right Horn
+            struct PieceDomain {
+                vec2 center;
+                vec2 size;
+                bool is_mid_right;
+                bool is_horn;
+                bool is_bot;
+            };
 
-            CrossSection cs_cutters = cs_inner - cs_spine - cs_elec - cs_neck - cs_jack;
+            std::vector<PieceDomain> domains = {
+                { vec2{ -250.0, y_brg_cut * 0.5 - 25.0 }, vec2{ 500.0, y_brg_cut + 100.0 }, false, false, true }, // 0: Bot Left
+                { vec2{  250.0, y_brg_cut * 0.5 - 25.0 }, vec2{ 500.0, y_brg_cut + 100.0 }, false, false, true }, // 1: Bot Right
+                { vec2{ -250.0 - cx, (y_w_cut + y_brg_cut) * 0.5 }, vec2{ 500.0, y_w_cut - y_brg_cut }, false, false, false }, // 2: Mid Left
+                { vec2{ -250.0 - cx, y_w_cut + 250.0 }, vec2{ 500.0, 500.0 }, false, true, false }, // 3: Top Left Horn
+                { vec2{  250.0 + cx, (y_w_cut + y_brg_cut) * 0.5 }, vec2{ 500.0, y_w_cut - y_brg_cut }, true, false, false },  // 4: Mid Right (Elec cavity)
+                { vec2{  250.0 + cx, y_w_cut + 250.0 }, vec2{ 500.0, 500.0 }, false, true, false }  // 5: Top Right Horn
+            };
 
-            if (!cs_cutters.IsEmpty()) {
-                if (exoskeleton_style == 0) {
-                    // Style 0: Through Windows (cutting completely through wings)
-                    Manifold frame_cutter = Manifold::Extrude(cs_cutters.ToPolygons(), body_thickness + 20.0)
-                        .Translate(vec3{ 0.0, 0.0, -10.0 });
-                    body = body - frame_cutter;
-                } else {
-                    // Style 1: Pocket Trays (recessed chambers leaving floor_thickness continuous back face)
-                    double fl = std::clamp(exoskeleton_floor_thickness, 3.0, body_thickness - 6.0);
-                    Manifold pocket_cutter = Manifold::Extrude(cs_cutters.ToPolygons(), body_thickness - fl + 5.0)
-                        .Translate(vec3{ 0.0, 0.0, fl });
-                    body = body - pocket_cutter;
+            for (const auto& dom : domains) {
+                CrossSection cs_piece = cs ^ CrossSection::Square(dom.size, true).Translate(dom.center);
+                CrossSection cs_win = cs_piece.Offset(-wall, CrossSection::JoinType::Round);
+
+                // Protect dowel pins: subtract a 14mm keepout disc around all adjacent dowel pins
+                for (const auto& sp : active_dowel_specs) {
+                    cs_win = cs_win - CrossSection::Circle(14.0).Translate(vec2{ sp.pos.x, sp.pos.y });
+                }
+
+                // If Mid-Right wing, protect the entire electronics cavity and cover screw lip
+                if (dom.is_mid_right) {
+                    cs_win = cs_win - CrossSection::Square(vec2{ 95.0, 185.0 }, true).Translate(vec2{ cc_x, cc_y });
+                }
+
+                // Output jack protection
+                double jack_x = 145.13 * (t_hip / 159.0);
+                double jack_y = 72.89 * scale_y;
+                cs_win = cs_win - CrossSection::Circle(30.0).Translate(vec2{ jack_x, jack_y });
+
+                // Strap button protection on bottom pieces
+                if (dom.is_bot) {
+                    cs_win = cs_win - CrossSection::Square(vec2{ 42.0, 70.0 }, true).Translate(vec2{ 0.0, 20.0 * scale_y });
+                }
+
+                // Horn tips and cutaway scoops protection on top pieces
+                if (dom.is_horn) {
+                    cs_win = cs_win - CrossSection::Square(vec2{ 500.0, 200.0 }, true).Translate(vec2{ 0.0, 480.0 * scale_y });
+                }
+
+                if (!cs_win.IsEmpty()) {
+                    if (exoskeleton_style == 0) {
+                        // Style 0: Through Windows (cutting completely through piece)
+                        Manifold frame_cutter = Manifold::Extrude(cs_win.ToPolygons(), body_thickness + 24.0)
+                            .Translate(vec3{ 0.0, 0.0, -12.0 });
+                        body = body - frame_cutter;
+                    } else {
+                        // Style 1: Pocket Trays (recessed chambers leaving continuous solid rear floor)
+                        double fl = std::clamp(exoskeleton_floor_thickness, 3.0, body_thickness - 6.0);
+                        Manifold pocket_cutter = Manifold::Extrude(cs_win.ToPolygons(), body_thickness - fl + 10.0)
+                            .Translate(vec3{ 0.0, 0.0, fl });
+                        body = body - pocket_cutter;
+                    }
                 }
             }
         }
@@ -1913,26 +2029,14 @@ void GuitarBodyMesh::rebuild_mesh() {
             double dx = s * 1.5;
             double dy = s * 0.8660254037844386 * 2.0;
 
-            for (double px = -b_hip + s * 0.5; px <= -65.0 - r_hex; px += dx) {
-                for (double py = 60.0 * scale_y; py <= 365.0 * scale_y; py += dy * 0.5) {
+            for (double px = -b_hip + s * 0.5; px <= t_hip - s * 0.5; px += dx) {
+                for (double py = 25.0 * scale_y; py <= 365.0 * scale_y; py += dy * 0.5) {
                     double offset_x = (((int)(py / (dy * 0.5))) % 2 == 0) ? 0.0 : (dx * 0.5);
                     double cur_x = px + offset_x;
-                    if (cur_x > -65.0 - r_hex || is_point_protected(cur_x, py, r_hex)) continue;
+                    if (is_point_protected(cur_x, py, r_hex)) continue;
 
-                    Manifold hex = Manifold::Cylinder(body_thickness + 10.0, r_hex, r_hex, 6)
-                        .Translate(vec3{ cur_x, py, -5.0 });
-                    body = body - hex;
-                }
-            }
-
-            for (double px = 65.0 + r_hex; px <= t_hip - s * 0.5; px += dx) {
-                for (double py = 60.0 * scale_y; py <= 350.0 * scale_y; py += dy * 0.5) {
-                    double offset_x = (((int)(py / (dy * 0.5))) % 2 == 0) ? 0.0 : (dx * 0.5);
-                    double cur_x = px + offset_x;
-                    if (cur_x < 65.0 + r_hex || is_point_protected(cur_x, py, r_hex)) continue;
-
-                    Manifold hex = Manifold::Cylinder(body_thickness + 10.0, r_hex, r_hex, 6)
-                        .Translate(vec3{ cur_x, py, -5.0 });
+                    Manifold hex = Manifold::Cylinder(body_thickness + 20.0, r_hex, r_hex, 6)
+                        .Translate(vec3{ cur_x, py, -10.0 });
                     body = body - hex;
                 }
             }

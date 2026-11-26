@@ -1888,19 +1888,66 @@ func _check_cli_capture():
 		camera_pivot.rotation = Vector3(0.20, 3.14, 0.0)
 		camera.position.z = 1.10
 		should_exit = true
-	elif "--test-modifiers-cylinders" in args or "--test-mod-cylinders-random" in args:
+	elif "--test-modifiers-cylinders" in args or "--test-mod-cylinders-random" in args or "--test-mod-cylinders-through" in args:
 		_switch_ui_mode(0)
 		body_mesh.sphere_modifiers_enabled = false
 		body_mesh.cylinder_modifiers_enabled = true
 		body_mesh.cylinder_count = 18
-		body_mesh.cylinder_radius = 8.5
-		body_mesh.cylinder_angle = 18.0
+		body_mesh.cylinder_radius = 9.0
+		body_mesh.cylinder_angle = 20.0
 		body_mesh.cylinder_style = 0 # Random 3D tilt + varied sizes
+		body_mesh.exoskeleton_enabled = false
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.40, 0.52, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-mod-cylinders-back" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = false
+		body_mesh.cylinder_modifiers_enabled = true
+		body_mesh.cylinder_count = 18
+		body_mesh.cylinder_radius = 9.0
+		body_mesh.cylinder_angle = 20.0
+		body_mesh.cylinder_style = 0
+		body_mesh.exoskeleton_enabled = false
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(0.20, 3.14, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-mod-spheres-bridge" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = true
+		body_mesh.sphere_count = 28
+		body_mesh.sphere_radius = 18.0
+		body_mesh.sphere_placement = 0 # Surface Front & Back Craters
+		body_mesh.cylinder_modifiers_enabled = false
 		body_mesh.exoskeleton_enabled = false
 		_sync_ui_from_mesh()
 		_update_hardware_visuals()
 		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
 		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-mod-exoskeleton-slices" in args:
+		_switch_ui_mode(2)
+		body_mesh.sphere_modifiers_enabled = false
+		body_mesh.cylinder_modifiers_enabled = false
+		body_mesh.exoskeleton_enabled = true
+		body_mesh.exoskeleton_wall_thickness = 15.0
+		body_mesh.exoskeleton_style = 0 # Through Windows
+		body_mesh.slicing_enabled = true
+		body_mesh.slice_grid_type = 2
+		body_mesh.explode_distance = 25.0
+		body_mesh.show_dowel_pins = true
+		check_slicing.button_pressed = true
+		check_dowel_pins.button_pressed = true
+		check_color_slices.button_pressed = true
+		slider_explode.value = 25.0
+		_sync_ui_from_mesh()
+		_update_slice_visuals()
+		camera_pivot.rotation = Vector3(-0.45, 0.55, 0.0)
+		camera.position.z = 1.30
 		should_exit = true
 	elif "--test-mod-exoskeleton" in args:
 		_switch_ui_mode(0)
