@@ -151,6 +151,10 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_neck_pocket_enabled"), &GuitarBodyMesh::get_neck_pocket_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "neck_pocket_enabled"), "set_neck_pocket_enabled", "get_neck_pocket_enabled");
 
+    ClassDB::bind_method(D_METHOD("set_neck_heel_shape", "val"), &GuitarBodyMesh::set_neck_heel_shape);
+    ClassDB::bind_method(D_METHOD("get_neck_heel_shape"), &GuitarBodyMesh::get_neck_heel_shape);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "neck_heel_shape"), "set_neck_heel_shape", "get_neck_heel_shape");
+
     ClassDB::bind_method(D_METHOD("set_neck_pocket_width", "val"), &GuitarBodyMesh::set_neck_pocket_width);
     ClassDB::bind_method(D_METHOD("get_neck_pocket_width"), &GuitarBodyMesh::get_neck_pocket_width);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "neck_pocket_width"), "set_neck_pocket_width", "get_neck_pocket_width");
@@ -551,6 +555,13 @@ void GuitarBodyMesh::set_forearm_bevel_length(double p_val) {
 void GuitarBodyMesh::set_neck_pocket_enabled(bool p_val) {
     if (neck_pocket_enabled != p_val) {
         neck_pocket_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_neck_heel_shape(int p_val) {
+    if (neck_heel_shape != p_val) {
+        neck_heel_shape = p_val;
         rebuild_mesh();
     }
 }
@@ -1335,10 +1346,37 @@ void GuitarBodyMesh::rebuild_mesh() {
         double pocket_len = neck_pocket_length;
         double pocket_depth = neck_pocket_depth;
         double pocket_top_y = 399.69 * scale_y;
+        double pocket_heel_y = pocket_top_y - pocket_len;
 
-        Manifold neck_pocket = Manifold::Cube(vec3{ pocket_w, pocket_len + 15.0, pocket_depth + 4.0 }, false)
-            .Translate(vec3{ -pocket_w * 0.5, pocket_top_y - pocket_len, body_thickness - pocket_depth });
-        body = body - neck_pocket;
+        if (neck_heel_shape == 0) {
+            // Stratocaster: Curved heel arc matching the 27.8mm radius rounded neck shaft
+            double hw = pocket_w * 0.5;
+            double R = 27.8;
+            SimplePolygon pocket_pts;
+            const int segs = 16;
+            // Arc across bottom heel (from -hw to +hw)
+            for (int s = 0; s <= segs; ++s) {
+                double x = -hw + (double)s / (double)segs * pocket_w;
+                double clamped_x = std::clamp(x, -23.2, 23.2);
+                double dy = R - std::sqrt(std::max(0.0, R * R - clamped_x * clamped_x));
+                double corner_factor = std::abs(x) / hw;
+                double final_dy = dy + (corner_factor > 0.82 ? (corner_factor - 0.82) * 15.0 : 0.0);
+                pocket_pts.push_back(vec2{ x, pocket_heel_y + final_dy });
+            }
+            // Go up right side, across top, down left side (CCW winding)
+            pocket_pts.push_back(vec2{ hw, pocket_top_y + 150.0 });
+            pocket_pts.push_back(vec2{ -hw, pocket_top_y + 150.0 });
+
+            CrossSection cs_pocket(pocket_pts, CrossSection::FillRule::Positive);
+            Manifold neck_pocket = Manifold::Extrude(cs_pocket.ToPolygons(), pocket_depth + 4.0)
+                .Translate(vec3{ 0.0, 0.0, body_thickness - pocket_depth });
+            body = body - neck_pocket;
+        } else {
+            // Les Paul: Flat square heel mortise
+            Manifold neck_pocket = Manifold::Cube(vec3{ pocket_w, pocket_len + 150.0, pocket_depth + 4.0 }, false)
+                .Translate(vec3{ -pocket_w * 0.5, pocket_heel_y, body_thickness - pocket_depth });
+            body = body - neck_pocket;
+        }
     }
 
     // Procedural Pickup Cavity Generator

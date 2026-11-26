@@ -65,6 +65,8 @@ extends Node3D
 @onready var check_control_cavity = $UI/Panel/Scroll/VBox/CheckControlCavity
 @onready var check_hardware_models = $UI/Panel/Scroll/VBox/CheckHardwareModels
 @onready var check_neck = $UI/Panel/Scroll/VBox/CheckNeck
+@onready var lbl_neck_style = $UI/Panel/Scroll/VBox/LblNeckStyle
+@onready var option_neck_style = $UI/Panel/Scroll/VBox/OptionNeckStyle
 @onready var check_piezo = $UI/Panel/Scroll/VBox/CheckPiezo
 
 # Phase 5: Body Shape Presets & Procedural Modifiers
@@ -218,27 +220,27 @@ func _setup_materials():
 	dowel_mat.roughness = 0.45
 	dowel_mat.cull_mode = BaseMaterial3D.CULL_BACK
 
-	# Neck & Headstock Materials
+	# Neck & Headstock Materials - CULL_DISABLED ensures 100% solid opacity from every viewing angle
 	maple_mat = StandardMaterial3D.new()
 	maple_mat.albedo_color = Color(0.89, 0.77, 0.60) # Satin Hard Rock Canadian Maple
 	maple_mat.roughness = 0.38
-	maple_mat.cull_mode = BaseMaterial3D.CULL_BACK
+	maple_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	rosewood_mat = StandardMaterial3D.new()
 	rosewood_mat.albedo_color = Color(0.24, 0.16, 0.12) # Rich Dark Indian Rosewood Fretboard
 	rosewood_mat.roughness = 0.55
-	rosewood_mat.cull_mode = BaseMaterial3D.CULL_BACK
+	rosewood_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	frets_mat = StandardMaterial3D.new()
 	frets_mat.albedo_color = Color(0.85, 0.85, 0.84) # 18% Nickel-Silver Frets
 	frets_mat.metallic = 0.92
 	frets_mat.roughness = 0.18
-	frets_mat.cull_mode = BaseMaterial3D.CULL_BACK
+	frets_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	nut_mat = StandardMaterial3D.new()
 	nut_mat.albedo_color = Color(0.92, 0.90, 0.82) # Aged Natural Bone Nut
 	nut_mat.roughness = 0.35
-	nut_mat.cull_mode = BaseMaterial3D.CULL_BACK
+	nut_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	var colors = [
 		Color(0.25, 0.82, 0.65), # Mint Green
@@ -312,6 +314,7 @@ func _sync_ui_from_mesh():
 	check_control_cavity.button_pressed = body_mesh.control_cavity_enabled
 	check_piezo.button_pressed = body_mesh.piezo_saddles_enabled
 	if is_instance_valid(check_neck): check_neck.button_pressed = true
+	if is_instance_valid(option_neck_style): option_neck_style.selected = body_mesh.neck_heel_shape
 
 	# Procedural Modifiers & Weight Relief
 	if is_instance_valid(check_sphere):
@@ -556,6 +559,12 @@ func _connect_signals():
 	if is_instance_valid(check_neck):
 		check_neck.toggled.connect(func(_v): _update_hardware_visuals())
 
+	if is_instance_valid(option_neck_style):
+		option_neck_style.item_selected.connect(func(idx):
+			body_mesh.neck_heel_shape = idx
+			_update_hardware_visuals()
+		)
+
 	# Finish & Materials
 	option_preset.item_selected.connect(_apply_curated_preset)
 	option_finish_type.item_selected.connect(func(_idx): _update_finish_shader())
@@ -601,7 +610,7 @@ func _switch_ui_mode(mode: int):
 		if is_instance_valid(grid_honeycomb): grid_honeycomb.visible = false
 
 	# Hardware section
-	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models, check_neck, check_piezo]:
+	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models, check_neck, lbl_neck_style, option_neck_style, check_piezo]:
 		if is_instance_valid(n): n.visible = (mode == 1)
 
 	# Slicing section
@@ -660,15 +669,17 @@ func _create_neck_visuals(to_world: Callable, scale_y: float):
 
 	# Seated into the mortise pocket floor
 	# Pocket floor is at -body_mesh.neck_pocket_depth relative to front face
+	var is_lp = (is_instance_valid(option_neck_style) and option_neck_style.selected == 1) or body_mesh.neck_heel_shape == 1
+	var subfolder = "les_paul" if is_lp else "strat"
 	var my = 399.69 - (body_mesh.neck_pocket_length / scale_y)
 	neck_group.position = to_world.call(0.0, my, -body_mesh.neck_pocket_depth)
 
 	var parts = [
-		{ "path": "res://assets/neck/neck_shaft.tres", "mat": maple_mat, "name": "NeckShaft" },
-		{ "path": "res://assets/neck/fretboard.tres", "mat": rosewood_mat, "name": "Fretboard" },
-		{ "path": "res://assets/neck/frets.tres", "mat": frets_mat, "name": "Frets" },
-		{ "path": "res://assets/neck/nut.tres", "mat": nut_mat, "name": "Nut" },
-		{ "path": "res://assets/neck/tuners.tres", "mat": chrome_mat, "name": "Tuners" }
+		{ "path": "res://assets/neck/%s/neck_shaft.tres" % subfolder, "mat": maple_mat, "name": "NeckShaft" },
+		{ "path": "res://assets/neck/%s/fretboard.tres" % subfolder, "mat": rosewood_mat, "name": "Fretboard" },
+		{ "path": "res://assets/neck/%s/frets.tres" % subfolder, "mat": frets_mat, "name": "Frets" },
+		{ "path": "res://assets/neck/%s/nut.tres" % subfolder, "mat": nut_mat, "name": "Nut" },
+		{ "path": "res://assets/neck/%s/tuners.tres" % subfolder, "mat": chrome_mat, "name": "Tuners" }
 	]
 
 	for p in parts:
@@ -706,6 +717,8 @@ func _apply_shape_preset(idx: int):
 			body_mesh.bass_horn_roundness = 1.0
 			body_mesh.belly_cut_enabled = true
 			body_mesh.forearm_bevel_enabled = true
+			body_mesh.neck_heel_shape = 0
+			if is_instance_valid(option_neck_style): option_neck_style.selected = 0
 		1: # Single-Cut Standard (LP)
 			body_mesh.body_length = 440.0
 			body_mesh.body_thickness = 48.0
@@ -725,6 +738,8 @@ func _apply_shape_preset(idx: int):
 			body_mesh.bass_horn_roundness = 0.5
 			body_mesh.belly_cut_enabled = false
 			body_mesh.forearm_bevel_enabled = false
+			body_mesh.neck_heel_shape = 1
+			if is_instance_valid(option_neck_style): option_neck_style.selected = 1
 		2: # Double-Cut Custom (SG)
 			body_mesh.body_length = 410.0
 			body_mesh.body_thickness = 35.0
@@ -738,6 +753,8 @@ func _apply_shape_preset(idx: int):
 			body_mesh.horn_roundness = 0.65
 			body_mesh.belly_cut_enabled = false
 			body_mesh.forearm_bevel_enabled = true
+			body_mesh.neck_heel_shape = 1
+			if is_instance_valid(option_neck_style): option_neck_style.selected = 1
 		3: # Offset Modern (Jazzmaster)
 			body_mesh.body_length = 465.0
 			body_mesh.body_thickness = 42.0
@@ -757,6 +774,8 @@ func _apply_shape_preset(idx: int):
 			body_mesh.bass_horn_roundness = 1.0
 			body_mesh.belly_cut_enabled = true
 			body_mesh.forearm_bevel_enabled = true
+			body_mesh.neck_heel_shape = 0
+			if is_instance_valid(option_neck_style): option_neck_style.selected = 0
 		4: # Modern Flying V
 			body_mesh.body_length = 480.0
 			body_mesh.body_thickness = 38.0
@@ -770,6 +789,8 @@ func _apply_shape_preset(idx: int):
 			body_mesh.horn_roundness = 0.5
 			body_mesh.belly_cut_enabled = false
 			body_mesh.forearm_bevel_enabled = false
+			body_mesh.neck_heel_shape = 1
+			if is_instance_valid(option_neck_style): option_neck_style.selected = 1
 		_:
 			pass
 	_sync_ui_from_mesh()
@@ -1305,6 +1326,8 @@ func _save_project_json(path: String = "res://export/guitar_project_v2.json"):
 			"pickup_clearance": body_mesh.pickup_clearance,
 			"pickup_depth": body_mesh.pickup_depth,
 			"neck_pocket_enabled": body_mesh.neck_pocket_enabled,
+			"neck_heel_shape": body_mesh.neck_heel_shape,
+			"neck_style": option_neck_style.selected if is_instance_valid(option_neck_style) else 0,
 			"neck_visible": check_neck.button_pressed if is_instance_valid(check_neck) else true,
 			"control_cavity_enabled": body_mesh.control_cavity_enabled,
 			"piezo_saddles_enabled": body_mesh.piezo_saddles_enabled
@@ -1391,6 +1414,8 @@ func _load_project_json(path: String = "res://export/guitar_project_v2.json"):
 		if hw.has("bridge_y"): body_mesh.bridge_y = hw["bridge_y"]
 		if hw.has("bridge_pickup_slant"): body_mesh.bridge_pickup_slant = hw["bridge_pickup_slant"]
 		if hw.has("neck_pocket_enabled"): body_mesh.neck_pocket_enabled = hw["neck_pocket_enabled"]
+		if hw.has("neck_heel_shape"): body_mesh.neck_heel_shape = hw["neck_heel_shape"]
+		if hw.has("neck_style") and is_instance_valid(option_neck_style): option_neck_style.selected = hw["neck_style"]
 		if hw.has("neck_visible") and is_instance_valid(check_neck): check_neck.button_pressed = hw["neck_visible"]
 		if hw.has("control_cavity_enabled"): body_mesh.control_cavity_enabled = hw["control_cavity_enabled"]
 		if hw.has("piezo_saddles_enabled"): body_mesh.piezo_saddles_enabled = hw["piezo_saddles_enabled"]
@@ -1671,15 +1696,60 @@ func _check_cli_capture():
 		camera_pivot.rotation = Vector3(-0.15, 1.15, 0.0)
 		camera.position.z = 1.15
 		should_exit = true
-	elif "--test-neck" in args:
+	elif "--test-neck" in args or "--test-neck-strat" in args:
 		_switch_ui_mode(1)
 		check_hardware_models.button_pressed = true
 		check_neck.button_pressed = true
+		_apply_shape_preset(0)
+		body_mesh.neck_heel_shape = 0
+		if is_instance_valid(option_neck_style): option_neck_style.selected = 0
 		_update_hardware_visuals()
 		option_preset.selected = 1
 		_apply_curated_preset(1)
-		camera_pivot.rotation = Vector3(-0.25, 0.35, 0.0)
+		camera_pivot.position = Vector3(0.0, 0.10, 0.0)
+		camera_pivot.rotation = Vector3(-0.32, 0.52, 0.0)
+		camera.position.z = 0.65
+		should_exit = true
+	elif "--test-neck-lp" in args:
+		_switch_ui_mode(1)
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_apply_shape_preset(1)
+		body_mesh.neck_heel_shape = 1
+		if is_instance_valid(option_neck_style): option_neck_style.selected = 1
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		camera_pivot.position = Vector3(0.0, 0.10, 0.0)
+		camera_pivot.rotation = Vector3(-0.32, 0.52, 0.0)
+		camera.position.z = 0.65
+		should_exit = true
+	elif "--test-neck-lp-full" in args:
+		_switch_ui_mode(1)
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_apply_shape_preset(1)
+		body_mesh.neck_heel_shape = 1
+		if is_instance_valid(option_neck_style): option_neck_style.selected = 1
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
 		camera_pivot.position = Vector3(0.0, 0.28, 0.0)
+		camera_pivot.rotation = Vector3(-0.25, 0.35, 0.0)
+		camera.position.z = 1.85
+		should_exit = true
+	elif "--test-neck-back" in args:
+		_switch_ui_mode(1)
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_apply_shape_preset(0)
+		body_mesh.neck_heel_shape = 0
+		if is_instance_valid(option_neck_style): option_neck_style.selected = 0
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		camera_pivot.position = Vector3(0.0, 0.28, 0.0)
+		camera_pivot.rotation = Vector3(0.15, 3.14, 0.0)
 		camera.position.z = 1.85
 		should_exit = true
 	elif "--test-modifiers-spheres" in args:

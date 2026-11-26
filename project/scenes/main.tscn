@@ -768,6 +768,19 @@ layout_mode = 2
 button_pressed = true
 text = "🎸 Full 22-Fret Neck & Headstock"
 
+[node name="LblNeckStyle" type="Label" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Neck & Headstock Style:"
+
+[node name="OptionNeckStyle" type="OptionButton" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "Stratocaster (6-In-Line, Curved Heel)"
+popup/item_0/id = 0
+popup/item_1/text = "Les Paul (3+3 Headstock, Square Heel)"
+popup/item_1/id = 1
+
 [node name="CheckPiezo" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 text = "Piezo Saddles (3x6mm Wire Slots)"

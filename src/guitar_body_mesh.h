@@ -53,6 +53,7 @@ private:
 
     // Neck pocket
     bool neck_pocket_enabled = true;
+    int neck_heel_shape = 0; // 0: Curved (Stratocaster), 1: Square (Les Paul)
     double neck_pocket_width = 56.5;
     double neck_pocket_length = 76.2;
     double neck_pocket_depth = 16.0;
@@ -212,6 +213,9 @@ public:
 
     void set_neck_pocket_enabled(bool p_val);
     bool get_neck_pocket_enabled() const { return neck_pocket_enabled; }
+
+    void set_neck_heel_shape(int p_val);
+    int get_neck_heel_shape() const { return neck_heel_shape; }
 
     void set_neck_pocket_width(double p_val);
     double get_neck_pocket_width() const { return neck_pocket_width; }
