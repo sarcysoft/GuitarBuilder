@@ -74,15 +74,32 @@ extends Node3D
 @onready var option_shape_preset = $UI/Panel/Scroll/VBox/OptionShapePreset
 @onready var hsep_modifiers = $UI/Panel/Scroll/VBox/HSeparatorModifiers
 @onready var lbl_modifiers = $UI/Panel/Scroll/VBox/LblModifiers
+@onready var mod_presets_box = $UI/Panel/Scroll/VBox/ModPresetsBox
+@onready var btn_preset_craters = $UI/Panel/Scroll/VBox/ModPresetsBox/BtnModPresetCraters
+@onready var btn_preset_perforations = $UI/Panel/Scroll/VBox/ModPresetsBox/BtnModPresetPerforations
+@onready var btn_preset_exoskeleton = $UI/Panel/Scroll/VBox/ModPresetsBox/BtnModPresetExoskeleton
+@onready var btn_preset_hybrid = $UI/Panel/Scroll/VBox/ModPresetsBox/BtnModPresetHybrid
+@onready var btn_preset_solid = $UI/Panel/Scroll/VBox/ModPresetsBox/BtnModPresetSolid
+
 @onready var check_sphere = $UI/Panel/Scroll/VBox/CheckSphereModifiers
 @onready var grid_sphere = $UI/Panel/Scroll/VBox/GridSphereModifiers
 @onready var slider_sphere_count = $UI/Panel/Scroll/VBox/GridSphereModifiers/SliderSphereCount
 @onready var slider_sphere_radius = $UI/Panel/Scroll/VBox/GridSphereModifiers/SliderSphereRadius
+@onready var option_sphere_placement = $UI/Panel/Scroll/VBox/GridSphereModifiers/OptionSpherePlacement
+
 @onready var check_cylinder = $UI/Panel/Scroll/VBox/CheckCylinderModifiers
 @onready var grid_cylinder = $UI/Panel/Scroll/VBox/GridCylinderModifiers
 @onready var slider_cylinder_count = $UI/Panel/Scroll/VBox/GridCylinderModifiers/SliderCylinderCount
 @onready var slider_cylinder_radius = $UI/Panel/Scroll/VBox/GridCylinderModifiers/SliderCylinderRadius
 @onready var slider_cylinder_angle = $UI/Panel/Scroll/VBox/GridCylinderModifiers/SliderCylinderAngle
+@onready var option_cylinder_style = $UI/Panel/Scroll/VBox/GridCylinderModifiers/OptionCylinderStyle
+
+@onready var check_exoskeleton = $UI/Panel/Scroll/VBox/CheckExoskeleton
+@onready var grid_exoskeleton = $UI/Panel/Scroll/VBox/GridExoskeleton
+@onready var slider_exo_wall = $UI/Panel/Scroll/VBox/GridExoskeleton/SliderExoWall
+@onready var option_exo_style = $UI/Panel/Scroll/VBox/GridExoskeleton/OptionExoStyle
+@onready var slider_exo_floor = $UI/Panel/Scroll/VBox/GridExoskeleton/SliderExoFloor
+
 @onready var check_honeycomb = $UI/Panel/Scroll/VBox/CheckHoneycombModifiers
 @onready var grid_honeycomb = $UI/Panel/Scroll/VBox/GridHoneycombModifiers
 @onready var slider_honeycomb_cell = $UI/Panel/Scroll/VBox/GridHoneycombModifiers/SliderHoneycombCell
@@ -322,12 +339,20 @@ func _sync_ui_from_mesh():
 		grid_sphere.visible = body_mesh.sphere_modifiers_enabled
 		slider_sphere_count.value = body_mesh.sphere_count
 		slider_sphere_radius.value = body_mesh.sphere_radius
+		if is_instance_valid(option_sphere_placement): option_sphere_placement.selected = body_mesh.sphere_placement
 	if is_instance_valid(check_cylinder):
 		check_cylinder.button_pressed = body_mesh.cylinder_modifiers_enabled
 		grid_cylinder.visible = body_mesh.cylinder_modifiers_enabled
 		slider_cylinder_count.value = body_mesh.cylinder_count
 		slider_cylinder_radius.value = body_mesh.cylinder_radius
 		slider_cylinder_angle.value = body_mesh.cylinder_angle
+		if is_instance_valid(option_cylinder_style): option_cylinder_style.selected = body_mesh.cylinder_style
+	if is_instance_valid(check_exoskeleton):
+		check_exoskeleton.button_pressed = body_mesh.exoskeleton_enabled
+		grid_exoskeleton.visible = body_mesh.exoskeleton_enabled
+		slider_exo_wall.value = body_mesh.exoskeleton_wall_thickness
+		if is_instance_valid(option_exo_style): option_exo_style.selected = body_mesh.exoskeleton_style
+		slider_exo_floor.value = body_mesh.exoskeleton_floor_thickness
 	if is_instance_valid(check_honeycomb):
 		check_honeycomb.button_pressed = body_mesh.honeycomb_modifiers_enabled
 		grid_honeycomb.visible = body_mesh.honeycomb_modifiers_enabled
@@ -526,6 +551,64 @@ func _connect_signals():
 	# Phase 5: Body Shape Presets & Procedural Modifiers
 	if is_instance_valid(option_shape_preset):
 		option_shape_preset.item_selected.connect(_apply_shape_preset)
+
+	# Quick Modifiers Presets
+	if is_instance_valid(btn_preset_craters):
+		btn_preset_craters.pressed.connect(func():
+			body_mesh.sphere_modifiers_enabled = true
+			body_mesh.sphere_count = 22
+			body_mesh.sphere_radius = 20.0
+			body_mesh.sphere_placement = 0 # Surface Front & Back Craters
+			body_mesh.cylinder_modifiers_enabled = false
+			body_mesh.exoskeleton_enabled = false
+			body_mesh.honeycomb_modifiers_enabled = false
+			_sync_ui_from_mesh()
+		)
+	if is_instance_valid(btn_preset_perforations):
+		btn_preset_perforations.pressed.connect(func():
+			body_mesh.sphere_modifiers_enabled = false
+			body_mesh.cylinder_modifiers_enabled = true
+			body_mesh.cylinder_count = 18
+			body_mesh.cylinder_radius = 8.5
+			body_mesh.cylinder_angle = 18.0
+			body_mesh.cylinder_style = 0 # Random 3D
+			body_mesh.exoskeleton_enabled = false
+			body_mesh.honeycomb_modifiers_enabled = false
+			_sync_ui_from_mesh()
+		)
+	if is_instance_valid(btn_preset_exoskeleton):
+		btn_preset_exoskeleton.pressed.connect(func():
+			body_mesh.sphere_modifiers_enabled = false
+			body_mesh.cylinder_modifiers_enabled = false
+			body_mesh.exoskeleton_enabled = true
+			body_mesh.exoskeleton_wall_thickness = 15.0
+			body_mesh.exoskeleton_style = 0 # Through Windows
+			body_mesh.honeycomb_modifiers_enabled = false
+			_sync_ui_from_mesh()
+		)
+	if is_instance_valid(btn_preset_hybrid):
+		btn_preset_hybrid.pressed.connect(func():
+			body_mesh.sphere_modifiers_enabled = false
+			body_mesh.cylinder_modifiers_enabled = true
+			body_mesh.cylinder_count = 12
+			body_mesh.cylinder_radius = 7.0
+			body_mesh.cylinder_angle = 12.0
+			body_mesh.exoskeleton_enabled = true
+			body_mesh.exoskeleton_wall_thickness = 16.0
+			body_mesh.exoskeleton_style = 1 # Pocket Trays
+			body_mesh.exoskeleton_floor_thickness = 6.0
+			body_mesh.honeycomb_modifiers_enabled = false
+			_sync_ui_from_mesh()
+		)
+	if is_instance_valid(btn_preset_solid):
+		btn_preset_solid.pressed.connect(func():
+			body_mesh.sphere_modifiers_enabled = false
+			body_mesh.cylinder_modifiers_enabled = false
+			body_mesh.exoskeleton_enabled = false
+			body_mesh.honeycomb_modifiers_enabled = false
+			_sync_ui_from_mesh()
+		)
+
 	if is_instance_valid(check_sphere):
 		check_sphere.toggled.connect(func(v):
 			body_mesh.sphere_modifiers_enabled = v
@@ -533,6 +616,8 @@ func _connect_signals():
 		)
 		slider_sphere_count.value_changed.connect(func(v): body_mesh.sphere_count = int(v))
 		slider_sphere_radius.value_changed.connect(func(v): body_mesh.sphere_radius = v)
+		if is_instance_valid(option_sphere_placement):
+			option_sphere_placement.item_selected.connect(func(idx): body_mesh.sphere_placement = idx)
 
 	if is_instance_valid(check_cylinder):
 		check_cylinder.toggled.connect(func(v):
@@ -542,6 +627,17 @@ func _connect_signals():
 		slider_cylinder_count.value_changed.connect(func(v): body_mesh.cylinder_count = int(v))
 		slider_cylinder_radius.value_changed.connect(func(v): body_mesh.cylinder_radius = v)
 		slider_cylinder_angle.value_changed.connect(func(v): body_mesh.cylinder_angle = v)
+		if is_instance_valid(option_cylinder_style):
+			option_cylinder_style.item_selected.connect(func(idx): body_mesh.cylinder_style = idx)
+
+	if is_instance_valid(check_exoskeleton):
+		check_exoskeleton.toggled.connect(func(v):
+			body_mesh.exoskeleton_enabled = v
+			grid_exoskeleton.visible = v
+		)
+		slider_exo_wall.value_changed.connect(func(v): body_mesh.exoskeleton_wall_thickness = v)
+		option_exo_style.item_selected.connect(func(idx): body_mesh.exoskeleton_style = idx)
+		slider_exo_floor.value_changed.connect(func(v): body_mesh.exoskeleton_floor_thickness = v)
 
 	if is_instance_valid(check_honeycomb):
 		check_honeycomb.toggled.connect(func(v):
@@ -590,7 +686,7 @@ func _switch_ui_mode(mode: int):
 	if is_instance_valid(btn_tab_finish): btn_tab_finish.button_pressed = (mode == 3)
 
 	# Body section
-	for n in [lbl_shape_preset, option_shape_preset, lbl_global, grid_global, hsep_sym, check_symmetric, hsep_cuts, lbl_ergo, check_belly, check_forearm, hsep_modifiers, lbl_modifiers, check_sphere, check_cylinder, check_honeycomb, btn_reseed]:
+	for n in [lbl_shape_preset, option_shape_preset, lbl_global, grid_global, hsep_sym, check_symmetric, hsep_cuts, lbl_ergo, check_belly, check_forearm, hsep_modifiers, lbl_modifiers, mod_presets_box, check_sphere, check_cylinder, check_exoskeleton, check_honeycomb, btn_reseed]:
 		if is_instance_valid(n): n.visible = (mode == 0)
 	if mode == 0 and is_instance_valid(body_mesh):
 		symmetric_controls.visible = body_mesh.symmetric_mode
@@ -599,6 +695,7 @@ func _switch_ui_mode(mode: int):
 		forearm_controls.visible = body_mesh.forearm_bevel_enabled
 		grid_sphere.visible = body_mesh.sphere_modifiers_enabled
 		grid_cylinder.visible = body_mesh.cylinder_modifiers_enabled
+		grid_exoskeleton.visible = body_mesh.exoskeleton_enabled
 		grid_honeycomb.visible = body_mesh.honeycomb_modifiers_enabled
 	else:
 		if is_instance_valid(symmetric_controls): symmetric_controls.visible = false
@@ -607,6 +704,7 @@ func _switch_ui_mode(mode: int):
 		if is_instance_valid(forearm_controls): forearm_controls.visible = false
 		if is_instance_valid(grid_sphere): grid_sphere.visible = false
 		if is_instance_valid(grid_cylinder): grid_cylinder.visible = false
+		if is_instance_valid(grid_exoskeleton): grid_exoskeleton.visible = false
 		if is_instance_valid(grid_honeycomb): grid_honeycomb.visible = false
 
 	# Hardware section
@@ -1310,10 +1408,16 @@ func _save_project_json(path: String = "res://export/guitar_project_v2.json"):
 			"sphere_modifiers_enabled": body_mesh.sphere_modifiers_enabled,
 			"sphere_count": body_mesh.sphere_count,
 			"sphere_radius": body_mesh.sphere_radius,
+			"sphere_placement": body_mesh.sphere_placement,
 			"cylinder_modifiers_enabled": body_mesh.cylinder_modifiers_enabled,
 			"cylinder_count": body_mesh.cylinder_count,
 			"cylinder_radius": body_mesh.cylinder_radius,
 			"cylinder_angle": body_mesh.cylinder_angle,
+			"cylinder_style": body_mesh.cylinder_style,
+			"exoskeleton_enabled": body_mesh.exoskeleton_enabled,
+			"exoskeleton_wall_thickness": body_mesh.exoskeleton_wall_thickness,
+			"exoskeleton_style": body_mesh.exoskeleton_style,
+			"exoskeleton_floor_thickness": body_mesh.exoskeleton_floor_thickness,
 			"honeycomb_modifiers_enabled": body_mesh.honeycomb_modifiers_enabled,
 			"honeycomb_cell_size": body_mesh.honeycomb_cell_size,
 			"modifier_seed": body_mesh.modifier_seed
@@ -1428,10 +1532,16 @@ func _load_project_json(path: String = "res://export/guitar_project_v2.json"):
 		if pm.has("sphere_modifiers_enabled"): body_mesh.sphere_modifiers_enabled = pm["sphere_modifiers_enabled"]
 		if pm.has("sphere_count"): body_mesh.sphere_count = pm["sphere_count"]
 		if pm.has("sphere_radius"): body_mesh.sphere_radius = pm["sphere_radius"]
+		if pm.has("sphere_placement"): body_mesh.sphere_placement = pm["sphere_placement"]
 		if pm.has("cylinder_modifiers_enabled"): body_mesh.cylinder_modifiers_enabled = pm["cylinder_modifiers_enabled"]
 		if pm.has("cylinder_count"): body_mesh.cylinder_count = pm["cylinder_count"]
 		if pm.has("cylinder_radius"): body_mesh.cylinder_radius = pm["cylinder_radius"]
 		if pm.has("cylinder_angle"): body_mesh.cylinder_angle = pm["cylinder_angle"]
+		if pm.has("cylinder_style"): body_mesh.cylinder_style = pm["cylinder_style"]
+		if pm.has("exoskeleton_enabled"): body_mesh.exoskeleton_enabled = pm["exoskeleton_enabled"]
+		if pm.has("exoskeleton_wall_thickness"): body_mesh.exoskeleton_wall_thickness = pm["exoskeleton_wall_thickness"]
+		if pm.has("exoskeleton_style"): body_mesh.exoskeleton_style = pm["exoskeleton_style"]
+		if pm.has("exoskeleton_floor_thickness"): body_mesh.exoskeleton_floor_thickness = pm["exoskeleton_floor_thickness"]
 		if pm.has("honeycomb_modifiers_enabled"): body_mesh.honeycomb_modifiers_enabled = pm["honeycomb_modifiers_enabled"]
 		if pm.has("honeycomb_cell_size"): body_mesh.honeycomb_cell_size = pm["honeycomb_cell_size"]
 		if pm.has("modifier_seed"): body_mesh.modifier_seed = pm["modifier_seed"]
@@ -1752,26 +1862,73 @@ func _check_cli_capture():
 		camera_pivot.rotation = Vector3(0.15, 3.14, 0.0)
 		camera.position.z = 1.85
 		should_exit = true
-	elif "--test-modifiers-spheres" in args:
+	elif "--test-modifiers-spheres" in args or "--test-mod-spheres-surface" in args:
 		_switch_ui_mode(0)
 		body_mesh.sphere_modifiers_enabled = true
-		body_mesh.sphere_count = 18
-		body_mesh.sphere_radius = 22.0
+		body_mesh.sphere_count = 22
+		body_mesh.sphere_radius = 20.0
+		body_mesh.sphere_placement = 0 # Surface Front & Back Craters
+		body_mesh.cylinder_modifiers_enabled = false
+		body_mesh.exoskeleton_enabled = false
 		_sync_ui_from_mesh()
 		_update_hardware_visuals()
 		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
-		camera.position.z = 1.0
+		camera.position.z = 1.05
 		should_exit = true
-	elif "--test-modifiers-cylinders" in args:
+	elif "--test-mod-spheres-back" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = true
+		body_mesh.sphere_count = 22
+		body_mesh.sphere_radius = 20.0
+		body_mesh.sphere_placement = 0 # Surface Craters (rear view)
+		body_mesh.cylinder_modifiers_enabled = false
+		body_mesh.exoskeleton_enabled = false
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(0.20, 3.14, 0.0)
+		camera.position.z = 1.10
+		should_exit = true
+	elif "--test-modifiers-cylinders" in args or "--test-mod-cylinders-random" in args:
 		_switch_ui_mode(0)
 		body_mesh.sphere_modifiers_enabled = false
 		body_mesh.cylinder_modifiers_enabled = true
-		body_mesh.cylinder_count = 14
-		body_mesh.cylinder_radius = 9.0
+		body_mesh.cylinder_count = 18
+		body_mesh.cylinder_radius = 8.5
+		body_mesh.cylinder_angle = 18.0
+		body_mesh.cylinder_style = 0 # Random 3D tilt + varied sizes
+		body_mesh.exoskeleton_enabled = false
 		_sync_ui_from_mesh()
 		_update_hardware_visuals()
 		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
-		camera.position.z = 1.0
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-mod-exoskeleton" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = false
+		body_mesh.cylinder_modifiers_enabled = false
+		body_mesh.exoskeleton_enabled = true
+		body_mesh.exoskeleton_wall_thickness = 15.0
+		body_mesh.exoskeleton_style = 0 # Through Windows
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		camera.position.z = 1.05
+		should_exit = true
+	elif "--test-mod-hybrid" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = false
+		body_mesh.cylinder_modifiers_enabled = true
+		body_mesh.cylinder_count = 12
+		body_mesh.cylinder_radius = 7.0
+		body_mesh.cylinder_angle = 12.0
+		body_mesh.exoskeleton_enabled = true
+		body_mesh.exoskeleton_wall_thickness = 16.0
+		body_mesh.exoskeleton_style = 1 # Pocket Trays
+		body_mesh.exoskeleton_floor_thickness = 6.0
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		camera.position.z = 1.05
 		should_exit = true
 	elif "--test-modifiers-honeycomb" in args:
 		_switch_ui_mode(0)

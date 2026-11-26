@@ -549,6 +549,32 @@ theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
 theme_override_font_sizes/font_size = 13
 text = "Procedural Modifiers & Weight Relief"
 
+[node name="ModPresetsBox" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+columns = 3
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 4
+
+[node name="BtnModPresetCraters" type="Button" parent="UI/Panel/Scroll/VBox/ModPresetsBox"]
+layout_mode = 2
+text = "🧀 Craters"
+
+[node name="BtnModPresetPerforations" type="Button" parent="UI/Panel/Scroll/VBox/ModPresetsBox"]
+layout_mode = 2
+text = "🌀 Tunnels"
+
+[node name="BtnModPresetExoskeleton" type="Button" parent="UI/Panel/Scroll/VBox/ModPresetsBox"]
+layout_mode = 2
+text = "🔲 Exoskeleton"
+
+[node name="BtnModPresetHybrid" type="Button" parent="UI/Panel/Scroll/VBox/ModPresetsBox"]
+layout_mode = 2
+text = "🚀 Hybrid"
+
+[node name="BtnModPresetSolid" type="Button" parent="UI/Panel/Scroll/VBox/ModPresetsBox"]
+layout_mode = 2
+text = "🔄 Solid Body"
+
 [node name="CheckSphereModifiers" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 text = "Sphere Chambering (Acoustic Hollows)"
@@ -567,9 +593,9 @@ text = "Sphere Count:"
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 min_value = 4.0
-max_value = 32.0
+max_value = 40.0
 step = 1.0
-value = 16.0
+value = 18.0
 
 [node name="LblSphereRadius" type="Label" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
 layout_mode = 2
@@ -582,6 +608,21 @@ min_value = 10.0
 max_value = 28.0
 step = 1.0
 value = 20.0
+
+[node name="LblSpherePlacement" type="Label" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
+layout_mode = 2
+text = "Placement:"
+
+[node name="OptionSpherePlacement" type="OptionButton" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
+layout_mode = 2
+selected = 0
+item_count = 3
+popup/item_0/text = "Surface (Front & Back)"
+popup/item_0/id = 0
+popup/item_1/text = "Through Voids"
+popup/item_1/id = 1
+popup/item_2/text = "Mixed (Craters + Voids)"
+popup/item_2/id = 2
 
 [node name="CheckCylinderModifiers" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
@@ -601,18 +642,18 @@ text = "Cylinder Count:"
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 min_value = 4.0
-max_value = 24.0
+max_value = 32.0
 step = 1.0
-value = 12.0
+value = 14.0
 
 [node name="LblCylinderRadius" type="Label" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
 layout_mode = 2
-text = "Cylinder Radius (mm):"
+text = "Base Radius (mm):"
 
 [node name="SliderCylinderRadius" type="HSlider" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
-min_value = 5.0
+min_value = 4.0
 max_value = 16.0
 step = 0.5
 value = 9.0
@@ -625,9 +666,71 @@ text = "Max Angle (deg):"
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 min_value = 0.0
-max_value = 30.0
+max_value = 35.0
 step = 1.0
 value = 15.0
+
+[node name="LblCylinderStyle" type="Label" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+layout_mode = 2
+text = "Angle Style:"
+
+[node name="OptionCylinderStyle" type="OptionButton" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+layout_mode = 2
+selected = 0
+item_count = 3
+popup/item_0/text = "Random 3D Tunnels"
+popup/item_0/id = 0
+popup/item_1/text = "Vertical 90° Bores"
+popup/item_1/id = 1
+popup/item_2/text = "Fan Outward"
+popup/item_2/id = 2
+
+[node name="CheckExoskeleton" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Exoskeleton Perimeter Frame"
+
+[node name="GridExoskeleton" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblExoWall" type="Label" parent="UI/Panel/Scroll/VBox/GridExoskeleton"]
+layout_mode = 2
+text = "Wall Width (mm):"
+
+[node name="SliderExoWall" type="HSlider" parent="UI/Panel/Scroll/VBox/GridExoskeleton"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 8.0
+max_value = 28.0
+step = 1.0
+value = 15.0
+
+[node name="LblExoStyle" type="Label" parent="UI/Panel/Scroll/VBox/GridExoskeleton"]
+layout_mode = 2
+text = "Cutout Style:"
+
+[node name="OptionExoStyle" type="OptionButton" parent="UI/Panel/Scroll/VBox/GridExoskeleton"]
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "Through Windows"
+popup/item_0/id = 0
+popup/item_1/text = "Recessed Pocket Trays"
+popup/item_1/id = 1
+
+[node name="LblExoFloor" type="Label" parent="UI/Panel/Scroll/VBox/GridExoskeleton"]
+layout_mode = 2
+text = "Floor Thick (mm):"
+
+[node name="SliderExoFloor" type="HSlider" parent="UI/Panel/Scroll/VBox/GridExoskeleton"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 3.0
+max_value = 12.0
+step = 0.5
+value = 6.0
 
 [node name="CheckHoneycombModifiers" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2

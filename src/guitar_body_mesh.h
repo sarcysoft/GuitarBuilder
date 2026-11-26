@@ -81,12 +81,21 @@ private:
 
     // Phase 5: Procedural Modifiers (Weight Relief & Acoustic Chambering)
     bool sphere_modifiers_enabled = false;
-    int sphere_count = 16;
+    int sphere_count = 18;
     double sphere_radius = 20.0;
+    int sphere_placement = 0; // 0: Surface (Front & Back), 1: Through Voids, 2: Mixed
+
     bool cylinder_modifiers_enabled = false;
-    int cylinder_count = 12;
+    int cylinder_count = 14;
     double cylinder_radius = 9.0;
     double cylinder_angle = 15.0;
+    int cylinder_style = 0; // 0: Random 3D, 1: Vertical 90°, 2: Fan Outward
+
+    bool exoskeleton_enabled = false;
+    double exoskeleton_wall_thickness = 15.0; // mm
+    int exoskeleton_style = 0; // 0: Through Windows, 1: Recessed Pocket Trays
+    double exoskeleton_floor_thickness = 6.0; // mm
+
     bool honeycomb_modifiers_enabled = false;
     double honeycomb_cell_size = 22.0;
     int modifier_seed = 42;
@@ -284,6 +293,9 @@ public:
     void set_sphere_radius(double p_val);
     double get_sphere_radius() const { return sphere_radius; }
 
+    void set_sphere_placement(int p_val);
+    int get_sphere_placement() const { return sphere_placement; }
+
     void set_cylinder_modifiers_enabled(bool p_val);
     bool get_cylinder_modifiers_enabled() const { return cylinder_modifiers_enabled; }
 
@@ -295,6 +307,21 @@ public:
 
     void set_cylinder_angle(double p_val);
     double get_cylinder_angle() const { return cylinder_angle; }
+
+    void set_cylinder_style(int p_val);
+    int get_cylinder_style() const { return cylinder_style; }
+
+    void set_exoskeleton_enabled(bool p_val);
+    bool get_exoskeleton_enabled() const { return exoskeleton_enabled; }
+
+    void set_exoskeleton_wall_thickness(double p_val);
+    double get_exoskeleton_wall_thickness() const { return exoskeleton_wall_thickness; }
+
+    void set_exoskeleton_style(int p_val);
+    int get_exoskeleton_style() const { return exoskeleton_style; }
+
+    void set_exoskeleton_floor_thickness(double p_val);
+    double get_exoskeleton_floor_thickness() const { return exoskeleton_floor_thickness; }
 
     void set_honeycomb_modifiers_enabled(bool p_val);
     bool get_honeycomb_modifiers_enabled() const { return honeycomb_modifiers_enabled; }

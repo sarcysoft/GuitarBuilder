@@ -243,6 +243,10 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_sphere_radius"), &GuitarBodyMesh::get_sphere_radius);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "sphere_radius"), "set_sphere_radius", "get_sphere_radius");
 
+    ClassDB::bind_method(D_METHOD("set_sphere_placement", "val"), &GuitarBodyMesh::set_sphere_placement);
+    ClassDB::bind_method(D_METHOD("get_sphere_placement"), &GuitarBodyMesh::get_sphere_placement);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "sphere_placement"), "set_sphere_placement", "get_sphere_placement");
+
     ClassDB::bind_method(D_METHOD("set_cylinder_modifiers_enabled", "val"), &GuitarBodyMesh::set_cylinder_modifiers_enabled);
     ClassDB::bind_method(D_METHOD("get_cylinder_modifiers_enabled"), &GuitarBodyMesh::get_cylinder_modifiers_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "cylinder_modifiers_enabled"), "set_cylinder_modifiers_enabled", "get_cylinder_modifiers_enabled");
@@ -258,6 +262,26 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_cylinder_angle", "val"), &GuitarBodyMesh::set_cylinder_angle);
     ClassDB::bind_method(D_METHOD("get_cylinder_angle"), &GuitarBodyMesh::get_cylinder_angle);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "cylinder_angle"), "set_cylinder_angle", "get_cylinder_angle");
+
+    ClassDB::bind_method(D_METHOD("set_cylinder_style", "val"), &GuitarBodyMesh::set_cylinder_style);
+    ClassDB::bind_method(D_METHOD("get_cylinder_style"), &GuitarBodyMesh::get_cylinder_style);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "cylinder_style"), "set_cylinder_style", "get_cylinder_style");
+
+    ClassDB::bind_method(D_METHOD("set_exoskeleton_enabled", "val"), &GuitarBodyMesh::set_exoskeleton_enabled);
+    ClassDB::bind_method(D_METHOD("get_exoskeleton_enabled"), &GuitarBodyMesh::get_exoskeleton_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "exoskeleton_enabled"), "set_exoskeleton_enabled", "get_exoskeleton_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_exoskeleton_wall_thickness", "val"), &GuitarBodyMesh::set_exoskeleton_wall_thickness);
+    ClassDB::bind_method(D_METHOD("get_exoskeleton_wall_thickness"), &GuitarBodyMesh::get_exoskeleton_wall_thickness);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "exoskeleton_wall_thickness"), "set_exoskeleton_wall_thickness", "get_exoskeleton_wall_thickness");
+
+    ClassDB::bind_method(D_METHOD("set_exoskeleton_style", "val"), &GuitarBodyMesh::set_exoskeleton_style);
+    ClassDB::bind_method(D_METHOD("get_exoskeleton_style"), &GuitarBodyMesh::get_exoskeleton_style);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "exoskeleton_style"), "set_exoskeleton_style", "get_exoskeleton_style");
+
+    ClassDB::bind_method(D_METHOD("set_exoskeleton_floor_thickness", "val"), &GuitarBodyMesh::set_exoskeleton_floor_thickness);
+    ClassDB::bind_method(D_METHOD("get_exoskeleton_floor_thickness"), &GuitarBodyMesh::get_exoskeleton_floor_thickness);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "exoskeleton_floor_thickness"), "set_exoskeleton_floor_thickness", "get_exoskeleton_floor_thickness");
 
     ClassDB::bind_method(D_METHOD("set_honeycomb_modifiers_enabled", "val"), &GuitarBodyMesh::set_honeycomb_modifiers_enabled);
     ClassDB::bind_method(D_METHOD("get_honeycomb_modifiers_enabled"), &GuitarBodyMesh::get_honeycomb_modifiers_enabled);
@@ -713,6 +737,13 @@ void GuitarBodyMesh::set_sphere_radius(double p_val) {
     }
 }
 
+void GuitarBodyMesh::set_sphere_placement(int p_val) {
+    if (sphere_placement != p_val) {
+        sphere_placement = p_val;
+        if (sphere_modifiers_enabled) rebuild_mesh();
+    }
+}
+
 void GuitarBodyMesh::set_cylinder_modifiers_enabled(bool p_val) {
     if (cylinder_modifiers_enabled != p_val) {
         cylinder_modifiers_enabled = p_val;
@@ -738,6 +769,41 @@ void GuitarBodyMesh::set_cylinder_angle(double p_val) {
     if (cylinder_angle != p_val) {
         cylinder_angle = p_val;
         if (cylinder_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_cylinder_style(int p_val) {
+    if (cylinder_style != p_val) {
+        cylinder_style = p_val;
+        if (cylinder_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_exoskeleton_enabled(bool p_val) {
+    if (exoskeleton_enabled != p_val) {
+        exoskeleton_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_exoskeleton_wall_thickness(double p_val) {
+    if (exoskeleton_wall_thickness != p_val) {
+        exoskeleton_wall_thickness = p_val;
+        if (exoskeleton_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_exoskeleton_style(int p_val) {
+    if (exoskeleton_style != p_val) {
+        exoskeleton_style = p_val;
+        if (exoskeleton_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_exoskeleton_floor_thickness(double p_val) {
+    if (exoskeleton_floor_thickness != p_val) {
+        exoskeleton_floor_thickness = p_val;
+        if (exoskeleton_enabled) rebuild_mesh();
     }
 }
 
@@ -1600,90 +1666,258 @@ void GuitarBodyMesh::rebuild_mesh() {
         body = body - make_tunnel(j_start, j_end, 6.0);
     }
 
-    // Phase 5: Procedural Modifiers (Sphere Chambering, Angled Cylinders, Honeycomb Lattice)
-    // Central Spine Keep-out: X in [-55, +55] mm must remain solid wood (holds neck mortise, pickups, bridge, strings).
-    // Control Cavity Exclusion: X in [50, 110], Y in [110 * scale_y, 230 * scale_y].
-    if (sphere_modifiers_enabled || cylinder_modifiers_enabled || honeycomb_modifiers_enabled) {
-        auto is_protected = [&](double px, double py, double pr) -> bool {
-            // 1. Central spine keep-out core
-            if (std::abs(px) - pr < 55.0) {
+    // Phase 5: Procedural Modifiers (Sphere Chambering, Angled Cylinders, Exoskeleton Frame, Honeycomb)
+    if (sphere_modifiers_enabled || cylinder_modifiers_enabled || exoskeleton_enabled || honeycomb_modifiers_enabled) {
+        // Point-in-polygon & rim distance against the exact 2D perimeter contour
+        auto is_inside_contour = [&](double px, double py) -> bool {
+            bool inside = false;
+            size_t N = contour.size();
+            for (size_t i = 0, j = N - 1; i < N; j = i++) {
+                if (((contour[i].y > py) != (contour[j].y > py)) &&
+                    (px < (contour[j].x - contour[i].x) * (py - contour[i].y) / (contour[j].y - contour[i].y) + contour[i].x)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        };
+
+        auto dist_to_boundary = [&](double px, double py) -> double {
+            double min_d2 = 1e9;
+            size_t N = contour.size();
+            for (size_t i = 0; i < N; ++i) {
+                vec2 a = contour[i];
+                vec2 b = contour[(i + 1) % N];
+                double dx = b.x - a.x;
+                double dy = b.y - a.y;
+                double seg_len2 = dx * dx + dy * dy;
+                double t = (seg_len2 > 1e-9) ? std::clamp(((px - a.x) * dx + (py - a.y) * dy) / seg_len2, 0.0, 1.0) : 0.0;
+                double qx = a.x + t * dx;
+                double qy = a.y + t * dy;
+                double d2 = (px - qx) * (px - qx) + (py - qy) * (py - qy);
+                if (d2 < min_d2) min_d2 = d2;
+            }
+            return std::sqrt(min_d2);
+        };
+
+        auto is_point_protected = [&](double px, double py, double pr) -> bool {
+            // 1. Central structural spine keep-out (neck pocket, pickups, bridge, strings)
+            if (std::abs(px) - pr < 62.0) {
                 return true;
             }
-            // 2. Control cavity exclusion zone on treble side
-            if (px + pr > 50.0 && px - pr < 110.0 && py + pr > 110.0 * scale_y && py - pr < 230.0 * scale_y) {
+            // 2. Control cavity & potentiometer mounting exclusion zone
+            if (px + pr > 45.0 && px - pr < 122.0 && py + pr > 100.0 * scale_y && py - pr < 245.0 * scale_y) {
                 return true;
             }
-            // 3. Keep within body length bounds
-            if (py - pr < 40.0 * scale_y || py + pr > 430.0 * scale_y) {
+            // 3. Neck joint root and upper cutaways (maintain full neck joint cantilever strength)
+            if (py + pr > 375.0 * scale_y) {
+                return true;
+            }
+            // 4. Lower bout tail boundary
+            if (py - pr < 42.0 * scale_y) {
+                return true;
+            }
+            // 5. Jack plate mounting region on lower treble rim
+            double jack_x = 145.13 * (t_hip / 159.0);
+            double jack_y = 72.89 * scale_y;
+            if (std::hypot(px - jack_x, py - jack_y) < (26.0 + pr)) {
+                return true;
+            }
+            // 6. Perimeter rim margin: ensure minimum solid rim wall (>= 11mm)
+            if (!is_inside_contour(px, py) || dist_to_boundary(px, py) < (pr + 11.0)) {
                 return true;
             }
             return false;
         };
 
-        // 1. Sphere Chambering Cutouts
+        // Pseudo-random generator (LCG)
+        uint32_t rng_state = (uint32_t)(modifier_seed * 1103515245 + 12345);
+        auto rand_f = [&]() -> double {
+            rng_state = rng_state * 1103515245 + 12345;
+            return (double)(rng_state & 0x7FFFFFFF) / (double)0x7FFFFFFF;
+        };
+
+        // 1. Sphere Chunks Cutout (Organic Crater / Cellular)
         if (sphere_modifiers_enabled && sphere_count > 0 && sphere_radius > 1.0) {
-            uint32_t rng = (uint32_t)(modifier_seed * 1103515245 + 12345);
-            auto rand_f = [&]() -> double {
-                rng = rng * 1103515245 + 12345;
-                return (double)(rng & 0x7FFFFFFF) / (double)0x7FFFFFFF;
-            };
-            int placed = 0;
+            rng_state = (uint32_t)(modifier_seed * 1103515245 + 12345);
+            struct PlacedSphere { double x, y, z, r; };
+            std::vector<PlacedSphere> placed_spheres;
             int attempts = 0;
-            while (placed < sphere_count && attempts < 300) {
+            int max_attempts = sphere_count * 40;
+
+            while ((int)placed_spheres.size() < sphere_count && attempts < max_attempts) {
                 attempts++;
-                bool left_side = (rand_f() > 0.40);
-                double px = left_side ? (-70.0 - rand_f() * (b_hip - 85.0)) : (70.0 + rand_f() * (t_hip - 85.0));
-                double py = (60.0 + rand_f() * 320.0) * scale_y;
+                // Size variation: random radius between 0.65 * sphere_radius and 1.35 * sphere_radius
+                double r = sphere_radius * (0.65 + rand_f() * 0.70);
+
+                // Sample position across body bounds
+                double px = (rand_f() > 0.5) ? (-b_hip + rand_f() * (b_hip - 65.0)) : (65.0 + rand_f() * (t_hip - 65.0));
+                double py = (45.0 + rand_f() * 325.0) * scale_y;
+
+                if (is_point_protected(px, py, r)) continue;
+
+                // Spacing check between spheres to prevent runaway giant merged cavities
+                bool too_close = false;
+                for (const auto& ps : placed_spheres) {
+                    if (std::hypot(px - ps.x, py - ps.y) < (r + ps.r) * 0.88) {
+                        too_close = true;
+                        break;
+                    }
+                }
+                if (too_close) continue;
+
+                // Determine Z location based on sphere_placement
+                // 0: Surface (Front & Back), 1: Through Voids, 2: Mixed
                 double pz = body_thickness * 0.5;
+                if (sphere_placement == 0) {
+                    if (rand_f() > 0.5) {
+                        // Front top surface crater
+                        double bite = r * (0.30 + rand_f() * 0.45);
+                        pz = body_thickness + r - bite;
+                    } else {
+                        // Rear back surface crater
+                        double bite = r * (0.30 + rand_f() * 0.45);
+                        pz = -r + bite;
+                    }
+                } else if (sphere_placement == 1) {
+                    // Through void
+                    pz = body_thickness * 0.5 + (rand_f() - 0.5) * 4.0;
+                } else {
+                    // Mixed
+                    double pick = rand_f();
+                    if (pick < 0.38) {
+                        double bite = r * (0.30 + rand_f() * 0.45);
+                        pz = body_thickness + r - bite;
+                    } else if (pick < 0.76) {
+                        double bite = r * (0.30 + rand_f() * 0.45);
+                        pz = -r + bite;
+                    } else {
+                        pz = body_thickness * 0.5 + (rand_f() - 0.5) * 4.0;
+                    }
+                }
 
-                if (is_protected(px, py, sphere_radius)) continue;
-
-                body = body - Manifold::Sphere(sphere_radius, 16).Translate(vec3{ px, py, pz });
-                placed++;
+                Manifold s_cutter = Manifold::Sphere(r, 16).Translate(vec3{ px, py, pz });
+                body = body - s_cutter;
+                placed_spheres.push_back({ px, py, pz, r });
             }
         }
 
-        // 2. Angled Perforating Cylinders
+        // 2. Angled Perforating Cylinders (Tunnels / Aerodynamic Perforations)
         if (cylinder_modifiers_enabled && cylinder_count > 0 && cylinder_radius > 1.0) {
-            uint32_t rng = (uint32_t)((modifier_seed + 101) * 1103515245 + 12345);
-            auto rand_f = [&]() -> double {
-                rng = rng * 1103515245 + 12345;
-                return (double)(rng & 0x7FFFFFFF) / (double)0x7FFFFFFF;
-            };
-            int placed = 0;
+            rng_state = (uint32_t)((modifier_seed + 101) * 1103515245 + 12345);
+            struct PlacedCyl { double x, y, r; };
+            std::vector<PlacedCyl> placed_cyls;
             int attempts = 0;
-            while (placed < cylinder_count && attempts < 300) {
+            int max_attempts = cylinder_count * 50;
+
+            while ((int)placed_cyls.size() < cylinder_count && attempts < max_attempts) {
                 attempts++;
-                bool left_side = (rand_f() > 0.40);
-                double px = left_side ? (-70.0 - rand_f() * (b_hip - 85.0)) : (70.0 + rand_f() * (t_hip - 85.0));
-                double py = (60.0 + rand_f() * 320.0) * scale_y;
+                // Size variation: random radius between 0.60 * cylinder_radius and 1.40 * cylinder_radius
+                double r = cylinder_radius * (0.60 + rand_f() * 0.80);
 
-                if (is_protected(px, py, cylinder_radius)) continue;
+                double px = (rand_f() > 0.5) ? (-b_hip + rand_f() * (b_hip - 65.0)) : (65.0 + rand_f() * (t_hip - 65.0));
+                double py = (50.0 + rand_f() * 320.0) * scale_y;
 
-                double ang_x = (rand_f() * 2.0 - 1.0) * cylinder_angle;
-                double ang_y = (rand_f() * 2.0 - 1.0) * cylinder_angle;
+                if (is_point_protected(px, py, r)) continue;
 
-                Manifold cyl = Manifold::Cylinder(body_thickness + 20.0, cylinder_radius, cylinder_radius, 16)
-                    .Translate(vec3{ 0.0, 0.0, -10.0 })
+                // Poisson-disc spacing check: ensure structural webs between adjacent holes
+                bool too_close = false;
+                for (const auto& pc : placed_cyls) {
+                    if (std::hypot(px - pc.x, py - pc.y) < (r + pc.r) * 1.35) {
+                        too_close = true;
+                        break;
+                    }
+                }
+                if (too_close) continue;
+
+                // Angular tilt
+                double ang_x = 0.0;
+                double ang_y = 0.0;
+                if (cylinder_style == 0) {
+                    // Random 3D tilt
+                    double tilt = rand_f() * cylinder_angle;
+                    double azimuth = rand_f() * 6.283185307179586;
+                    ang_x = tilt * std::cos(azimuth);
+                    ang_y = tilt * std::sin(azimuth);
+                } else if (cylinder_style == 1) {
+                    // Vertical 90 deg
+                    ang_x = 0.0;
+                    ang_y = 0.0;
+                } else if (cylinder_style == 2) {
+                    // Fan outward
+                    double tilt_dir = (px > 0) ? 1.0 : -1.0;
+                    ang_y = tilt_dir * (5.0 + rand_f() * std::max(5.0, cylinder_angle - 5.0));
+                    ang_x = (rand_f() - 0.5) * cylinder_angle * 0.5;
+                }
+
+                // Check keepouts at top and bottom surfaces considering tilt
+                double rad_y = ang_y * 0.017453292519943295;
+                double rad_x = ang_x * 0.017453292519943295;
+                double dx_top = (body_thickness * 0.5) * std::tan(rad_y);
+                double dy_top = -(body_thickness * 0.5) * std::tan(rad_x);
+                if (is_point_protected(px + dx_top, py + dy_top, r) ||
+                    is_point_protected(px - dx_top, py - dy_top, r)) {
+                    continue;
+                }
+
+                Manifold cyl = Manifold::Cylinder(body_thickness + 24.0, r, r, 16)
+                    .Translate(vec3{ 0.0, 0.0, -12.0 })
                     .Rotate(ang_x, ang_y, 0.0)
-                    .Translate(vec3{ px, py, 0.0 });
+                    .Translate(vec3{ px, py, body_thickness * 0.5 });
                 body = body - cyl;
-                placed++;
+                placed_cyls.push_back({ px, py, r });
             }
         }
 
-        // 3. Honeycomb Lattice
+        // 3. Exoskeleton / Post-Split Edge Frame Mode
+        if (exoskeleton_enabled && exoskeleton_wall_thickness >= 6.0) {
+            double wall = std::clamp(exoskeleton_wall_thickness, 8.0, 32.0);
+            CrossSection cs_inner = cs.Offset(-wall, CrossSection::JoinType::Round);
+
+            // Subtract Central Structural Spine (124mm wide)
+            CrossSection cs_spine = CrossSection::Square(vec2{ 124.0, 600.0 }, true)
+                .Translate(vec2{ 0.0, 240.0 * scale_y });
+            // Subtract Control Cavity region + mounting rim
+            CrossSection cs_elec = CrossSection::Square(vec2{ 85.0, 165.0 }, true)
+                .Translate(vec2{ 85.0, 175.0 * scale_y });
+            // Subtract Neck Joint Root (Y >= 370mm)
+            CrossSection cs_neck = CrossSection::Square(vec2{ 400.0, 200.0 }, true)
+                .Translate(vec2{ 0.0, 460.0 * scale_y });
+            // Subtract Output Jack mounting region
+            double jack_x = 145.13 * (t_hip / 159.0);
+            double jack_y = 72.89 * scale_y;
+            CrossSection cs_jack = CrossSection::Circle(28.0)
+                .Translate(vec2{ jack_x, jack_y });
+
+            CrossSection cs_cutters = cs_inner - cs_spine - cs_elec - cs_neck - cs_jack;
+
+            if (!cs_cutters.IsEmpty()) {
+                if (exoskeleton_style == 0) {
+                    // Style 0: Through Windows (cutting completely through wings)
+                    Manifold frame_cutter = Manifold::Extrude(cs_cutters.ToPolygons(), body_thickness + 20.0)
+                        .Translate(vec3{ 0.0, 0.0, -10.0 });
+                    body = body - frame_cutter;
+                } else {
+                    // Style 1: Pocket Trays (recessed chambers leaving floor_thickness continuous back face)
+                    double fl = std::clamp(exoskeleton_floor_thickness, 3.0, body_thickness - 6.0);
+                    Manifold pocket_cutter = Manifold::Extrude(cs_cutters.ToPolygons(), body_thickness - fl + 5.0)
+                        .Translate(vec3{ 0.0, 0.0, fl });
+                    body = body - pocket_cutter;
+                }
+            }
+        }
+
+        // 4. Honeycomb Lattice
         if (honeycomb_modifiers_enabled && honeycomb_cell_size >= 10.0) {
             double s = honeycomb_cell_size;
             double r_hex = s * 0.44;
             double dx = s * 1.5;
             double dy = s * 0.8660254037844386 * 2.0;
 
-            for (double px = -b_hip + s * 0.5; px <= -55.0 - r_hex; px += dx) {
-                for (double py = 60.0 * scale_y; py <= 380.0 * scale_y; py += dy * 0.5) {
+            for (double px = -b_hip + s * 0.5; px <= -65.0 - r_hex; px += dx) {
+                for (double py = 60.0 * scale_y; py <= 365.0 * scale_y; py += dy * 0.5) {
                     double offset_x = (((int)(py / (dy * 0.5))) % 2 == 0) ? 0.0 : (dx * 0.5);
                     double cur_x = px + offset_x;
-                    if (cur_x > -55.0 - r_hex || is_protected(cur_x, py, r_hex)) continue;
+                    if (cur_x > -65.0 - r_hex || is_point_protected(cur_x, py, r_hex)) continue;
 
                     Manifold hex = Manifold::Cylinder(body_thickness + 10.0, r_hex, r_hex, 6)
                         .Translate(vec3{ cur_x, py, -5.0 });
@@ -1691,11 +1925,11 @@ void GuitarBodyMesh::rebuild_mesh() {
                 }
             }
 
-            for (double px = 55.0 + r_hex; px <= t_hip - s * 0.5; px += dx) {
-                for (double py = 60.0 * scale_y; py <= 360.0 * scale_y; py += dy * 0.5) {
+            for (double px = 65.0 + r_hex; px <= t_hip - s * 0.5; px += dx) {
+                for (double py = 60.0 * scale_y; py <= 350.0 * scale_y; py += dy * 0.5) {
                     double offset_x = (((int)(py / (dy * 0.5))) % 2 == 0) ? 0.0 : (dx * 0.5);
                     double cur_x = px + offset_x;
-                    if (cur_x < 55.0 + r_hex || is_protected(cur_x, py, r_hex)) continue;
+                    if (cur_x < 65.0 + r_hex || is_point_protected(cur_x, py, r_hex)) continue;
 
                     Manifold hex = Manifold::Cylinder(body_thickness + 10.0, r_hex, r_hex, 6)
                         .Translate(vec3{ cur_x, py, -5.0 });
