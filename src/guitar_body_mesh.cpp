@@ -1533,11 +1533,11 @@ void GuitarBodyMesh::rebuild_slices() {
 
     // 3. Vertical seams between wings and center core (X = -50 and X = +50)
     // Left seam (X = -50): 100% solid wood throughout
-    specs.push_back({ vec3{ -center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
-    specs.push_back({ vec3{ -center_x, 220.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
-    // Right seam (X = +50): solid wood below control cavity (Y=120) and above cavity (Y=240)
-    specs.push_back({ vec3{  center_x, 120.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
-    specs.push_back({ vec3{  center_x, 240.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
+    specs.push_back({ vec3{ -center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid (low)
+    specs.push_back({ vec3{ -center_x, 210.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid (high)
+    // Right seam (X = +50): solid wood below control cavity (Y=120) and between pickups (Y=210, well clear of middle pickup)
+    specs.push_back({ vec3{  center_x, 120.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid (low)
+    specs.push_back({ vec3{  center_x, 210.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid (high)
 
     // 4. Horizontal seams on wings (Y = y_wing_cut)
     specs.push_back({ vec3{ -90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 2, 3 }); // Mid_Left <-> Top_Left
