@@ -652,7 +652,7 @@ func _create_knob_visuals(to_world: Callable, scale_y: float):
 	knob_group.name = "KnobsRig"
 	hardware_rig.add_child(knob_group)
 
-	var cc_x = 76.0
+	var cc_x = 88.0
 	var cc_y = 175.0 * scale_y
 
 	var pot_positions = [

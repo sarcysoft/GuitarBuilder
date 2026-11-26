@@ -18,7 +18,7 @@ using namespace godot;
 GuitarBodyMesh::GuitarBodyMesh() {
     belly_cut_enabled = false;
     forearm_bevel_enabled = false;
-    neck_pocket_enabled = false;
+    neck_pocket_enabled = true;
 }
 
 GuitarBodyMesh::~GuitarBodyMesh() {
@@ -1298,10 +1298,10 @@ void GuitarBodyMesh::rebuild_mesh() {
 
     // Control Cavity & Potentiometer Shaft Holes
     // Control Cavity & Potentiometer Shaft Holes
-    // Situated at cc_x = 76.0, cc_y = 175.0 to guarantee ample clearance (> 25mm)
-    // from the string ferrules, and completely self-contained within the right wing
-    // without crossing the vertical (X=50) or horizontal (Y=110) slicing planes.
-    double cc_x = 76.0;
+    // Situated at cc_x = 88.0, cc_y = 175.0 to guarantee ample clearance (> 16mm)
+    // from the vertical slicing plane (X=50), > 17mm from horizontal bridge cut (Y=110),
+    // and completely self-contained within the right wing.
+    double cc_x = 88.0;
     double cc_y = 175.0 * scale_y;
 
     if (control_cavity_enabled) {
@@ -1483,9 +1483,9 @@ void GuitarBodyMesh::rebuild_slices() {
     auto [part_mid_left, part_top_left] = wing_left.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_wing_cut);
     auto [part_mid_right, part_top_right] = wing_right.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_wing_cut);
 
-    // Center Core cut between pickups and neck pocket (Y = 290mm)
-    // Keeps bridge & pickups in Mid, and neck pocket in Top Mid without cutting centerline!
-    double y_center_cut = 290.0 * scale_y;
+    // Center Core cut between middle pickup and neck pickup (Y = 267.5mm)
+    // Preserves pickups without cutting through cavities or the neck pocket!
+    double y_center_cut = 267.5 * scale_y;
     auto [part_mid, part_top_mid] = center_core.SplitByPlane(vec3{ 0.0, -1.0, 0.0 }, -y_center_cut);
 
     // 8 distinct parts
@@ -1529,27 +1529,27 @@ void GuitarBodyMesh::rebuild_slices() {
     specs.push_back({ vec3{ -95.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 0, 2 }); // Bot_Left <-> Mid_Left
     specs.push_back({ vec3{ -25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 0, 6 }); // Bot_Left <-> Center_Mid
     specs.push_back({ vec3{  25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 6 }); // Bot_Right <-> Center_Mid
-    specs.push_back({ vec3{ 105.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 4 }); // Bot_Right <-> Mid_Right
+    specs.push_back({ vec3{ 130.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 4 }); // Bot_Right <-> Mid_Right
 
     // 3. Vertical seams between wings and center core (X = -50 and X = +50)
     // Left seam (X = -50): 100% solid wood throughout
-    specs.push_back({ vec3{ -center_x, 145.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
-    specs.push_back({ vec3{ -center_x, 245.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
-    // Right seam (X = +50): solid wood below control cavity (Y=120) and above cavity (Y=245)
+    specs.push_back({ vec3{ -center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
+    specs.push_back({ vec3{ -center_x, 220.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
+    // Right seam (X = +50): solid wood below control cavity (Y=120) and above cavity (Y=240)
     specs.push_back({ vec3{  center_x, 120.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
-    specs.push_back({ vec3{  center_x, 245.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
+    specs.push_back({ vec3{  center_x, 240.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
 
     // 4. Horizontal seams on wings (Y = y_wing_cut)
     specs.push_back({ vec3{ -90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 2, 3 }); // Mid_Left <-> Top_Left
     specs.push_back({ vec3{  90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 4, 5 }); // Mid_Right <-> Top_Right
 
     // 5. Vertical seams on horns to top center (X = -50 and X = +50)
-    // Neck pocket is at X in [-28, 28], neck pickup at Y=325. At Y=365, X=+-50 has >22mm solid wood!
-    specs.push_back({ vec3{ -center_x, 365.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 3, 7 }); // Top_Left <-> Top_Mid
-    specs.push_back({ vec3{  center_x, 365.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 5, 7 }); // Top_Right <-> Top_Mid
+    // In solid wood between pickups and neck pocket (Y=315), well clear of cutaway scoop floor (Y=368)
+    specs.push_back({ vec3{ -center_x, 315.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 3, 7 }); // Top_Left <-> Top_Mid
+    specs.push_back({ vec3{  center_x, 315.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 5, 7 }); // Top_Right <-> Top_Mid
 
     // 6. Horizontal seam in center core (Y = y_center_cut)
-    // In solid wood between middle pickup and neck pocket, avoiding treble wiring tunnel at X=22
+    // In solid wood between middle pickup and neck pickup, avoiding treble wiring tunnel at X=22
     specs.push_back({ vec3{ -25.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 6, 7 }); // Center_Mid <-> Top_Mid (bass side)
     specs.push_back({ vec3{  38.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 6, 7 }); // Center_Mid <-> Top_Mid (treble side)
 
@@ -1752,7 +1752,7 @@ bool GuitarBodyMesh::export_2d_dxf(const String& p_filepath) {
 
     // 4. Control Cavity
     if (control_cavity_enabled) {
-        double cc_x = 76.0;
+        double cc_x = 88.0;
         double cc_y = 175.0 * scale_y;
         manifold::SimplePolygon cc_pts = {
             manifold::vec2{ -14.0, -48.0 }, manifold::vec2{  14.0, -46.0 }, manifold::vec2{  20.0, -20.0 },
