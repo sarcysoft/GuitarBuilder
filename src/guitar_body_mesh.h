@@ -78,6 +78,18 @@ private:
     double control_cavity_depth = 38.0;
     bool wiring_tunnels_enabled = true;
 
+    // Phase 5: Procedural Modifiers (Weight Relief & Acoustic Chambering)
+    bool sphere_modifiers_enabled = false;
+    int sphere_count = 16;
+    double sphere_radius = 20.0;
+    bool cylinder_modifiers_enabled = false;
+    int cylinder_count = 12;
+    double cylinder_radius = 9.0;
+    double cylinder_angle = 15.0;
+    bool honeycomb_modifiers_enabled = false;
+    double honeycomb_cell_size = 22.0;
+    int modifier_seed = 42;
+
     // Phase 3: CAM Slicing, Dowels & Production Export
     bool slicing_enabled = false;
     int slice_grid_type = 2; // 1: 4-Piece [2x2], 2: 8-Piece [2x4]
@@ -257,6 +269,37 @@ public:
 
     void set_wiring_tunnels_enabled(bool p_val);
     bool get_wiring_tunnels_enabled() const { return wiring_tunnels_enabled; }
+
+    // Phase 5: Procedural Modifiers (Weight Relief & Acoustic Chambering)
+    void set_sphere_modifiers_enabled(bool p_val);
+    bool get_sphere_modifiers_enabled() const { return sphere_modifiers_enabled; }
+
+    void set_sphere_count(int p_val);
+    int get_sphere_count() const { return sphere_count; }
+
+    void set_sphere_radius(double p_val);
+    double get_sphere_radius() const { return sphere_radius; }
+
+    void set_cylinder_modifiers_enabled(bool p_val);
+    bool get_cylinder_modifiers_enabled() const { return cylinder_modifiers_enabled; }
+
+    void set_cylinder_count(int p_val);
+    int get_cylinder_count() const { return cylinder_count; }
+
+    void set_cylinder_radius(double p_val);
+    double get_cylinder_radius() const { return cylinder_radius; }
+
+    void set_cylinder_angle(double p_val);
+    double get_cylinder_angle() const { return cylinder_angle; }
+
+    void set_honeycomb_modifiers_enabled(bool p_val);
+    bool get_honeycomb_modifiers_enabled() const { return honeycomb_modifiers_enabled; }
+
+    void set_honeycomb_cell_size(double p_val);
+    double get_honeycomb_cell_size() const { return honeycomb_cell_size; }
+
+    void set_modifier_seed(int p_val);
+    int get_modifier_seed() const { return modifier_seed; }
 
     // Phase 3: CAM Slicing, Dowels & Production Export
     void set_slicing_enabled(bool p_val);

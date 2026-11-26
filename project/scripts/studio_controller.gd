@@ -64,7 +64,27 @@ extends Node3D
 @onready var check_neck_pocket = $UI/Panel/Scroll/VBox/CheckNeckPocket
 @onready var check_control_cavity = $UI/Panel/Scroll/VBox/CheckControlCavity
 @onready var check_hardware_models = $UI/Panel/Scroll/VBox/CheckHardwareModels
+@onready var check_neck = $UI/Panel/Scroll/VBox/CheckNeck
 @onready var check_piezo = $UI/Panel/Scroll/VBox/CheckPiezo
+
+# Phase 5: Body Shape Presets & Procedural Modifiers
+@onready var lbl_shape_preset = $UI/Panel/Scroll/VBox/LblShapePreset
+@onready var option_shape_preset = $UI/Panel/Scroll/VBox/OptionShapePreset
+@onready var hsep_modifiers = $UI/Panel/Scroll/VBox/HSeparatorModifiers
+@onready var lbl_modifiers = $UI/Panel/Scroll/VBox/LblModifiers
+@onready var check_sphere = $UI/Panel/Scroll/VBox/CheckSphereModifiers
+@onready var grid_sphere = $UI/Panel/Scroll/VBox/GridSphereModifiers
+@onready var slider_sphere_count = $UI/Panel/Scroll/VBox/GridSphereModifiers/SliderSphereCount
+@onready var slider_sphere_radius = $UI/Panel/Scroll/VBox/GridSphereModifiers/SliderSphereRadius
+@onready var check_cylinder = $UI/Panel/Scroll/VBox/CheckCylinderModifiers
+@onready var grid_cylinder = $UI/Panel/Scroll/VBox/GridCylinderModifiers
+@onready var slider_cylinder_count = $UI/Panel/Scroll/VBox/GridCylinderModifiers/SliderCylinderCount
+@onready var slider_cylinder_radius = $UI/Panel/Scroll/VBox/GridCylinderModifiers/SliderCylinderRadius
+@onready var slider_cylinder_angle = $UI/Panel/Scroll/VBox/GridCylinderModifiers/SliderCylinderAngle
+@onready var check_honeycomb = $UI/Panel/Scroll/VBox/CheckHoneycombModifiers
+@onready var grid_honeycomb = $UI/Panel/Scroll/VBox/GridHoneycombModifiers
+@onready var slider_honeycomb_cell = $UI/Panel/Scroll/VBox/GridHoneycombModifiers/SliderHoneycombCell
+@onready var btn_reseed = $UI/Panel/Scroll/VBox/BtnReseedModifiers
 
 # CAM Slicing Controls
 @onready var slice_rig = $SliceRig
@@ -132,6 +152,10 @@ var chrome_mat: StandardMaterial3D
 var black_plastic_mat: StandardMaterial3D
 var cream_mat: StandardMaterial3D
 var dowel_mat: StandardMaterial3D
+var maple_mat: StandardMaterial3D
+var rosewood_mat: StandardMaterial3D
+var frets_mat: StandardMaterial3D
+var nut_mat: StandardMaterial3D
 var slice_materials: Array[StandardMaterial3D] = []
 
 # Camera navigation state
@@ -193,6 +217,28 @@ func _setup_materials():
 	dowel_mat.albedo_color = Color(0.88, 0.74, 0.48) # Hardwood Dowel Pin
 	dowel_mat.roughness = 0.45
 	dowel_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	# Neck & Headstock Materials
+	maple_mat = StandardMaterial3D.new()
+	maple_mat.albedo_color = Color(0.89, 0.77, 0.60) # Satin Hard Rock Canadian Maple
+	maple_mat.roughness = 0.38
+	maple_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	rosewood_mat = StandardMaterial3D.new()
+	rosewood_mat.albedo_color = Color(0.24, 0.16, 0.12) # Rich Dark Indian Rosewood Fretboard
+	rosewood_mat.roughness = 0.55
+	rosewood_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	frets_mat = StandardMaterial3D.new()
+	frets_mat.albedo_color = Color(0.85, 0.85, 0.84) # 18% Nickel-Silver Frets
+	frets_mat.metallic = 0.92
+	frets_mat.roughness = 0.18
+	frets_mat.cull_mode = BaseMaterial3D.CULL_BACK
+
+	nut_mat = StandardMaterial3D.new()
+	nut_mat.albedo_color = Color(0.92, 0.90, 0.82) # Aged Natural Bone Nut
+	nut_mat.roughness = 0.35
+	nut_mat.cull_mode = BaseMaterial3D.CULL_BACK
 
 	var colors = [
 		Color(0.25, 0.82, 0.65), # Mint Green
@@ -265,6 +311,24 @@ func _sync_ui_from_mesh():
 	check_neck_pocket.button_pressed = body_mesh.neck_pocket_enabled
 	check_control_cavity.button_pressed = body_mesh.control_cavity_enabled
 	check_piezo.button_pressed = body_mesh.piezo_saddles_enabled
+	if is_instance_valid(check_neck): check_neck.button_pressed = true
+
+	# Procedural Modifiers & Weight Relief
+	if is_instance_valid(check_sphere):
+		check_sphere.button_pressed = body_mesh.sphere_modifiers_enabled
+		grid_sphere.visible = body_mesh.sphere_modifiers_enabled
+		slider_sphere_count.value = body_mesh.sphere_count
+		slider_sphere_radius.value = body_mesh.sphere_radius
+	if is_instance_valid(check_cylinder):
+		check_cylinder.button_pressed = body_mesh.cylinder_modifiers_enabled
+		grid_cylinder.visible = body_mesh.cylinder_modifiers_enabled
+		slider_cylinder_count.value = body_mesh.cylinder_count
+		slider_cylinder_radius.value = body_mesh.cylinder_radius
+		slider_cylinder_angle.value = body_mesh.cylinder_angle
+	if is_instance_valid(check_honeycomb):
+		check_honeycomb.button_pressed = body_mesh.honeycomb_modifiers_enabled
+		grid_honeycomb.visible = body_mesh.honeycomb_modifiers_enabled
+		slider_honeycomb_cell.value = body_mesh.honeycomb_cell_size
 
 	# CAM & Slicing
 	check_slicing.button_pressed = body_mesh.slicing_enabled
@@ -456,6 +520,42 @@ func _connect_signals():
 	btn_export_3mf.pressed.connect(_on_export_3mf_pressed)
 	btn_export_dxf.pressed.connect(_on_export_dxf_pressed)
 
+	# Phase 5: Body Shape Presets & Procedural Modifiers
+	if is_instance_valid(option_shape_preset):
+		option_shape_preset.item_selected.connect(_apply_shape_preset)
+	if is_instance_valid(check_sphere):
+		check_sphere.toggled.connect(func(v):
+			body_mesh.sphere_modifiers_enabled = v
+			grid_sphere.visible = v
+		)
+		slider_sphere_count.value_changed.connect(func(v): body_mesh.sphere_count = int(v))
+		slider_sphere_radius.value_changed.connect(func(v): body_mesh.sphere_radius = v)
+
+	if is_instance_valid(check_cylinder):
+		check_cylinder.toggled.connect(func(v):
+			body_mesh.cylinder_modifiers_enabled = v
+			grid_cylinder.visible = v
+		)
+		slider_cylinder_count.value_changed.connect(func(v): body_mesh.cylinder_count = int(v))
+		slider_cylinder_radius.value_changed.connect(func(v): body_mesh.cylinder_radius = v)
+		slider_cylinder_angle.value_changed.connect(func(v): body_mesh.cylinder_angle = v)
+
+	if is_instance_valid(check_honeycomb):
+		check_honeycomb.toggled.connect(func(v):
+			body_mesh.honeycomb_modifiers_enabled = v
+			grid_honeycomb.visible = v
+		)
+		slider_honeycomb_cell.value_changed.connect(func(v): body_mesh.honeycomb_cell_size = v)
+
+	if is_instance_valid(btn_reseed):
+		btn_reseed.pressed.connect(func():
+			body_mesh.modifier_seed = randi() % 100000
+			body_mesh.rebuild_mesh()
+		)
+
+	if is_instance_valid(check_neck):
+		check_neck.toggled.connect(func(_v): _update_hardware_visuals())
+
 	# Finish & Materials
 	option_preset.item_selected.connect(_apply_curated_preset)
 	option_finish_type.item_selected.connect(func(_idx): _update_finish_shader())
@@ -481,21 +581,27 @@ func _switch_ui_mode(mode: int):
 	if is_instance_valid(btn_tab_finish): btn_tab_finish.button_pressed = (mode == 3)
 
 	# Body section
-	for n in [lbl_global, grid_global, hsep_sym, check_symmetric, hsep_cuts, lbl_ergo, check_belly, check_forearm]:
+	for n in [lbl_shape_preset, option_shape_preset, lbl_global, grid_global, hsep_sym, check_symmetric, hsep_cuts, lbl_ergo, check_belly, check_forearm, hsep_modifiers, lbl_modifiers, check_sphere, check_cylinder, check_honeycomb, btn_reseed]:
 		if is_instance_valid(n): n.visible = (mode == 0)
 	if mode == 0 and is_instance_valid(body_mesh):
 		symmetric_controls.visible = body_mesh.symmetric_mode
 		asymmetric_controls.visible = not body_mesh.symmetric_mode
 		belly_controls.visible = body_mesh.belly_cut_enabled
 		forearm_controls.visible = body_mesh.forearm_bevel_enabled
+		grid_sphere.visible = body_mesh.sphere_modifiers_enabled
+		grid_cylinder.visible = body_mesh.cylinder_modifiers_enabled
+		grid_honeycomb.visible = body_mesh.honeycomb_modifiers_enabled
 	else:
 		if is_instance_valid(symmetric_controls): symmetric_controls.visible = false
 		if is_instance_valid(asymmetric_controls): asymmetric_controls.visible = false
 		if is_instance_valid(belly_controls): belly_controls.visible = false
 		if is_instance_valid(forearm_controls): forearm_controls.visible = false
+		if is_instance_valid(grid_sphere): grid_sphere.visible = false
+		if is_instance_valid(grid_cylinder): grid_cylinder.visible = false
+		if is_instance_valid(grid_honeycomb): grid_honeycomb.visible = false
 
 	# Hardware section
-	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models, check_piezo]:
+	for n in [hsep_hw, lbl_hw, grid_hw, check_neck_pocket, check_control_cavity, check_hardware_models, check_neck, check_piezo]:
 		if is_instance_valid(n): n.visible = (mode == 1)
 
 	# Slicing section
@@ -538,6 +644,136 @@ func _update_hardware_visuals():
 
 	# 4. Output Jack Plate
 	_create_jack_plate_visuals(to_world, scale_y)
+
+	# 5. Full Neck & Headstock Assembly
+	_create_neck_visuals(to_world, scale_y)
+
+func _create_neck_visuals(to_world: Callable, scale_y: float):
+	if not is_instance_valid(check_neck) or not check_neck.button_pressed:
+		return
+	if not body_mesh.neck_pocket_enabled:
+		return
+
+	var neck_group = Node3D.new()
+	neck_group.name = "NeckRig"
+	hardware_rig.add_child(neck_group)
+
+	# Seated into the mortise pocket floor
+	# Pocket floor is at -body_mesh.neck_pocket_depth relative to front face
+	var my = 399.69 - (body_mesh.neck_pocket_length / scale_y)
+	neck_group.position = to_world.call(0.0, my, -body_mesh.neck_pocket_depth)
+
+	var parts = [
+		{ "path": "res://assets/neck/neck_shaft.tres", "mat": maple_mat, "name": "NeckShaft" },
+		{ "path": "res://assets/neck/fretboard.tres", "mat": rosewood_mat, "name": "Fretboard" },
+		{ "path": "res://assets/neck/frets.tres", "mat": frets_mat, "name": "Frets" },
+		{ "path": "res://assets/neck/nut.tres", "mat": nut_mat, "name": "Nut" },
+		{ "path": "res://assets/neck/tuners.tres", "mat": chrome_mat, "name": "Tuners" }
+	]
+
+	for p in parts:
+		if ResourceLoader.exists(p["path"]):
+			var m = load(p["path"])
+			if m:
+				var mi = MeshInstance3D.new()
+				mi.name = p["name"]
+				mi.mesh = m
+				mi.material_override = p["mat"]
+				neck_group.add_child(mi)
+
+func _apply_shape_preset(idx: int):
+	if not body_mesh:
+		return
+	if is_instance_valid(option_shape_preset):
+		option_shape_preset.selected = idx
+	match idx:
+		0: # Sarcaster '62 (Strat)
+			body_mesh.body_length = 446.0
+			body_mesh.body_thickness = 45.0
+			body_mesh.edge_radius = 11.0
+			body_mesh.symmetric_mode = false
+			body_mesh.treble_hip_width = 159.0
+			body_mesh.bass_hip_width = 163.0
+			body_mesh.treble_waist_width = 106.0
+			body_mesh.bass_waist_width = 122.0
+			body_mesh.treble_chest_width = 135.0
+			body_mesh.bass_chest_width = 145.0
+			body_mesh.treble_shoulder_width = 125.0
+			body_mesh.bass_shoulder_width = 125.0
+			body_mesh.treble_horn_length = 400.0
+			body_mesh.bass_horn_length = 458.0
+			body_mesh.treble_horn_roundness = 1.0
+			body_mesh.bass_horn_roundness = 1.0
+			body_mesh.belly_cut_enabled = true
+			body_mesh.forearm_bevel_enabled = true
+		1: # Single-Cut Standard (LP)
+			body_mesh.body_length = 440.0
+			body_mesh.body_thickness = 48.0
+			body_mesh.edge_radius = 6.0
+			body_mesh.symmetric_mode = false
+			body_mesh.treble_hip_width = 167.5
+			body_mesh.bass_hip_width = 167.5
+			body_mesh.treble_waist_width = 105.0
+			body_mesh.bass_waist_width = 105.0
+			body_mesh.treble_chest_width = 142.5
+			body_mesh.bass_chest_width = 142.5
+			body_mesh.treble_shoulder_width = 120.0
+			body_mesh.bass_shoulder_width = 120.0
+			body_mesh.treble_horn_length = 408.0
+			body_mesh.bass_horn_length = 376.0
+			body_mesh.treble_horn_roundness = 1.4
+			body_mesh.bass_horn_roundness = 0.5
+			body_mesh.belly_cut_enabled = false
+			body_mesh.forearm_bevel_enabled = false
+		2: # Double-Cut Custom (SG)
+			body_mesh.body_length = 410.0
+			body_mesh.body_thickness = 35.0
+			body_mesh.edge_radius = 5.0
+			body_mesh.symmetric_mode = true
+			body_mesh.hip_width = 318.0
+			body_mesh.waist_width = 232.0
+			body_mesh.chest_width = 275.0
+			body_mesh.shoulder_width = 270.0
+			body_mesh.horn_reach = 450.0
+			body_mesh.horn_roundness = 0.65
+			body_mesh.belly_cut_enabled = false
+			body_mesh.forearm_bevel_enabled = true
+		3: # Offset Modern (Jazzmaster)
+			body_mesh.body_length = 465.0
+			body_mesh.body_thickness = 42.0
+			body_mesh.edge_radius = 10.0
+			body_mesh.symmetric_mode = false
+			body_mesh.treble_hip_width = 175.0
+			body_mesh.bass_hip_width = 170.0
+			body_mesh.treble_waist_width = 112.0
+			body_mesh.bass_waist_width = 126.0
+			body_mesh.treble_chest_width = 140.0
+			body_mesh.bass_chest_width = 155.0
+			body_mesh.treble_shoulder_width = 128.0
+			body_mesh.bass_shoulder_width = 132.0
+			body_mesh.treble_horn_length = 406.0
+			body_mesh.bass_horn_length = 452.0
+			body_mesh.treble_horn_roundness = 1.1
+			body_mesh.bass_horn_roundness = 1.0
+			body_mesh.belly_cut_enabled = true
+			body_mesh.forearm_bevel_enabled = true
+		4: # Modern Flying V
+			body_mesh.body_length = 480.0
+			body_mesh.body_thickness = 38.0
+			body_mesh.edge_radius = 4.0
+			body_mesh.symmetric_mode = true
+			body_mesh.hip_width = 410.0
+			body_mesh.waist_width = 290.0
+			body_mesh.chest_width = 200.0
+			body_mesh.shoulder_width = 170.0
+			body_mesh.horn_reach = 400.0
+			body_mesh.horn_roundness = 0.5
+			body_mesh.belly_cut_enabled = false
+			body_mesh.forearm_bevel_enabled = false
+		_:
+			pass
+	_sync_ui_from_mesh()
+	_update_hardware_visuals()
 
 func _create_bridge_visuals(to_world: Callable, scale_y: float):
 	var bridge_group = Node3D.new()
@@ -1048,6 +1284,19 @@ func _save_project_json(path: String = "res://export/guitar_project_v2.json"):
 				}
 			}
 		},
+		"shape_preset": option_shape_preset.selected if is_instance_valid(option_shape_preset) else 0,
+		"procedural_modifiers": {
+			"sphere_modifiers_enabled": body_mesh.sphere_modifiers_enabled,
+			"sphere_count": body_mesh.sphere_count,
+			"sphere_radius": body_mesh.sphere_radius,
+			"cylinder_modifiers_enabled": body_mesh.cylinder_modifiers_enabled,
+			"cylinder_count": body_mesh.cylinder_count,
+			"cylinder_radius": body_mesh.cylinder_radius,
+			"cylinder_angle": body_mesh.cylinder_angle,
+			"honeycomb_modifiers_enabled": body_mesh.honeycomb_modifiers_enabled,
+			"honeycomb_cell_size": body_mesh.honeycomb_cell_size,
+			"modifier_seed": body_mesh.modifier_seed
+		},
 		"hardware_stack": {
 			"pickup_config": body_mesh.pickup_config,
 			"bridge_type": body_mesh.bridge_type,
@@ -1056,6 +1305,7 @@ func _save_project_json(path: String = "res://export/guitar_project_v2.json"):
 			"pickup_clearance": body_mesh.pickup_clearance,
 			"pickup_depth": body_mesh.pickup_depth,
 			"neck_pocket_enabled": body_mesh.neck_pocket_enabled,
+			"neck_visible": check_neck.button_pressed if is_instance_valid(check_neck) else true,
 			"control_cavity_enabled": body_mesh.control_cavity_enabled,
 			"piezo_saddles_enabled": body_mesh.piezo_saddles_enabled
 		},
@@ -1141,8 +1391,25 @@ func _load_project_json(path: String = "res://export/guitar_project_v2.json"):
 		if hw.has("bridge_y"): body_mesh.bridge_y = hw["bridge_y"]
 		if hw.has("bridge_pickup_slant"): body_mesh.bridge_pickup_slant = hw["bridge_pickup_slant"]
 		if hw.has("neck_pocket_enabled"): body_mesh.neck_pocket_enabled = hw["neck_pocket_enabled"]
+		if hw.has("neck_visible") and is_instance_valid(check_neck): check_neck.button_pressed = hw["neck_visible"]
 		if hw.has("control_cavity_enabled"): body_mesh.control_cavity_enabled = hw["control_cavity_enabled"]
 		if hw.has("piezo_saddles_enabled"): body_mesh.piezo_saddles_enabled = hw["piezo_saddles_enabled"]
+
+	if data.has("shape_preset") and is_instance_valid(option_shape_preset):
+		option_shape_preset.selected = data["shape_preset"]
+
+	if data.has("procedural_modifiers"):
+		var pm = data["procedural_modifiers"]
+		if pm.has("sphere_modifiers_enabled"): body_mesh.sphere_modifiers_enabled = pm["sphere_modifiers_enabled"]
+		if pm.has("sphere_count"): body_mesh.sphere_count = pm["sphere_count"]
+		if pm.has("sphere_radius"): body_mesh.sphere_radius = pm["sphere_radius"]
+		if pm.has("cylinder_modifiers_enabled"): body_mesh.cylinder_modifiers_enabled = pm["cylinder_modifiers_enabled"]
+		if pm.has("cylinder_count"): body_mesh.cylinder_count = pm["cylinder_count"]
+		if pm.has("cylinder_radius"): body_mesh.cylinder_radius = pm["cylinder_radius"]
+		if pm.has("cylinder_angle"): body_mesh.cylinder_angle = pm["cylinder_angle"]
+		if pm.has("honeycomb_modifiers_enabled"): body_mesh.honeycomb_modifiers_enabled = pm["honeycomb_modifiers_enabled"]
+		if pm.has("honeycomb_cell_size"): body_mesh.honeycomb_cell_size = pm["honeycomb_cell_size"]
+		if pm.has("modifier_seed"): body_mesh.modifier_seed = pm["modifier_seed"]
 
 	if data.has("visuals"):
 		var v = data["visuals"]
@@ -1403,6 +1670,79 @@ func _check_cli_capture():
 		_apply_curated_preset(1)
 		camera_pivot.rotation = Vector3(-0.15, 1.15, 0.0)
 		camera.position.z = 1.15
+		should_exit = true
+	elif "--test-neck" in args:
+		_switch_ui_mode(1)
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_update_hardware_visuals()
+		option_preset.selected = 1
+		_apply_curated_preset(1)
+		camera_pivot.rotation = Vector3(-0.25, 0.35, 0.0)
+		camera_pivot.position = Vector3(0.0, 0.28, 0.0)
+		camera.position.z = 1.85
+		should_exit = true
+	elif "--test-modifiers-spheres" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = true
+		body_mesh.sphere_count = 18
+		body_mesh.sphere_radius = 22.0
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		camera.position.z = 1.0
+		should_exit = true
+	elif "--test-modifiers-cylinders" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = false
+		body_mesh.cylinder_modifiers_enabled = true
+		body_mesh.cylinder_count = 14
+		body_mesh.cylinder_radius = 9.0
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		camera.position.z = 1.0
+		should_exit = true
+	elif "--test-modifiers-honeycomb" in args:
+		_switch_ui_mode(0)
+		body_mesh.sphere_modifiers_enabled = false
+		body_mesh.cylinder_modifiers_enabled = false
+		body_mesh.honeycomb_modifiers_enabled = true
+		body_mesh.honeycomb_cell_size = 22.0
+		_sync_ui_from_mesh()
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.35, 0.45, 0.0)
+		camera.position.z = 1.0
+		should_exit = true
+	elif "--test-presets" in args:
+		_switch_ui_mode(0)
+		_apply_shape_preset(1) # LP Single-Cut
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.25, 0.35, 0.0)
+		camera_pivot.position = Vector3(0.0, 0.15, 0.0)
+		camera.position.z = 1.40
+		should_exit = true
+	elif "--test-preset-sg" in args:
+		_switch_ui_mode(0)
+		_apply_shape_preset(2) # SG Double-Cut
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.25, 0.35, 0.0)
+		camera_pivot.position = Vector3(0.0, 0.15, 0.0)
+		camera.position.z = 1.40
+		should_exit = true
+	elif "--test-preset-v" in args:
+		_switch_ui_mode(0)
+		_apply_shape_preset(4) # Flying V
+		check_hardware_models.button_pressed = true
+		check_neck.button_pressed = true
+		_update_hardware_visuals()
+		camera_pivot.rotation = Vector3(-0.25, 0.35, 0.0)
+		camera_pivot.position = Vector3(0.0, 0.15, 0.0)
+		camera.position.z = 1.40
 		should_exit = true
 	elif "--test-save-load" in args:
 		_switch_ui_mode(3)

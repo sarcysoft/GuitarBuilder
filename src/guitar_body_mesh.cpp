@@ -226,6 +226,47 @@ void GuitarBodyMesh::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_wiring_tunnels_enabled"), &GuitarBodyMesh::get_wiring_tunnels_enabled);
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "wiring_tunnels_enabled"), "set_wiring_tunnels_enabled", "get_wiring_tunnels_enabled");
 
+    // Phase 5: Procedural Modifiers (Weight Relief & Acoustic Chambering)
+    ClassDB::bind_method(D_METHOD("set_sphere_modifiers_enabled", "val"), &GuitarBodyMesh::set_sphere_modifiers_enabled);
+    ClassDB::bind_method(D_METHOD("get_sphere_modifiers_enabled"), &GuitarBodyMesh::get_sphere_modifiers_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "sphere_modifiers_enabled"), "set_sphere_modifiers_enabled", "get_sphere_modifiers_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_sphere_count", "val"), &GuitarBodyMesh::set_sphere_count);
+    ClassDB::bind_method(D_METHOD("get_sphere_count"), &GuitarBodyMesh::get_sphere_count);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "sphere_count"), "set_sphere_count", "get_sphere_count");
+
+    ClassDB::bind_method(D_METHOD("set_sphere_radius", "val"), &GuitarBodyMesh::set_sphere_radius);
+    ClassDB::bind_method(D_METHOD("get_sphere_radius"), &GuitarBodyMesh::get_sphere_radius);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "sphere_radius"), "set_sphere_radius", "get_sphere_radius");
+
+    ClassDB::bind_method(D_METHOD("set_cylinder_modifiers_enabled", "val"), &GuitarBodyMesh::set_cylinder_modifiers_enabled);
+    ClassDB::bind_method(D_METHOD("get_cylinder_modifiers_enabled"), &GuitarBodyMesh::get_cylinder_modifiers_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "cylinder_modifiers_enabled"), "set_cylinder_modifiers_enabled", "get_cylinder_modifiers_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_cylinder_count", "val"), &GuitarBodyMesh::set_cylinder_count);
+    ClassDB::bind_method(D_METHOD("get_cylinder_count"), &GuitarBodyMesh::get_cylinder_count);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "cylinder_count"), "set_cylinder_count", "get_cylinder_count");
+
+    ClassDB::bind_method(D_METHOD("set_cylinder_radius", "val"), &GuitarBodyMesh::set_cylinder_radius);
+    ClassDB::bind_method(D_METHOD("get_cylinder_radius"), &GuitarBodyMesh::get_cylinder_radius);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "cylinder_radius"), "set_cylinder_radius", "get_cylinder_radius");
+
+    ClassDB::bind_method(D_METHOD("set_cylinder_angle", "val"), &GuitarBodyMesh::set_cylinder_angle);
+    ClassDB::bind_method(D_METHOD("get_cylinder_angle"), &GuitarBodyMesh::get_cylinder_angle);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "cylinder_angle"), "set_cylinder_angle", "get_cylinder_angle");
+
+    ClassDB::bind_method(D_METHOD("set_honeycomb_modifiers_enabled", "val"), &GuitarBodyMesh::set_honeycomb_modifiers_enabled);
+    ClassDB::bind_method(D_METHOD("get_honeycomb_modifiers_enabled"), &GuitarBodyMesh::get_honeycomb_modifiers_enabled);
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "honeycomb_modifiers_enabled"), "set_honeycomb_modifiers_enabled", "get_honeycomb_modifiers_enabled");
+
+    ClassDB::bind_method(D_METHOD("set_honeycomb_cell_size", "val"), &GuitarBodyMesh::set_honeycomb_cell_size);
+    ClassDB::bind_method(D_METHOD("get_honeycomb_cell_size"), &GuitarBodyMesh::get_honeycomb_cell_size);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "honeycomb_cell_size"), "set_honeycomb_cell_size", "get_honeycomb_cell_size");
+
+    ClassDB::bind_method(D_METHOD("set_modifier_seed", "val"), &GuitarBodyMesh::set_modifier_seed);
+    ClassDB::bind_method(D_METHOD("get_modifier_seed"), &GuitarBodyMesh::get_modifier_seed);
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "modifier_seed"), "set_modifier_seed", "get_modifier_seed");
+
     // Phase 3: CAM Slicing, Dowels & Production Export
     ClassDB::bind_method(D_METHOD("set_slicing_enabled", "val"), &GuitarBodyMesh::set_slicing_enabled);
     ClassDB::bind_method(D_METHOD("get_slicing_enabled"), &GuitarBodyMesh::get_slicing_enabled);
@@ -637,6 +678,76 @@ void GuitarBodyMesh::set_wiring_tunnels_enabled(bool p_val) {
     if (wiring_tunnels_enabled != p_val) {
         wiring_tunnels_enabled = p_val;
         rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_sphere_modifiers_enabled(bool p_val) {
+    if (sphere_modifiers_enabled != p_val) {
+        sphere_modifiers_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_sphere_count(int p_val) {
+    if (sphere_count != p_val) {
+        sphere_count = p_val;
+        if (sphere_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_sphere_radius(double p_val) {
+    if (sphere_radius != p_val) {
+        sphere_radius = p_val;
+        if (sphere_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_cylinder_modifiers_enabled(bool p_val) {
+    if (cylinder_modifiers_enabled != p_val) {
+        cylinder_modifiers_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_cylinder_count(int p_val) {
+    if (cylinder_count != p_val) {
+        cylinder_count = p_val;
+        if (cylinder_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_cylinder_radius(double p_val) {
+    if (cylinder_radius != p_val) {
+        cylinder_radius = p_val;
+        if (cylinder_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_cylinder_angle(double p_val) {
+    if (cylinder_angle != p_val) {
+        cylinder_angle = p_val;
+        if (cylinder_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_honeycomb_modifiers_enabled(bool p_val) {
+    if (honeycomb_modifiers_enabled != p_val) {
+        honeycomb_modifiers_enabled = p_val;
+        rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_honeycomb_cell_size(double p_val) {
+    if (honeycomb_cell_size != p_val) {
+        honeycomb_cell_size = p_val;
+        if (honeycomb_modifiers_enabled) rebuild_mesh();
+    }
+}
+
+void GuitarBodyMesh::set_modifier_seed(int p_val) {
+    if (modifier_seed != p_val) {
+        modifier_seed = p_val;
+        if (sphere_modifiers_enabled || cylinder_modifiers_enabled) rebuild_mesh();
     }
 }
 
@@ -1449,6 +1560,111 @@ void GuitarBodyMesh::rebuild_mesh() {
         vec3 j_start{ cc_x, cc_y - 35.0 * scale_y, drill_z };
         vec3 j_end{ 145.13 * (t_hip / 159.0), 72.89 * scale_y, drill_z };
         body = body - make_tunnel(j_start, j_end, 6.0);
+    }
+
+    // Phase 5: Procedural Modifiers (Sphere Chambering, Angled Cylinders, Honeycomb Lattice)
+    // Central Spine Keep-out: X in [-55, +55] mm must remain solid wood (holds neck mortise, pickups, bridge, strings).
+    // Control Cavity Exclusion: X in [50, 110], Y in [110 * scale_y, 230 * scale_y].
+    if (sphere_modifiers_enabled || cylinder_modifiers_enabled || honeycomb_modifiers_enabled) {
+        auto is_protected = [&](double px, double py, double pr) -> bool {
+            // 1. Central spine keep-out core
+            if (std::abs(px) - pr < 55.0) {
+                return true;
+            }
+            // 2. Control cavity exclusion zone on treble side
+            if (px + pr > 50.0 && px - pr < 110.0 && py + pr > 110.0 * scale_y && py - pr < 230.0 * scale_y) {
+                return true;
+            }
+            // 3. Keep within body length bounds
+            if (py - pr < 40.0 * scale_y || py + pr > 430.0 * scale_y) {
+                return true;
+            }
+            return false;
+        };
+
+        // 1. Sphere Chambering Cutouts
+        if (sphere_modifiers_enabled && sphere_count > 0 && sphere_radius > 1.0) {
+            uint32_t rng = (uint32_t)(modifier_seed * 1103515245 + 12345);
+            auto rand_f = [&]() -> double {
+                rng = rng * 1103515245 + 12345;
+                return (double)(rng & 0x7FFFFFFF) / (double)0x7FFFFFFF;
+            };
+            int placed = 0;
+            int attempts = 0;
+            while (placed < sphere_count && attempts < 300) {
+                attempts++;
+                bool left_side = (rand_f() > 0.40);
+                double px = left_side ? (-70.0 - rand_f() * (b_hip - 85.0)) : (70.0 + rand_f() * (t_hip - 85.0));
+                double py = (60.0 + rand_f() * 320.0) * scale_y;
+                double pz = body_thickness * 0.5;
+
+                if (is_protected(px, py, sphere_radius)) continue;
+
+                body = body - Manifold::Sphere(sphere_radius, 16).Translate(vec3{ px, py, pz });
+                placed++;
+            }
+        }
+
+        // 2. Angled Perforating Cylinders
+        if (cylinder_modifiers_enabled && cylinder_count > 0 && cylinder_radius > 1.0) {
+            uint32_t rng = (uint32_t)((modifier_seed + 101) * 1103515245 + 12345);
+            auto rand_f = [&]() -> double {
+                rng = rng * 1103515245 + 12345;
+                return (double)(rng & 0x7FFFFFFF) / (double)0x7FFFFFFF;
+            };
+            int placed = 0;
+            int attempts = 0;
+            while (placed < cylinder_count && attempts < 300) {
+                attempts++;
+                bool left_side = (rand_f() > 0.40);
+                double px = left_side ? (-70.0 - rand_f() * (b_hip - 85.0)) : (70.0 + rand_f() * (t_hip - 85.0));
+                double py = (60.0 + rand_f() * 320.0) * scale_y;
+
+                if (is_protected(px, py, cylinder_radius)) continue;
+
+                double ang_x = (rand_f() * 2.0 - 1.0) * cylinder_angle;
+                double ang_y = (rand_f() * 2.0 - 1.0) * cylinder_angle;
+
+                Manifold cyl = Manifold::Cylinder(body_thickness + 20.0, cylinder_radius, cylinder_radius, 16)
+                    .Translate(vec3{ 0.0, 0.0, -10.0 })
+                    .Rotate(ang_x, ang_y, 0.0)
+                    .Translate(vec3{ px, py, 0.0 });
+                body = body - cyl;
+                placed++;
+            }
+        }
+
+        // 3. Honeycomb Lattice
+        if (honeycomb_modifiers_enabled && honeycomb_cell_size >= 10.0) {
+            double s = honeycomb_cell_size;
+            double r_hex = s * 0.44;
+            double dx = s * 1.5;
+            double dy = s * 0.8660254037844386 * 2.0;
+
+            for (double px = -b_hip + s * 0.5; px <= -55.0 - r_hex; px += dx) {
+                for (double py = 60.0 * scale_y; py <= 380.0 * scale_y; py += dy * 0.5) {
+                    double offset_x = (((int)(py / (dy * 0.5))) % 2 == 0) ? 0.0 : (dx * 0.5);
+                    double cur_x = px + offset_x;
+                    if (cur_x > -55.0 - r_hex || is_protected(cur_x, py, r_hex)) continue;
+
+                    Manifold hex = Manifold::Cylinder(body_thickness + 10.0, r_hex, r_hex, 6)
+                        .Translate(vec3{ cur_x, py, -5.0 });
+                    body = body - hex;
+                }
+            }
+
+            for (double px = 55.0 + r_hex; px <= t_hip - s * 0.5; px += dx) {
+                for (double py = 60.0 * scale_y; py <= 360.0 * scale_y; py += dy * 0.5) {
+                    double offset_x = (((int)(py / (dy * 0.5))) % 2 == 0) ? 0.0 : (dx * 0.5);
+                    double cur_x = px + offset_x;
+                    if (cur_x < 55.0 + r_hex || is_protected(cur_x, py, r_hex)) continue;
+
+                    Manifold hex = Manifold::Cylinder(body_thickness + 10.0, r_hex, r_hex, 6)
+                        .Translate(vec3{ cur_x, py, -5.0 });
+                    body = body - hex;
+                }
+            }
+        }
     }
 
     // Calculate Smooth Vertex Normals directly in Manifold (smooth up to 50 degree dihedral angle)

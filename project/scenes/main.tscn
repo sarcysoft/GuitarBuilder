@@ -155,6 +155,29 @@ text = "🎨 Finish"
 [node name="HSeparatorMode" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 
+[node name="LblShapePreset" type="Label" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "Body Shape Preset"
+
+[node name="OptionShapePreset" type="OptionButton" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+selected = 0
+item_count = 6
+popup/item_0/text = "1. Sarcaster '62 (Strat)"
+popup/item_0/id = 0
+popup/item_1/text = "2. Single-Cut Standard (LP)"
+popup/item_1/id = 1
+popup/item_2/text = "3. Double-Cut Custom (SG)"
+popup/item_2/id = 2
+popup/item_3/text = "4. Offset Modern (Jazzmaster)"
+popup/item_3/id = 3
+popup/item_4/text = "5. Modern Flying V"
+popup/item_4/id = 4
+popup/item_5/text = "Custom User Dimensions"
+popup/item_5/id = 5
+
 [node name="LblGlobal" type="Label" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
@@ -517,6 +540,121 @@ max_value = 240.0
 step = 1.0
 value = 160.0
 
+[node name="HSeparatorModifiers" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+
+[node name="LblModifiers" type="Label" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
+theme_override_font_sizes/font_size = 13
+text = "Procedural Modifiers & Weight Relief"
+
+[node name="CheckSphereModifiers" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Sphere Chambering (Acoustic Hollows)"
+
+[node name="GridSphereModifiers" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblSphereCount" type="Label" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
+layout_mode = 2
+text = "Sphere Count:"
+
+[node name="SliderSphereCount" type="HSlider" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 4.0
+max_value = 32.0
+step = 1.0
+value = 16.0
+
+[node name="LblSphereRadius" type="Label" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
+layout_mode = 2
+text = "Sphere Radius (mm):"
+
+[node name="SliderSphereRadius" type="HSlider" parent="UI/Panel/Scroll/VBox/GridSphereModifiers"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 10.0
+max_value = 28.0
+step = 1.0
+value = 20.0
+
+[node name="CheckCylinderModifiers" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Angled Perforating Cylinders"
+
+[node name="GridCylinderModifiers" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblCylinderCount" type="Label" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+layout_mode = 2
+text = "Cylinder Count:"
+
+[node name="SliderCylinderCount" type="HSlider" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 4.0
+max_value = 24.0
+step = 1.0
+value = 12.0
+
+[node name="LblCylinderRadius" type="Label" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+layout_mode = 2
+text = "Cylinder Radius (mm):"
+
+[node name="SliderCylinderRadius" type="HSlider" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 5.0
+max_value = 16.0
+step = 0.5
+value = 9.0
+
+[node name="LblCylinderAngle" type="Label" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+layout_mode = 2
+text = "Max Angle (deg):"
+
+[node name="SliderCylinderAngle" type="HSlider" parent="UI/Panel/Scroll/VBox/GridCylinderModifiers"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 0.0
+max_value = 30.0
+step = 1.0
+value = 15.0
+
+[node name="CheckHoneycombModifiers" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "Honeycomb Lattice"
+
+[node name="GridHoneycombModifiers" type="GridContainer" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 6
+
+[node name="LblHoneycombCell" type="Label" parent="UI/Panel/Scroll/VBox/GridHoneycombModifiers"]
+layout_mode = 2
+text = "Cell Size (mm):"
+
+[node name="SliderHoneycombCell" type="HSlider" parent="UI/Panel/Scroll/VBox/GridHoneycombModifiers"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+min_value = 14.0
+max_value = 36.0
+step = 1.0
+value = 22.0
+
+[node name="BtnReseedModifiers" type="Button" parent="UI/Panel/Scroll/VBox"]
+layout_mode = 2
+text = "🎲 Randomize Modifier Seed"
+
 [node name="HSeparator4" type="HSeparator" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
 
@@ -625,9 +763,10 @@ layout_mode = 2
 button_pressed = true
 text = "Render Chrome Hardware"
 
-[node name="CheckPiezo" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
+[node name="CheckNeck" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
-text = "Piezo Saddles (3x6mm Wire Slots)"
+button_pressed = true
+text = "🎸 Full 22-Fret Neck & Headstock"
 
 [node name="CheckPiezo" type="CheckBox" parent="UI/Panel/Scroll/VBox"]
 layout_mode = 2
