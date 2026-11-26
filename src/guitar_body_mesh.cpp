@@ -257,6 +257,7 @@ void GuitarBodyMesh::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("get_dowel_pin_count"), &GuitarBodyMesh::get_dowel_pin_count);
     ClassDB::bind_method(D_METHOD("get_dowel_pin_transform", "idx"), &GuitarBodyMesh::get_dowel_pin_transform);
+    ClassDB::bind_method(D_METHOD("get_dowel_pin_direction", "idx"), &GuitarBodyMesh::get_dowel_pin_direction);
     ClassDB::bind_method(D_METHOD("get_dowel_pin_mesh"), &GuitarBodyMesh::get_dowel_pin_mesh);
 
     ClassDB::bind_method(D_METHOD("export_full_stl", "filepath"), &GuitarBodyMesh::export_full_stl);
@@ -704,6 +705,13 @@ Transform3D GuitarBodyMesh::get_dowel_pin_transform(int p_idx) const {
         return dowel_transforms[p_idx];
     }
     return Transform3D();
+}
+
+Vector3 GuitarBodyMesh::get_dowel_pin_direction(int p_idx) const {
+    if (p_idx >= 0 && p_idx < (int)dowel_directions.size()) {
+        return dowel_directions[p_idx];
+    }
+    return Vector3(0, 0, 0);
 }
 
 // Centripetal Catmull-Rom spline (alpha = 0.5): guarantees no cusps, loops, or overshoot
@@ -1289,25 +1297,25 @@ void GuitarBodyMesh::rebuild_mesh() {
     }
 
     // Control Cavity & Potentiometer Shaft Holes
-    // Placed at cc_x = 68.0, cc_y = 138.0 to guarantee ample clearance (> 15mm)
-    // from the high-E string-through hole (sx = +26.25, by = 145.0) and ferrule counterbore.
-    double cc_x = 68.0;
-    double cc_y = 138.0 * scale_y;
+    // Control Cavity & Potentiometer Shaft Holes
+    // Situated at cc_x = 76.0, cc_y = 175.0 to guarantee ample clearance (> 25mm)
+    // from the string ferrules, and completely self-contained within the right wing
+    // without crossing the vertical (X=50) or horizontal (Y=110) slicing planes.
+    double cc_x = 76.0;
+    double cc_y = 175.0 * scale_y;
 
     if (control_cavity_enabled) {
         double pocket_depth = std::min(control_cavity_depth, body_thickness - 6.0);
 
-        // Organic control cavity polygon extended downward into the lower bout
-        // to provide generous internal space (> 28mm clearance) for the bottom CTS pot,
-        // tone capacitors, and wiring.
+        // Organic control cavity polygon contained within [X: 56..98, Y: 121..219]
         SimplePolygon cc_pts = {
-            vec2{ -14.0, -70.0 }, // Extended tail end
-            vec2{  14.0, -68.0 }, // Extended tail end right
-            vec2{  20.0, -35.0 }, // Lower-right flank
-            vec2{  24.0,  10.0 }, // Mid-right flank
-            vec2{  14.0,  52.0 }, // Top-right flank
-            vec2{ -14.0,  50.0 }, // Top-left
-            vec2{ -14.0,   5.0 }  // Mid-left (facing bridge ferrules with >17mm wall)
+            vec2{ -14.0, -48.0 }, // Bottom tail
+            vec2{  14.0, -46.0 }, // Bottom tail right
+            vec2{  20.0, -20.0 }, // Lower-right flank
+            vec2{  22.0,  15.0 }, // Mid-right flank
+            vec2{  14.0,  38.0 }, // Top-right flank
+            vec2{ -14.0,  38.0 }, // Top-left
+            vec2{ -14.0,   5.0 }  // Mid-left (facing bridge with >28mm solid wood wall)
         };
         CrossSection cs_cc(cc_pts, CrossSection::FillRule::Positive);
         cs_cc = cs_cc.Offset(8.0, CrossSection::JoinType::Round).Offset(-2.0, CrossSection::JoinType::Round);
@@ -1327,9 +1335,9 @@ void GuitarBodyMesh::rebuild_mesh() {
 
         // Potentiometer shaft holes (3 CTS 9.5mm holes for Vol, Tone1, Tone2)
         std::vector<vec2> pot_positions = {
-            vec2{ cc_x + 2.0, cc_y + 36.0 },
-            vec2{ cc_x + 6.0, cc_y - 4.0 },
-            vec2{ cc_x - 2.0, cc_y - 42.0 }
+            vec2{ cc_x, cc_y + 20.0 },
+            vec2{ cc_x + 6.0, cc_y - 12.0 },
+            vec2{ cc_x + 2.0, cc_y - 44.0 }
         };
         for (const auto& pos : pot_positions) {
             Manifold pot_hole = Manifold::Cylinder(body_thickness + 4.0, 4.8, 4.8, 20)
@@ -1371,7 +1379,7 @@ void GuitarBodyMesh::rebuild_mesh() {
             body = body - make_tunnel(p_mid, p_brg, 4.0);
 
             // Bridge to Control Cavity main harness tunnel (9.0mm diameter)
-            vec3 p_cc{ cc_x - 10.0, cc_y + 25.0 * scale_y, drill_z };
+            vec3 p_cc{ cc_x - 10.0, cc_y + 15.0 * scale_y, drill_z };
             body = body - make_tunnel(p_brg, p_cc, 4.5);
         } else if (pickup_config == 3) { // HH
             // Direct Neck to Bridge tunnel (8.0mm diameter)
@@ -1380,19 +1388,19 @@ void GuitarBodyMesh::rebuild_mesh() {
             body = body - make_tunnel(p_neck, p_brg, 4.0);
 
             // Bridge to Control Cavity tunnel (9.0mm diameter)
-            vec3 p_cc{ cc_x - 10.0, cc_y + 25.0 * scale_y, drill_z };
+            vec3 p_cc{ cc_x - 10.0, cc_y + 15.0 * scale_y, drill_z };
             body = body - make_tunnel(p_brg, p_cc, 4.5);
         }
 
         // 2. Bridge Ground Wire Tunnel (4.0mm diameter)
         // Drilled from bridge position into the control cavity
         vec3 gnd_start{ 14.0, bridge_y * scale_y, body_thickness - 2.0 };
-        vec3 gnd_end{ cc_x - 14.0, cc_y + 5.0 * scale_y, drill_z };
+        vec3 gnd_end{ cc_x - 14.0, cc_y, drill_z };
         body = body - make_tunnel(gnd_start, gnd_end, 2.0);
 
         // 3. Output Jack Tunnel (12.0mm diameter)
         // Drilled from control cavity to the side rim at waypoint 4
-        vec3 j_start{ cc_x, cc_y - 25.0 * scale_y, drill_z };
+        vec3 j_start{ cc_x, cc_y - 35.0 * scale_y, drill_z };
         vec3 j_end{ 145.13 * (t_hip / 159.0), 72.89 * scale_y, drill_z };
         body = body - make_tunnel(j_start, j_end, 6.0);
     }
@@ -1503,42 +1511,50 @@ void GuitarBodyMesh::rebuild_slices() {
         Vector3( 0.000f,  0.850f, 0.0f)  // 7: Center Neck block
     };
 
-    // Dowel Pin Specs (pos, axis) in model mm (Matching SEAM_PINS from setup_scene.py)
+    // Dowel Pin Specs (pos, axis, part_a, part_b) in model mm
+    // Carefully placed in solid wood regions avoiding all cavities and wiring channels.
     struct DowelSpec {
         vec3 pos;
         vec3 axis;
+        int part_a;
+        int part_b;
     };
     std::vector<DowelSpec> specs;
     double mid_z = body_thickness * 0.5;
 
-    // 1. Bot_Left <-> Bot_Right (centerline below bridge)
-    specs.push_back({ vec3{ 0.0, 50.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } });
+    // 1. Bot_Left (0) <-> Bot_Right (1) (centerline below bridge)
+    specs.push_back({ vec3{ 0.0, 55.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 0, 1 });
 
     // 2. Horizontal seam below bridge (Y = y_bridge_cut)
-    specs.push_back({ vec3{ -95.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Left <-> Mid_Left
-    specs.push_back({ vec3{ -25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Left <-> Mid
-    specs.push_back({ vec3{  25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Right <-> Mid
-    specs.push_back({ vec3{  95.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Bot_Right <-> Mid_Right
+    specs.push_back({ vec3{ -95.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 0, 2 }); // Bot_Left <-> Mid_Left
+    specs.push_back({ vec3{ -25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 0, 6 }); // Bot_Left <-> Center_Mid
+    specs.push_back({ vec3{  25.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 6 }); // Bot_Right <-> Center_Mid
+    specs.push_back({ vec3{ 105.0, y_bridge_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 1, 4 }); // Bot_Right <-> Mid_Right
 
     // 3. Vertical seams between wings and center core (X = -50 and X = +50)
-    specs.push_back({ vec3{ -center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Left <-> Mid
-    specs.push_back({ vec3{ -center_x, 210.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Left <-> Mid
-    specs.push_back({ vec3{  center_x, 150.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Right <-> Mid
-    specs.push_back({ vec3{  center_x, 210.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Mid_Right <-> Mid
+    // Left seam (X = -50): 100% solid wood throughout
+    specs.push_back({ vec3{ -center_x, 145.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
+    specs.push_back({ vec3{ -center_x, 245.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 2, 6 }); // Mid_Left <-> Center_Mid
+    // Right seam (X = +50): solid wood below control cavity (Y=120) and above cavity (Y=245)
+    specs.push_back({ vec3{  center_x, 120.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
+    specs.push_back({ vec3{  center_x, 245.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 4, 6 }); // Mid_Right <-> Center_Mid
 
     // 4. Horizontal seams on wings (Y = y_wing_cut)
-    specs.push_back({ vec3{ -90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid_Left <-> Top_Left
-    specs.push_back({ vec3{  90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid_Right <-> Top_Right
+    specs.push_back({ vec3{ -90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 2, 3 }); // Mid_Left <-> Top_Left
+    specs.push_back({ vec3{  90.0, y_wing_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 4, 5 }); // Mid_Right <-> Top_Right
 
     // 5. Vertical seams on horns to top center (X = -50 and X = +50)
-    specs.push_back({ vec3{ -center_x, 310.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Top_Left <-> Top_Mid
-    specs.push_back({ vec3{  center_x, 310.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 } }); // Top_Right <-> Top_Mid
+    // Neck pocket is at X in [-28, 28], neck pickup at Y=325. At Y=365, X=+-50 has >22mm solid wood!
+    specs.push_back({ vec3{ -center_x, 365.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 3, 7 }); // Top_Left <-> Top_Mid
+    specs.push_back({ vec3{  center_x, 365.0 * scale_y, mid_z }, vec3{ 1.0, 0.0, 0.0 }, 5, 7 }); // Top_Right <-> Top_Mid
 
     // 6. Horizontal seam in center core (Y = y_center_cut)
-    specs.push_back({ vec3{ -25.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid <-> Top_Mid
-    specs.push_back({ vec3{  25.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 } }); // Mid <-> Top_Mid
+    // In solid wood between middle pickup and neck pocket, avoiding treble wiring tunnel at X=22
+    specs.push_back({ vec3{ -25.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 6, 7 }); // Center_Mid <-> Top_Mid (bass side)
+    specs.push_back({ vec3{  38.0, y_center_cut, mid_z }, vec3{ 0.0, 1.0, 0.0 }, 6, 7 }); // Center_Mid <-> Top_Mid (treble side)
 
-    // Drill blind dowel holes and store dowel transforms
+    // Drill blind dowel holes and store dowel transforms and motion directions
+    dowel_directions.clear();
     double hole_rad = (dowel_diameter + dowel_clearance) * 0.5;
     for (const auto& sp : specs) {
         Manifold hole = Manifold::Cylinder(dowel_length, hole_rad, hole_rad, 20)
@@ -1559,6 +1575,10 @@ void GuitarBodyMesh::rebuild_slices() {
 
         Vector3 w_pos(sp.pos.x * scale_factor, sp.pos.y * scale_factor - center_y, sp.pos.z * scale_factor - center_z);
         dowel_transforms.push_back(Transform3D(b, w_pos));
+
+        // Dowel pin motion vector: average of its two mating pieces so it stays centered in the seam gap!
+        Vector3 pin_dir = (slice_directions[sp.part_a] + slice_directions[sp.part_b]) * 0.5f;
+        dowel_directions.push_back(pin_dir);
     }
 
     // Create printable chamfered dowel pin mesh
@@ -1732,11 +1752,11 @@ bool GuitarBodyMesh::export_2d_dxf(const String& p_filepath) {
 
     // 4. Control Cavity
     if (control_cavity_enabled) {
-        double cc_x = 68.0;
-        double cc_y = 138.0 * scale_y;
+        double cc_x = 76.0;
+        double cc_y = 175.0 * scale_y;
         manifold::SimplePolygon cc_pts = {
-            manifold::vec2{ -14.0, -70.0 }, manifold::vec2{  14.0, -68.0 }, manifold::vec2{  20.0, -35.0 },
-            manifold::vec2{  24.0,  10.0 }, manifold::vec2{  14.0,  52.0 }, manifold::vec2{ -14.0,  50.0 },
+            manifold::vec2{ -14.0, -48.0 }, manifold::vec2{  14.0, -46.0 }, manifold::vec2{  20.0, -20.0 },
+            manifold::vec2{  22.0,  15.0 }, manifold::vec2{  14.0,  38.0 }, manifold::vec2{ -14.0,  38.0 },
             manifold::vec2{ -14.0,   5.0 }
         };
         manifold::CrossSection cs_cc(cc_pts, manifold::CrossSection::FillRule::Positive);
@@ -1748,9 +1768,9 @@ bool GuitarBodyMesh::export_2d_dxf(const String& p_filepath) {
             }
             write_poly(cc_world, "CONTROL_CAVITY", true);
         }
-        write_circ(cc_x + 2.0, cc_y + 36.0, 4.75, "CONTROL_CAVITY");
-        write_circ(cc_x + 6.0, cc_y - 4.0, 4.75, "CONTROL_CAVITY");
-        write_circ(cc_x - 2.0, cc_y - 42.0, 4.75, "CONTROL_CAVITY");
+        write_circ(cc_x, cc_y + 20.0, 4.75, "CONTROL_CAVITY");
+        write_circ(cc_x + 6.0, cc_y - 12.0, 4.75, "CONTROL_CAVITY");
+        write_circ(cc_x + 2.0, cc_y - 44.0, 4.75, "CONTROL_CAVITY");
     }
 
     file->store_string("0\nENDSEC\n0\nEOF\n");

@@ -92,6 +92,7 @@ private:
     std::vector<Ref<ArrayMesh>> slice_meshes;
     std::vector<Vector3> slice_directions;
     std::vector<Transform3D> dowel_transforms;
+    std::vector<Vector3> dowel_directions;
     Ref<ArrayMesh> dowel_pin_mesh;
 
 protected:
@@ -281,6 +282,7 @@ public:
 
     int get_dowel_pin_count() const { return (int)dowel_transforms.size(); }
     Transform3D get_dowel_pin_transform(int p_idx) const;
+    Vector3 get_dowel_pin_direction(int p_idx) const;
     Ref<ArrayMesh> get_dowel_pin_mesh() const { return dowel_pin_mesh; }
 
     // Production export functions

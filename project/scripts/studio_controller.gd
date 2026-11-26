@@ -652,13 +652,13 @@ func _create_knob_visuals(to_world: Callable, scale_y: float):
 	knob_group.name = "KnobsRig"
 	hardware_rig.add_child(knob_group)
 
-	var cc_x = 68.0
-	var cc_y = 138.0
+	var cc_x = 76.0
+	var cc_y = 175.0 * scale_y
 
 	var pot_positions = [
-		Vector2(cc_x + 2.0, cc_y + 36.0),
-		Vector2(cc_x + 6.0, cc_y - 4.0),
-		Vector2(cc_x - 2.0, cc_y - 42.0)
+		Vector2(cc_x, cc_y + 20.0),
+		Vector2(cc_x + 6.0, cc_y - 12.0),
+		Vector2(cc_x + 2.0, cc_y - 44.0)
 	]
 
 	for pos in pot_positions:
@@ -787,9 +787,13 @@ func _update_slice_visuals():
 		var pin_count = body_mesh.get_dowel_pin_count()
 		for p in range(pin_count):
 			var xf: Transform3D = body_mesh.get_dowel_pin_transform(p)
+			var pin_dir: Vector3 = body_mesh.get_dowel_pin_direction(p)
 			var pi = MeshInstance3D.new()
 			pi.mesh = pin_mesh
 			pi.transform = xf
+			pi.position = xf.origin + pin_dir * explode_dist
+			pi.set_meta("base_origin", xf.origin)
+			pi.set_meta("pin_dir", pin_dir)
 			pi.material_override = dowel_mat
 			pi.name = "DowelPin_%d" % p
 			slice_rig.add_child(pi)
@@ -802,6 +806,10 @@ func _update_slice_transforms():
 		if c.has_meta("slice_dir"):
 			var dir: Vector3 = c.get_meta("slice_dir")
 			c.position = dir * explode_dist
+		elif c.has_meta("pin_dir") and c.has_meta("base_origin"):
+			var pdir: Vector3 = c.get_meta("pin_dir")
+			var borg: Vector3 = c.get_meta("base_origin")
+			c.position = borg + pdir * explode_dist
 
 func _on_export_stl_pressed():
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://export"))
